@@ -76,6 +76,10 @@ def get_current_sp500_constituents():
         response = requests.get(url, headers=headers)
         tables = pd.read_html(response.text)
         current_df = tables[0]
+
+        if isinstance(current_df.columns, pd.MultiIndex):
+            current_df.columns = current_df.columns.get_level_values(-1)
+
         symbol_col = next((c for c in current_df.columns if 'Symbol' in c or 'Ticker' in c), None)
         if symbol_col:
             return set(current_df[symbol_col].tolist())
