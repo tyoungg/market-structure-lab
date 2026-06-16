@@ -3,6 +3,7 @@ from .price_data import load_price_history
 from .matching import find_twins
 from .portfolio import build_twin_portfolio
 from .green_score import calculate_return_premium, calculate_green_score
+from .data_loader import get_index_tickers_at_date
 
 def get_event_window(ticker, event_date, before_days=250, after_days=500):
     """
@@ -58,7 +59,7 @@ def summarize_event(abnormal_returns, event_date):
 
     return pd.Series(summary)
 
-def run_event_analysis(ticker, event_date, universe_df, benchmark="SPY"):
+def run_event_analysis(ticker, event_date, universe_df, benchmark="SPY", current_index=None):
     """
     Full orchestration for a single event analysis.
     """
@@ -67,8 +68,9 @@ def run_event_analysis(ticker, event_date, universe_df, benchmark="SPY"):
         stock_df = get_event_window(ticker, event_date)
         bench_df = get_event_window(benchmark, event_date)
 
-        # 2. Find Twins
-        twins = find_twins(ticker, universe_df)
+        # 2. Find Twins (excluding index members at the time of the event)
+        index_tickers = get_index_tickers_at_date(event_date, current_tickers=current_index)
+        twins = find_twins(ticker, universe_df, exclude_tickers=index_tickers)
         twin_tickers = twins.index.tolist()
 
         # 3. Build Twin Portfolio

@@ -20,9 +20,10 @@ def prepare_matching_features(universe_df):
 
     return pd.DataFrame(scaled_data, index=df_clean.index, columns=features), scaler
 
-def find_twins(target_ticker, universe_df, k=5):
+def find_twins(target_ticker, universe_df, k=5, exclude_tickers=None):
     """
     Finds k-nearest neighbors for a target ticker within the universe.
+    Optional exclude_tickers list to ensure twins are not among index members.
     """
     features = [
         "market_cap",
@@ -42,7 +43,15 @@ def find_twins(target_ticker, universe_df, k=5):
 
     # Exclude the target ticker from the matching pool
     pool = universe_df.drop(target_ticker)
+
+    # Also exclude other index tickers if provided
+    if exclude_tickers:
+        pool = pool.drop(index=[t for t in exclude_tickers if t in pool.index], errors='ignore')
+
     pool = pool[features].dropna()
+
+    if len(pool) < k:
+        raise ValueError(f"Matching pool too small ({len(pool)}) to find {k} twins.")
 
     scaler = StandardScaler()
     X = scaler.fit_transform(pool)
