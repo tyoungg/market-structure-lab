@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from utils.data_loader import load_sp500_changes
+from utils.data_loader import load_sp500_changes, get_current_sp500_constituents
 from utils.fundamentals import load_fundamental_universe
 from utils.event_study import run_event_analysis
 from utils.charts import plot_green_score_distribution
@@ -33,6 +33,10 @@ if st.button("Run Aggregate Analysis"):
         progress_bar = st.progress(0)
         status_text = st.empty()
 
+        # Prefetch current index members to avoid redundant network calls in the loop
+        with st.spinner("Fetching current index constituents..."):
+            current_index = get_current_sp500_constituents()
+
         # We only want additions for now
         # Assuming CSV has 'Date' and 'Added' columns
         additions = events_df[events_df['Added'].notnull()]
@@ -44,7 +48,7 @@ if st.button("Run Aggregate Analysis"):
 
             status_text.text(f"Analyzing {ticker} ({i+1}/{total})...")
 
-            res = run_event_analysis(ticker, date, universe_df)
+            res = run_event_analysis(ticker, date, universe_df, current_index=current_index)
             if res:
                 results.append(res)
 

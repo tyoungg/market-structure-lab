@@ -3,6 +3,7 @@ import pandas as pd
 import os
 from utils.fundamentals import build_fundamental_universe, load_fundamental_universe
 from utils.price_data import download_price_history, save_price_history
+from utils.data_loader import update_sp500_changes
 
 st.title("Data Manager")
 
@@ -27,7 +28,18 @@ if st.button("Build/Update Universe"):
 
 st.header("2. Index Changes Data")
 
-uploaded_file = st.file_uploader("Upload S&P 500 Changes CSV", type="csv")
+if st.button("Auto-update S&P 500 Changes from Wikipedia"):
+    with st.spinner("Scraping Wikipedia..."):
+        df = update_sp500_changes()
+        if df is not None:
+            st.success("S&P 500 changes updated successfully.")
+            st.dataframe(df.head())
+        else:
+            st.error("Failed to update S&P 500 changes.")
+
+st.divider()
+
+uploaded_file = st.file_uploader("Upload Manual S&P 500 Changes CSV", type="csv")
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
     st.dataframe(df.head())
