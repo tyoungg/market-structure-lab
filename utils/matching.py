@@ -37,12 +37,18 @@ def find_twins(target_ticker, universe_df, k=5, exclude_tickers=None, save_match
 
     # Ensure target_row is a DataFrame, not a Series
     target_row = universe_df.loc[[target_ticker], features]
+    target_sector = universe_df.loc[target_ticker, 'sector'] if 'sector' in universe_df.columns else None
 
     if target_row.isnull().any().any():
         missing = target_row.columns[target_row.isnull().any()].tolist()
         raise ValueError(f"{target_ticker} has missing features: {missing}")
 
     pool = universe_df.drop(target_ticker, errors='ignore')
+
+    # Apply sector constraint (Hard Constraint)
+    if target_sector and 'sector' in pool.columns:
+        pool = pool[pool['sector'] == target_sector]
+
     if exclude_tickers:
         # Normalize tickers for exclusion
         exclude_set = {str(t).split(' ')[0] for t in exclude_tickers}

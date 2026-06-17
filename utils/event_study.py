@@ -73,14 +73,20 @@ def run_event_analysis(ticker, event_date, universe_df, benchmark="SPY", current
     import os
     import numpy as np
     try:
-        # 0. Ensure ticker is in universe
-        if ticker not in universe_df.index:
-            print(f"Ticker {ticker} missing from universe, attempting to fetch...")
-            new_f = get_fundamentals(ticker)
-            if new_f:
-                new_row = pd.DataFrame([new_f]).set_index('ticker')
-                universe_df = pd.concat([universe_df, new_row])
-            else:
+        # 0. Ensure ticker is in universe with Point-in-Time Fundamentals
+        # We RE-FETCH fundamentals for the target ticker as of the event date
+        # and also attempt to update its neighbors if needed.
+        # For version 2, we focus on ensuring the target ticker is matched accurately.
+
+        target_f = get_fundamentals(ticker, at_date=event_date)
+        if target_f:
+            target_row = pd.DataFrame([target_f]).set_index('ticker')
+            # Temporarily update universe with point-in-time data for target
+            if ticker in universe_df.index:
+                universe_df = universe_df.drop(ticker)
+            universe_df = pd.concat([universe_df, target_row])
+        else:
+            if ticker not in universe_df.index:
                 print(f"Could not fetch fundamentals for {ticker}. Skipping.")
                 return None
 

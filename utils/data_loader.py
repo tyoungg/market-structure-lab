@@ -168,3 +168,25 @@ def get_index_tickers_at_date(target_date, index_type='sp500', current_tickers=N
             if pd.notnull(row['removed_ticker']): history_tickers.add(row['removed_ticker'])
         else: break
     return history_tickers
+
+def get_all_historical_tickers(index_type='both'):
+    """
+    Returns a set of all tickers that have ever been in the index (based on CSVs).
+    """
+    tickers = set()
+
+    if index_type in ['sp500', 'both']:
+        tickers.update(get_current_sp500_constituents())
+        df = load_sp500_changes()
+        if df is not None:
+            tickers.update(df['added_ticker'].dropna().tolist())
+            tickers.update(df['removed_ticker'].dropna().tolist())
+
+    if index_type in ['dow', 'both']:
+        tickers.update(get_current_dow_constituents())
+        df = load_dow_changes()
+        if df is not None:
+            tickers.update(df['added_ticker'].dropna().tolist())
+            tickers.update(df['removed_ticker'].dropna().tolist())
+
+    return sorted(list(tickers))
