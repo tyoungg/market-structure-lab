@@ -2,18 +2,21 @@ import streamlit as st
 import pandas as pd
 from utils.event_study import get_event_window, calculate_abnormal_returns, summarize_event
 from utils.charts import plot_event_study
-from utils.data_loader import get_sp500_additions
+from utils.data_loader import get_index_additions
 
 st.title("Index Inclusion Event Study")
 
+index_source = st.radio("Select Index Source", ["S&P 500", "Dow Jones"], horizontal=True)
+index_key = 'sp500' if index_source == "S&P 500" else 'dow'
+
 # Load additions for the dropdown
 try:
-    additions = get_sp500_additions()
+    additions = get_index_additions(index_type=index_key)
 except Exception as e:
     st.error(f"Error loading additions: {e}")
     additions = []
 
-addition_options = ["Manual Input"] + [f"{ticker} ({date.strftime('%Y-%m-%d')})" for ticker, date in additions]
+addition_options = ["Manual Input"] + [f"{str(ticker).split(' ')[0]} ({date.strftime('%Y-%m-%d')})" for ticker, date in additions]
 
 selected_option = st.selectbox("Select Index Inclusion Event", options=addition_options)
 
@@ -26,6 +29,8 @@ with col1:
         ticker_val = selected_option.split(" ")[0]
 
     ticker = st.text_input("Ticker", value=ticker_val)
+    alt_ticker = st.text_input("Alternative Ticker (if delisted, e.g. FRCB)", value="")
+    final_ticker = alt_ticker if alt_ticker else ticker
     benchmark = st.text_input("Benchmark", value="SPY")
 
 with col2:
@@ -40,18 +45,18 @@ with col2:
     lookforward = st.slider("Lookforward Days", 50, 500, 500)
 
 if st.button("Analyze"):
-    with st.spinner(f"Analyzing {ticker}..."):
+    with st.spinner(f"Analyzing {final_ticker}..."):
         try:
             # Load data
-            stock_df = get_event_window(ticker, event_date, before_days=lookback, after_days=lookforward)
+            stock_df = get_event_window(final_ticker, event_date, before_days=lookback, after_days=lookforward)
             bench_df = get_event_window(benchmark, event_date, before_days=lookback, after_days=lookforward)
 
-            if stock_df.empty or bench_df.empty:
-                st.error("Could not retrieve data for the specified ticker or benchmark.")
-                if stock_df.empty: st.write(f"Stock data for {ticker} is empty.")
-                if bench_df.empty: st.write(f"Benchmark data for {benchmark} is empty.")
+            if stock_df.empty:
+                st.error(f"No price data found for {final_ticker}. If delisted, try an alternative symbol.")
+            elif bench_df.empty:
+                st.error(f"No price data found for benchmark {benchmark}.")
             else:
-                # Handle potential multi-index from yfinance
+                # Handle MultiIndex
                 if isinstance(stock_df.columns, pd.MultiIndex):
                     stock_df.columns = stock_df.columns.get_level_values(0)
                 if isinstance(bench_df.columns, pd.MultiIndex):
@@ -60,21 +65,23 @@ if st.button("Analyze"):
                 # Calculate abnormal returns
                 abnormal_returns = calculate_abnormal_returns(stock_df, bench_df)
 
-                # Plot
-                plot_df = pd.concat([
-                    stock_df["Close"] / stock_df["Close"].iloc[0],
-                    bench_df["Close"] / bench_df["Close"].iloc[0]
-                ], axis=1).dropna()
-                plot_df.columns = ["stock_return", "benchmark_return"]
+                # Align for plotting
+                common_idx = stock_df.index.intersection(bench_df.index)
+                if len(common_idx) < 2:
+                    st.error("Insufficient overlapping data between stock and benchmark.")
+                else:
+                    plot_df = pd.DataFrame({
+                        "stock_return": stock_df.loc[common_idx, "Close"] / stock_df.loc[common_idx, "Close"].iloc[0],
+                        "benchmark_return": bench_df.loc[common_idx, "Close"] / bench_df.loc[common_idx, "Close"].iloc[0]
+                    })
 
-                plot_event_study(plot_df, ticker, benchmark)
+                    plot_event_study(plot_df, final_ticker, benchmark)
 
-                # Summary Table
-                st.subheader("Event Summary (Abnormal Returns)")
-                summary = summarize_event(abnormal_returns, event_date)
-                st.table(summary)
+                    st.subheader("Event Summary (Abnormal Returns)")
+                    summary = summarize_event(abnormal_returns, event_date)
+                    st.table(summary)
 
         except Exception as e:
-            st.error(f"An error occurred: {e}")
+            st.error(f"Pipeline error: {e}")
             import traceback
             st.code(traceback.format_exc())

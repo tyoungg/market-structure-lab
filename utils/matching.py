@@ -1,6 +1,7 @@
 from sklearn.preprocessing import StandardScaler
 from sklearn.neighbors import NearestNeighbors
 import pandas as pd
+import numpy as np
 
 def prepare_matching_features(universe_df):
     """
@@ -12,18 +13,15 @@ def prepare_matching_features(universe_df):
         "revenue_growth",
         "operating_margin"
     ]
-    # Drop rows with missing features for matching
     df_clean = universe_df[features].dropna()
-
     scaler = StandardScaler()
     scaled_data = scaler.fit_transform(df_clean)
-
     return pd.DataFrame(scaled_data, index=df_clean.index, columns=features), scaler
 
 def find_twins(target_ticker, universe_df, k=5, exclude_tickers=None):
     """
     Finds k-nearest neighbors for a target ticker within the universe.
-    Optional exclude_tickers list to ensure twins are not among index members.
+    Fixes "all scalar values" error by ensuring target_row is a DataFrame.
     """
     features = [
         "market_cap",
@@ -32,21 +30,21 @@ def find_twins(target_ticker, universe_df, k=5, exclude_tickers=None):
         "operating_margin"
     ]
 
-    # Ensure target_ticker is in universe and has features
     if target_ticker not in universe_df.index:
         raise ValueError(f"{target_ticker} not found in universe")
 
+    # Ensure target_row is a DataFrame, not a Series
     target_row = universe_df.loc[[target_ticker], features]
 
     if target_row.isnull().any().any():
-        raise ValueError(f"{target_ticker} has missing features")
+        missing = target_row.columns[target_row.isnull().any()].tolist()
+        raise ValueError(f"{target_ticker} has missing features: {missing}")
 
-    # Exclude the target ticker from the matching pool
-    pool = universe_df.drop(target_ticker)
-
-    # Also exclude other index tickers if provided
+    pool = universe_df.drop(target_ticker, errors='ignore')
     if exclude_tickers:
-        pool = pool.drop(index=[t for t in exclude_tickers if t in pool.index], errors='ignore')
+        # Normalize tickers for exclusion
+        exclude_set = {str(t).split(' ')[0] for t in exclude_tickers}
+        pool = pool.drop(index=[t for t in pool.index if t in exclude_set], errors='ignore')
 
     pool = pool[features].dropna()
 
@@ -55,11 +53,13 @@ def find_twins(target_ticker, universe_df, k=5, exclude_tickers=None):
 
     scaler = StandardScaler()
     X = scaler.fit_transform(pool)
-    target = scaler.transform(target_row)
+
+    # transform requires a 2D array or DataFrame
+    target_scaled = scaler.transform(target_row)
 
     nn = NearestNeighbors(n_neighbors=k)
     nn.fit(X)
 
-    distances, indices = nn.kneighbors(target)
+    distances, indices = nn.kneighbors(target_scaled)
 
     return pool.iloc[indices[0]]
