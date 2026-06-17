@@ -26,9 +26,6 @@ def get_fundamentals(ticker, at_date=None):
             "momentum": info.get("fiftyTwoWeekChange")
         }
 
-        # If at_date is provided, we could try to fetch historical market cap
-        # data = get_historical_fundamentals(ticker, at_date) # Future implementation
-
         return data
     except Exception as e:
         print(f"Error fetching fundamentals for {ticker}: {e}")
@@ -44,8 +41,15 @@ def build_fundamental_universe(tickers):
         if f:
             data.append(f)
 
+    if not data:
+        return pd.DataFrame()
+
     df = pd.DataFrame(data)
     df.set_index("ticker", inplace=True)
+
+    # Ensure data directory exists
+    os.makedirs(os.path.dirname(CACHE_PATH), exist_ok=True)
+
     df.to_parquet(CACHE_PATH)
     return df
 
@@ -54,5 +58,8 @@ def load_fundamental_universe():
     Loads the cached fundamental universe.
     """
     if os.path.exists(CACHE_PATH):
-        return pd.read_parquet(CACHE_PATH)
+        try:
+            return pd.read_parquet(CACHE_PATH)
+        except:
+            return None
     return None

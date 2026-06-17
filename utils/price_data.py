@@ -32,8 +32,7 @@ def save_price_history(ticker, df):
     """
     if df.empty:
         return
-    if not os.path.exists(CACHE_DIR):
-        os.makedirs(CACHE_DIR)
+    os.makedirs(CACHE_DIR, exist_ok=True)
     path = get_cache_path(ticker)
     df.to_parquet(path)
 

@@ -61,6 +61,7 @@ if st.button("Run Aggregate Analysis"):
             cached_df = pd.DataFrame()
 
         total = len(additions)
+        errors = []
 
         if total == 0:
             st.warning("No addition events found in the dataset.")
@@ -79,13 +80,23 @@ if st.button("Run Aggregate Analysis"):
 
                 status_text.text(f"Analyzing {ticker} ({i+1}/{total})...")
 
-                res = run_event_analysis(ticker, date, universe_df, current_index=current_index, index_type=index_key)
-                if res:
-                    results.append(res)
+                try:
+                    res = run_event_analysis(ticker, date, universe_df, current_index=current_index, index_type=index_key)
+                    if res:
+                        results.append(res)
+                    else:
+                        errors.append(f"{ticker}: Analysis returned no result (likely missing price data or empty matching pool)")
+                except Exception as e:
+                    errors.append(f"{ticker}: {str(e)}")
 
                 progress_bar.progress((i + 1) / total)
 
         results_df = pd.DataFrame(results)
+
+        if errors:
+            with st.expander("Analysis Logs/Errors"):
+                for err in errors:
+                    st.write(err)
         if not results_df.empty:
             # Update cache
             if cached_df.empty:
