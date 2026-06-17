@@ -9,15 +9,29 @@ def get_cache_path(ticker):
 
 def download_price_history(ticker, start, end):
     """
-    Downloads price history from Yahoo Finance.
+    Downloads price history from Yahoo Finance with robust error handling.
     """
-    df = yf.download(ticker, start=start, end=end, auto_adjust=True)
-    return df
+    try:
+        df = yf.download(ticker, start=start, end=end, auto_adjust=True)
+        if df.empty:
+            print(f"Warning: No data found for {ticker} from {start} to {end}.")
+            return pd.DataFrame()
+
+        # Flatten MultiIndex if necessary
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+
+        return df
+    except Exception as e:
+        print(f"Error downloading data for {ticker}: {e}")
+        return pd.DataFrame()
 
 def save_price_history(ticker, df):
     """
-    Saves price history to a parquet file in the cache directory.
+    Saves price history to a parquet file.
     """
+    if df.empty:
+        return
     if not os.path.exists(CACHE_DIR):
         os.makedirs(CACHE_DIR)
     path = get_cache_path(ticker)
@@ -25,32 +39,32 @@ def save_price_history(ticker, df):
 
 def load_price_history(ticker, start=None, end=None):
     """
-    Loads price history from cache if available and sufficient, otherwise downloads it.
+    Loads price history from cache if sufficient, otherwise downloads.
+    Handles delisted tickers by returning empty DF instead of crashing.
     """
     path = get_cache_path(ticker)
     df = None
 
     if os.path.exists(path):
-        df = pd.read_parquet(path)
-
-        # Check if the cached data covers the requested range
-        if start and end:
-            start_dt = pd.to_datetime(start)
-            end_dt = pd.to_datetime(end)
-            if df.index.min() > start_dt or df.index.max() < end_dt:
-                # Cache is insufficient, need to re-download
-                df = None
+        try:
+            df = pd.read_parquet(path)
+            if start and end:
+                start_dt = pd.to_datetime(start)
+                end_dt = pd.to_datetime(end)
+                if df.index.min() > start_dt or df.index.max() < end_dt:
+                    df = None # Cache insufficient
+        except:
+            df = None
 
     if df is None:
-        # If no start/end provided for download, we might want a default range
-        # but here we use what's passed.
         df = download_price_history(ticker, start, end)
-        save_price_history(ticker, df)
+        if not df.empty:
+            save_price_history(ticker, df)
 
-    if start and end:
+    if df is not None and not df.empty and start and end:
         start_dt = pd.to_datetime(start)
         end_dt = pd.to_datetime(end)
         mask = (df.index >= start_dt) & (df.index <= end_dt)
         return df.loc[mask]
 
-    return df
+    return df if df is not None else pd.DataFrame()

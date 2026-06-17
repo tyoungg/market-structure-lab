@@ -65,7 +65,7 @@ def summarize_event(abnormal_returns, event_date):
 
     return pd.Series(summary)
 
-def run_event_analysis(ticker, event_date, universe_df, benchmark="SPY", current_index=None):
+def run_event_analysis(ticker, event_date, universe_df, benchmark="SPY", current_index=None, index_type='sp500'):
     """
     Full orchestration for a single event analysis.
     """
@@ -75,7 +75,7 @@ def run_event_analysis(ticker, event_date, universe_df, benchmark="SPY", current
         bench_df = get_event_window(benchmark, event_date)
 
         # 2. Find Twins (excluding index members at the time of the event)
-        index_tickers = get_index_tickers_at_date(event_date, current_tickers=current_index)
+        index_tickers = get_index_tickers_at_date(event_date, index_type=index_type, current_tickers=current_index)
         twins = find_twins(ticker, universe_df, exclude_tickers=index_tickers)
         twin_tickers = twins.index.tolist()
 

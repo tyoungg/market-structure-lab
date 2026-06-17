@@ -3,7 +3,7 @@ import pandas as pd
 import os
 from utils.fundamentals import build_fundamental_universe, load_fundamental_universe
 from utils.price_data import download_price_history, save_price_history
-from utils.data_loader import update_sp500_changes
+from utils.data_loader import update_sp500_changes, update_dow_changes
 
 st.title("Data Manager")
 
@@ -28,24 +28,38 @@ if st.button("Build/Update Universe"):
 
 st.header("2. Index Changes Data")
 
-if st.button("Auto-update S&P 500 Changes from Wikipedia"):
-    with st.spinner("Scraping Wikipedia..."):
-        df = update_sp500_changes()
-        if df is not None:
-            st.success("S&P 500 changes updated successfully.")
-            st.dataframe(df.head())
-        else:
-            st.error("Failed to update S&P 500 changes.")
+col1, col2 = st.columns(2)
+
+with col1:
+    if st.button("Auto-update S&P 500 Changes"):
+        with st.spinner("Scraping Wikipedia (S&P 500)..."):
+            df = update_sp500_changes()
+            if df is not None:
+                st.success("S&P 500 changes updated.")
+                st.dataframe(df.head())
+            else:
+                st.error("Failed to update S&P 500.")
+
+with col2:
+    if st.button("Auto-update Dow Jones Changes"):
+        with st.spinner("Scraping Wikipedia (Dow)..."):
+            df = update_dow_changes()
+            if df is not None:
+                st.success("Dow Jones changes updated.")
+                st.dataframe(df.head())
+            else:
+                st.error("Failed to update Dow Jones.")
 
 st.divider()
 
-uploaded_file = st.file_uploader("Upload Manual S&P 500 Changes CSV", type="csv")
+uploaded_file = st.file_uploader("Upload Manual Index Changes CSV", type="csv")
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
     st.dataframe(df.head())
-    if st.button("Save S&P 500 Changes"):
-        df.to_csv("data/sp500_changes.csv", index=False)
-        st.success("Saved to data/sp500_changes.csv")
+    target = st.selectbox("Save as...", ["sp500_changes.csv", "dow_changes.csv"])
+    if st.button("Save Uploaded Data"):
+        df.to_csv(f"data/{target}", index=False)
+        st.success(f"Saved to data/{target}")
 
 st.header("3. Cache Management")
 
