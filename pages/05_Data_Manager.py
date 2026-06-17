@@ -16,8 +16,17 @@ if universe is not None:
 else:
     st.warning("No fundamental universe found.")
 
+if st.button("Load Current S&P 500 Tickers"):
+    from utils.data_loader import get_current_sp500_constituents
+    current_sp = get_current_sp500_constituents()
+    if current_sp:
+        st.session_state['ticker_list'] = ",".join(sorted(list(current_sp)))
+    else:
+        st.error("Could not fetch S&P 500 constituents.")
+
+default_tickers = "AAPL,MSFT,GOOGL,AMZN,META,TSLA,BRK-B,V,JNJ,WMT"
 tickers_input = st.text_area("Tickers to include in universe (comma-separated)",
-                            value="AAPL,MSFT,GOOGL,AMZN,META,TSLA,BRK-B,V,JNJ,WMT")
+                            value=st.session_state.get('ticker_list', default_tickers))
 
 if st.button("Build/Update Universe"):
     tickers = [t.strip() for t in tickers_input.split(",")]

@@ -47,6 +47,8 @@ def extract_ticker(text):
 def normalize_index_changes(tables):
     for t in tables:
         if t.shape[1] < 2: continue
+
+        # Flatten MultiIndex
         if isinstance(t.columns, pd.MultiIndex):
             new_cols = []
             for col in t.columns:
@@ -61,9 +63,9 @@ def normalize_index_changes(tables):
         for c in t.columns:
             cl = str(c).lower()
             if 'date' in cl: mapping[c] = 'event_date'
-            elif 'added' in cl or 'addition' in cl: mapping[c] = 'added_ticker'
-            elif 'removed' in cl or 'removal' in cl: mapping[c] = 'removed_ticker'
-            elif 'ticker' in cl:
+            elif 'added' in cl or 'addition' in cl or 'member added' in cl: mapping[c] = 'added_ticker'
+            elif 'removed' in cl or 'removal' in cl or 'member removed' in cl: mapping[c] = 'removed_ticker'
+            elif 'ticker' in cl or 'symbol' in cl:
                 if 'added_ticker' not in mapping.values(): mapping[c] = 'added_ticker'
                 elif 'removed_ticker' not in mapping.values(): mapping[c] = 'removed_ticker'
 
@@ -88,7 +90,7 @@ def update_sp500_changes():
         tables = pd.read_html(StringIO(response.text))
         df = normalize_index_changes(tables)
         if df is not None:
-            if not os.path.exists(DATA_DIR): os.makedirs(DATA_DIR)
+            os.makedirs(DATA_DIR, exist_ok=True)
             df.to_csv(os.path.join(DATA_DIR, "sp500_changes.csv"), index=False)
             return df
     except Exception as e:
@@ -101,17 +103,18 @@ def update_dow_changes():
     try:
         response = requests.get(url, headers=headers)
         tables = pd.read_html(StringIO(response.text))
-        for t in tables:
-            cols = [str(c).lower() for c in t.columns]
-            if 'symbol' in cols and 'date added' in cols:
-                df = t.rename(columns={'Symbol': 'added_ticker', 'Date added': 'event_date'})
-                df['event_date'] = pd.to_datetime(df['event_date'], errors='coerce')
-                df = df.dropna(subset=['event_date'])
-                df['removed_ticker'] = None
-                df = df[['event_date', 'added_ticker', 'removed_ticker']]
-                if not os.path.exists(DATA_DIR): os.makedirs(DATA_DIR)
-                df.to_csv(os.path.join(DATA_DIR, "dow_changes.csv"), index=False)
-                return df
+        df = normalize_index_changes(tables)
+
+        if df is None:
+            url_hist = 'https://en.wikipedia.org/wiki/Historical_components_of_the_Dow_Jones_Industrial_Average'
+            response = requests.get(url_hist, headers=headers)
+            tables = pd.read_html(StringIO(response.text))
+            df = normalize_index_changes(tables)
+
+        if df is not None:
+            os.makedirs(DATA_DIR, exist_ok=True)
+            df.to_csv(os.path.join(DATA_DIR, "dow_changes.csv"), index=False)
+            return df
     except Exception as e:
         print(f"Error updating Dow changes: {e}")
     return None

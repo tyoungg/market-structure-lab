@@ -50,8 +50,11 @@ def find_twins(target_ticker, universe_df, k=5, exclude_tickers=None, save_match
 
     pool = pool[features].dropna()
 
+    if len(pool) == 0:
+        raise ValueError("Matching pool is empty after filtering and dropping NaNs.")
+
     if len(pool) < k:
-        raise ValueError(f"Matching pool too small ({len(pool)}) to find {k} twins.")
+        k = len(pool)
 
     scaler = StandardScaler()
     X = scaler.fit_transform(pool)
@@ -73,6 +76,7 @@ def find_twins(target_ticker, universe_df, k=5, exclude_tickers=None, save_match
                 "twin": twins.index.tolist(),
                 "distance": distances[0]
             })
+            os.makedirs(os.path.dirname(MATCHES_FILE), exist_ok=True)
             if os.path.exists(MATCHES_FILE):
                 existing = pd.read_parquet(MATCHES_FILE)
                 updated = pd.concat([existing, match_entry]).drop_duplicates()
