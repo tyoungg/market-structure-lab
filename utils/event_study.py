@@ -1,7 +1,6 @@
 import pandas as pd
 from .price_data import load_price_history
 from .matching import find_twins
-from .fundamentals import get_fundamentals, build_fundamental_universe
 from .portfolio import build_twin_portfolio
 from .green_score import calculate_return_premium, calculate_green_score
 from .data_loader import get_index_tickers_at_date
@@ -73,22 +72,9 @@ def run_event_analysis(ticker, event_date, universe_df, benchmark="SPY", current
     import os
     import numpy as np
     try:
-        # 0. Ensure ticker is in universe
-        if ticker not in universe_df.index:
-            print(f"Ticker {ticker} missing from universe, attempting to fetch...")
-            new_f = get_fundamentals(ticker)
-            if new_f:
-                new_row = pd.DataFrame([new_f]).set_index('ticker')
-                universe_df = pd.concat([universe_df, new_row])
-            else:
-                print(f"Could not fetch fundamentals for {ticker}. Skipping.")
-                return None
-
         # 1. Get Event window
         stock_df = get_event_window(ticker, event_date)
-        if stock_df.empty:
-            print(f"No price data for {ticker}. Skipping.")
-            return None
+        if stock_df.empty: return None
 
         # 2. Find Twins (excluding index members at the time of the event)
         index_tickers = get_index_tickers_at_date(event_date, index_type=index_type, current_tickers=current_index)

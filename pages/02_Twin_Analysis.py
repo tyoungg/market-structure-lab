@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from utils.matching import find_twins
 from utils.portfolio import compare_stock_to_twins
-from utils.fundamentals import load_fundamental_universe, get_fundamentals
+from utils.fundamentals import load_fundamental_universe
 from utils.charts import plot_stock_vs_twins
 from utils.data_loader import get_index_additions, get_index_tickers_at_date
 
@@ -48,17 +48,6 @@ if universe_df is None:
 else:
     if st.button("Find Twins & Compare"):
         try:
-            # Check if ticker in universe, if not try to add it
-            if ticker not in universe_df.index:
-                with st.spinner(f"Ticker {ticker} not in universe. Fetching fundamentals..."):
-                    new_f = get_fundamentals(ticker)
-                    if new_f:
-                        new_row = pd.DataFrame([new_f]).set_index('ticker')
-                        universe_df = pd.concat([universe_df, new_row])
-                    else:
-                        st.error(f"Could not find fundamentals for {ticker}.")
-                        st.stop()
-
             with st.spinner("Finding twins (excluding index members at time of event)..."):
                 index_tickers_at_time = get_index_tickers_at_date(event_date, index_type=index_key)
                 twins = find_twins(ticker, universe_df, exclude_tickers=index_tickers_at_time)
