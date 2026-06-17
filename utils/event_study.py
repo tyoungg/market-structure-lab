@@ -73,22 +73,17 @@ def run_event_analysis(ticker, event_date, universe_df, benchmark="SPY", current
     import os
     import numpy as np
     try:
-        # 0. Ensure ticker is in universe with Point-in-Time Fundamentals
-        # We RE-FETCH fundamentals for the target ticker as of the event date
-        # and also attempt to update its neighbors if needed.
-        # For version 2, we focus on ensuring the target ticker is matched accurately.
-
+        # 0. Point-in-Time Fundamentals
+        # We ensure target ticker info is available as of event date
         target_f = get_fundamentals(ticker, at_date=event_date)
         if target_f:
             target_row = pd.DataFrame([target_f]).set_index('ticker')
-            # Temporarily update universe with point-in-time data for target
             if ticker in universe_df.index:
                 universe_df = universe_df.drop(ticker)
             universe_df = pd.concat([universe_df, target_row])
-        else:
-            if ticker not in universe_df.index:
-                print(f"Could not fetch fundamentals for {ticker}. Skipping.")
-                return None
+        elif ticker not in universe_df.index:
+            print(f"Could not fetch fundamentals for {ticker}. Skipping.")
+            return None
 
         # 1. Get Event window
         stock_df = get_event_window(ticker, event_date)
@@ -96,9 +91,9 @@ def run_event_analysis(ticker, event_date, universe_df, benchmark="SPY", current
             print(f"No price data for {ticker}. Skipping.")
             return None
 
-        # 2. Find Twins (excluding index members at the time of the event)
+        # 2. Find Twins (using historical universe if available)
         index_tickers = get_index_tickers_at_date(event_date, index_type=index_type, current_tickers=current_index)
-        twins = find_twins(ticker, universe_df, exclude_tickers=index_tickers)
+        twins = find_twins(ticker, universe_df, event_date=event_date, exclude_tickers=index_tickers)
         twin_tickers = twins.index.tolist()
 
         # 3. Build Twin Portfolio
@@ -106,7 +101,8 @@ def run_event_analysis(ticker, event_date, universe_df, benchmark="SPY", current
         start = event_dt - pd.Timedelta(days=250*2)
         end = event_dt + pd.Timedelta(days=500*2)
         twin_portfolio = build_twin_portfolio(twin_tickers, start, end)
-        if twin_portfolio.empty: return None
+        if twin_portfolio is None or (isinstance(twin_portfolio, (pd.Series, pd.DataFrame)) and twin_portfolio.empty):
+            return None
 
         # 4. Calculate Advanced Components
         # Find position of event_dt
@@ -132,6 +128,12 @@ def run_event_analysis(ticker, event_date, universe_df, benchmark="SPY", current
         valuation_change = stock_df['Close'].iloc[min(len(stock_df)-1, event_pos+180)] / stock_df['Close'].iloc[event_pos] - 1
 
         # 5. Calculate Returns for Green Score
+        if twin_portfolio is None or twin_portfolio.empty:
+            return None
+
+        if not hasattr(twin_portfolio, 'index'):
+            return None
+
         common_index = stock_df.index.intersection(twin_portfolio.index)
         # Normalize returns from the event date onwards
         stock_subset = stock_df.loc[common_index]

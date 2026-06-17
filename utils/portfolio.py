@@ -17,7 +17,11 @@ def build_twin_portfolio(twin_tickers, start_date, end_date):
     if not prices:
         return pd.Series()
 
-    price_df = pd.DataFrame(prices).dropna()
+    price_df = pd.DataFrame(prices)
+    if price_df.empty:
+        return pd.Series()
+
+    price_df = price_df.dropna()
 
     # Handle multi-index if present (sometimes happens with yfinance download)
     if isinstance(price_df.columns, pd.MultiIndex):
