@@ -18,11 +18,13 @@ def prepare_matching_features(universe_df):
     scaled_data = scaler.fit_transform(df_clean)
     return pd.DataFrame(scaled_data, index=df_clean.index, columns=features), scaler
 
-def find_twins(target_ticker, universe_df, k=5, exclude_tickers=None):
+def find_twins(target_ticker, universe_df, k=5, exclude_tickers=None, save_matches=True):
     """
     Finds k-nearest neighbors for a target ticker within the universe.
     Fixes "all scalar values" error by ensuring target_row is a DataFrame.
     """
+    import os
+    MATCHES_FILE = "data/twin_matches.parquet"
     features = [
         "market_cap",
         "pe_ratio",
@@ -62,4 +64,22 @@ def find_twins(target_ticker, universe_df, k=5, exclude_tickers=None):
 
     distances, indices = nn.kneighbors(target_scaled)
 
-    return pool.iloc[indices[0]]
+    twins = pool.iloc[indices[0]]
+
+    if save_matches:
+        try:
+            match_entry = pd.DataFrame({
+                "target": [target_ticker] * k,
+                "twin": twins.index.tolist(),
+                "distance": distances[0]
+            })
+            if os.path.exists(MATCHES_FILE):
+                existing = pd.read_parquet(MATCHES_FILE)
+                updated = pd.concat([existing, match_entry]).drop_duplicates()
+                updated.to_parquet(MATCHES_FILE)
+            else:
+                match_entry.to_parquet(MATCHES_FILE)
+        except Exception as e:
+            print(f"Error saving matches: {e}")
+
+    return twins

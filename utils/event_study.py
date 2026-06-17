@@ -67,12 +67,14 @@ def summarize_event(abnormal_returns, event_date):
 
 def run_event_analysis(ticker, event_date, universe_df, benchmark="SPY", current_index=None, index_type='sp500'):
     """
-    Full orchestration for a single event analysis.
+    Full orchestration for a single event analysis (Version 2).
     """
+    import os
+    import numpy as np
     try:
         # 1. Get Event window
         stock_df = get_event_window(ticker, event_date)
-        bench_df = get_event_window(benchmark, event_date)
+        if stock_df.empty: return None
 
         # 2. Find Twins (excluding index members at the time of the event)
         index_tickers = get_index_tickers_at_date(event_date, index_type=index_type, current_tickers=current_index)
@@ -84,29 +86,63 @@ def run_event_analysis(ticker, event_date, universe_df, benchmark="SPY", current
         start = event_dt - pd.Timedelta(days=250*2)
         end = event_dt + pd.Timedelta(days=500*2)
         twin_portfolio = build_twin_portfolio(twin_tickers, start, end)
+        if twin_portfolio.empty: return None
 
-        # 4. Calculate Returns
-        # Handle multi-index if present
-        if isinstance(stock_df.columns, pd.MultiIndex):
-            stock_df.columns = stock_df.columns.get_level_values(0)
+        # 4. Calculate Advanced Components
+        # Find position of event_dt
+        if event_dt not in stock_df.index:
+            idx = stock_df.index.get_indexer([event_dt], method='nearest')[0]
+            event_dt_actual = stock_df.index[idx]
+        else:
+            event_dt_actual = event_dt
 
-        # We need to align stock_df and twin_portfolio
+        event_pos = stock_df.index.get_loc(event_dt_actual)
+
+        # Liquidity Change (Volume expansion after inclusion)
+        pre_vol = stock_df['Volume'].iloc[max(0, event_pos-30):event_pos].mean()
+        post_vol = stock_df['Volume'].iloc[event_pos:min(len(stock_df), event_pos+30)].mean()
+        liquidity_change = (post_vol / pre_vol - 1) if pre_vol > 0 else 0
+
+        # Momentum Persistence
+        pre_ret = stock_df['Close'].iloc[event_pos] / stock_df['Close'].iloc[max(0, event_pos-90)] - 1
+        post_ret = stock_df['Close'].iloc[min(len(stock_df)-1, event_pos+90)] / stock_df['Close'].iloc[event_pos] - 1
+        momentum_persistence = post_ret if pre_ret > 0 else 0 # Simplified logic
+
+        # Valuation Expansion (Approximate using price if historical P/E unavailable)
+        valuation_change = stock_df['Close'].iloc[min(len(stock_df)-1, event_pos+180)] / stock_df['Close'].iloc[event_pos] - 1
+
+        # 5. Calculate Returns for Green Score
         common_index = stock_df.index.intersection(twin_portfolio.index)
-        stock_returns = stock_df.loc[common_index, "Close"] / stock_df.loc[common_index, "Close"].iloc[0]
-        twin_returns = twin_portfolio.loc[common_index] # Already normalized in build_twin_portfolio?
-        # Actually build_twin_portfolio returns normalized mean.
+        # Normalize returns from the event date onwards
+        stock_subset = stock_df.loc[common_index]
+        twin_subset = twin_portfolio.loc[common_index]
 
-        # Calculate Green Score at end of window or specific point?
-        # Let's say +365 days or last available.
-        stock_final = stock_returns.iloc[-1]
-        twin_final = twin_returns.iloc[-1]
+        # Get position of event in common index
+        if event_dt_actual not in common_index:
+            idx = common_index.get_indexer([event_dt_actual], method='nearest')[0]
+            event_dt_common = common_index[idx]
+        else:
+            event_dt_common = event_dt_actual
 
-        green_score = calculate_green_score(stock_final, twin_final)
+        # Cumulative return from inclusion to end of window (+1 year approx)
+        stock_final_ret = stock_subset['Close'].iloc[-1] / stock_subset['Close'].loc[event_dt_common]
+        twin_final_ret = twin_subset.iloc[-1] / twin_subset.loc[event_dt_common]
+
+        green_score = calculate_green_score(
+            stock_final_ret,
+            twin_final_ret,
+            valuation_change=valuation_change,
+            liquidity_change=liquidity_change,
+            momentum_persistence=momentum_persistence
+        )
 
         return {
             "ticker": ticker,
             "event_date": event_date,
-            "green_score": green_score
+            "green_score": green_score,
+            "return_premium": stock_final_ret - twin_final_ret,
+            "liquidity_impact": liquidity_change,
+            "momentum_impact": momentum_persistence
         }
     except Exception as e:
         print(f"Error analyzing {ticker}: {e}")
