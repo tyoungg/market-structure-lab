@@ -125,7 +125,13 @@ def get_index_additions(index_type='sp500'):
     additions = df[df['added_ticker'].notnull()].copy()
     return list(zip(additions['added_ticker'], additions['event_date']))
 
-def get_current_sp500_constituents():
+def get_current_sp500_constituents(refresh=False):
+    path = os.path.join(DATA_DIR, "sp500_constituents.csv")
+    if not refresh and os.path.exists(path):
+        try:
+            return set(pd.read_csv(path)['Symbol'].tolist())
+        except: pass
+
     url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
     headers = {'User-Agent': 'Mozilla/5.0'}
     try:
@@ -136,11 +142,20 @@ def get_current_sp500_constituents():
             current_df.columns = current_df.columns.get_level_values(-1)
         symbol_col = next((c for c in current_df.columns if 'Symbol' in c or 'Ticker' in c), None)
         if symbol_col:
-            return set(current_df[symbol_col].apply(lambda x: str(x).replace('.', '-')).tolist())
+            tickers = current_df[symbol_col].apply(lambda x: str(x).replace('.', '-')).tolist()
+            # Cache it
+            pd.DataFrame({'Symbol': tickers}).to_csv(path, index=False)
+            return set(tickers)
     except: pass
     return set()
 
-def get_current_dow_constituents():
+def get_current_dow_constituents(refresh=False):
+    path = os.path.join(DATA_DIR, "dow_constituents.csv")
+    if not refresh and os.path.exists(path):
+        try:
+            return set(pd.read_csv(path)['Symbol'].tolist())
+        except: pass
+
     url = 'https://en.wikipedia.org/wiki/Dow_Jones_Industrial_Average'
     headers = {'User-Agent': 'Mozilla/5.0'}
     try:
@@ -148,7 +163,10 @@ def get_current_dow_constituents():
         tables = pd.read_html(StringIO(response.text))
         for t in tables:
             if 'Symbol' in t.columns:
-                return set(t['Symbol'].apply(lambda x: str(x).replace('.', '-')).tolist())
+                tickers = t['Symbol'].apply(lambda x: str(x).replace('.', '-')).tolist()
+                # Cache it
+                pd.DataFrame({'Symbol': tickers}).to_csv(path, index=False)
+                return set(tickers)
     except: pass
     return set()
 

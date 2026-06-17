@@ -14,8 +14,8 @@ def estimate_market_cap(ticker, as_of_date):
         at_dt = pd.to_datetime(as_of_date)
 
         # 1. Get Price
-        start = at_dt - pd.Timedelta(days=7)
-        hist = t.history(start=start, end=at_dt + pd.Timedelta(days=1))
+        start = at_dt - pd.Timedelta(days=10)
+        hist = t.history(start=start, end=at_dt)
         if hist.empty: return None
 
         # Ensure indices are unique
@@ -55,13 +55,14 @@ def get_avg_volume(ticker, as_of_date, lookback=60):
     try:
         t = yf.Ticker(ticker)
         end = pd.to_datetime(as_of_date)
-        start = end - pd.Timedelta(days=lookback * 2) # Buffer
+        start = end - pd.Timedelta(days=lookback * 3) # Buffer
 
-        df = t.history(start=start, end=end + pd.Timedelta(days=1))
+        df = t.history(start=start, end=end)
         if df.empty: return None
 
         return df['Volume'].tail(lookback).mean()
-    except:
+    except Exception as e:
+        print(f"Error get_avg_volume {ticker}: {e}")
         return None
 
 def get_volatility(ticker, as_of_date, lookback=252):
@@ -71,14 +72,15 @@ def get_volatility(ticker, as_of_date, lookback=252):
     try:
         t = yf.Ticker(ticker)
         end = pd.to_datetime(as_of_date)
-        start = end - pd.Timedelta(days=lookback * 2)
+        start = end - pd.Timedelta(days=lookback * 3)
 
-        df = t.history(start=start, end=end + pd.Timedelta(days=1))
+        df = t.history(start=start, end=end)
         if len(df) < 10: return None
 
         returns = df['Close'].tail(lookback).pct_change().dropna()
         return returns.std() * np.sqrt(252)
-    except:
+    except Exception as e:
+        print(f"Error get_volatility {ticker}: {e}")
         return None
 
 def get_momentum(ticker, as_of_date, lookback=252):
@@ -88,14 +90,15 @@ def get_momentum(ticker, as_of_date, lookback=252):
     try:
         t = yf.Ticker(ticker)
         end = pd.to_datetime(as_of_date)
-        start = end - pd.Timedelta(days=lookback + 10) # Buffer
+        start = end - pd.Timedelta(days=lookback + 30) # Buffer
 
-        df = t.history(start=start, end=end + pd.Timedelta(days=1))
+        df = t.history(start=start, end=end)
         if len(df) < 2: return None
 
         relevant = df.tail(lookback)
         return (relevant['Close'].iloc[-1] / relevant['Close'].iloc[0]) - 1
-    except:
+    except Exception as e:
+        print(f"Error get_momentum {ticker}: {e}")
         return None
 
 def get_fundamentals(ticker, at_date=None):
@@ -116,9 +119,10 @@ def get_fundamentals(ticker, at_date=None):
             momentum = get_momentum(ticker, target_dt)
             volatility = get_volatility(ticker, target_dt)
         else:
-            liquidity = info.get("averageVolume")
-            momentum = info.get("fiftyTwoWeekChange")
-            volatility = None # Info doesn't easily provide annualized vol
+            target_dt = pd.Timestamp.now()
+            liquidity = info.get("averageVolume") or get_avg_volume(ticker, target_dt)
+            momentum = info.get("fiftyTwoWeekChange") or get_momentum(ticker, target_dt)
+            volatility = get_volatility(ticker, target_dt)
 
         # Base fundamentals
         data = {
