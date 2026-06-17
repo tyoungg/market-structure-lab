@@ -48,7 +48,23 @@ def find_twins(target_ticker, universe_df, event_date=None, k=5, exclude_tickers
 
     pool = pool.drop(target_ticker, errors='ignore')
 
-    # 3. Apply Hard Constraints
+    # 3. Fill missing features for pool tickers
+    missing_mask = pool[features].isnull().any(axis=1)
+    if missing_mask.any():
+        from .fundamentals import get_fundamentals
+        tickers_to_fix = pool.index[missing_mask].tolist()
+        print(f"Repairing {len(tickers_to_fix)} tickers with missing features...")
+        for t_fix in tickers_to_fix:
+            try:
+                # Use current fundamentals as fallback for matching pool
+                f_fix = get_fundamentals(t_fix)
+                if f_fix:
+                    for feat in features:
+                        if pd.isnull(pool.loc[t_fix, feat]):
+                            pool.loc[t_fix, feat] = f_fix.get(feat)
+            except: pass
+
+    # 4. Apply Hard Constraints
     if target_sector and 'sector' in pool.columns:
         pool = pool[pool['sector'] == target_sector]
 

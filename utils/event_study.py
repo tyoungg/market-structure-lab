@@ -88,7 +88,13 @@ def run_event_analysis(ticker, event_date, universe_df, benchmark="SPY", current
         # 1. Get Event window
         stock_df = get_event_window(ticker, event_date)
         if stock_df.empty:
-            print(f"No price data for {ticker}. Skipping.")
+            print(f"No price data for {ticker} around {event_date}. Skipping.")
+            return None
+
+        # Ensure event_date is actually within the price history
+        event_dt = pd.to_datetime(event_date)
+        if event_dt > stock_df.index.max() or event_dt < stock_df.index.min():
+            print(f"Event date {event_date} for {ticker} is outside available price range.")
             return None
 
         # 2. Find Twins (using historical universe if available)
@@ -114,6 +120,11 @@ def run_event_analysis(ticker, event_date, universe_df, benchmark="SPY", current
 
         event_pos = stock_df.index.get_loc(event_dt_actual)
 
+        # Guard against events that are too recent for full analysis
+        if event_pos > len(stock_df) - 30:
+            print(f"Event for {ticker} on {event_date} is too recent for analysis (less than 30 days of data).")
+            return None
+
         # Liquidity Change (Volume expansion after inclusion)
         pre_vol = stock_df['Volume'].iloc[max(0, event_pos-30):event_pos].mean()
         post_vol = stock_df['Volume'].iloc[event_pos:min(len(stock_df), event_pos+30)].mean()
@@ -121,11 +132,14 @@ def run_event_analysis(ticker, event_date, universe_df, benchmark="SPY", current
 
         # Momentum Persistence
         pre_ret = stock_df['Close'].iloc[event_pos] / stock_df['Close'].iloc[max(0, event_pos-90)] - 1
-        post_ret = stock_df['Close'].iloc[min(len(stock_df)-1, event_pos+90)] / stock_df['Close'].iloc[event_pos] - 1
+
+        post_momentum_idx = min(len(stock_df)-1, event_pos+90)
+        post_ret = stock_df['Close'].iloc[post_momentum_idx] / stock_df['Close'].iloc[event_pos] - 1
         momentum_persistence = post_ret if pre_ret > 0 else 0 # Simplified logic
 
-        # Valuation Expansion (Approximate using price if historical P/E unavailable)
-        valuation_change = stock_df['Close'].iloc[min(len(stock_df)-1, event_pos+180)] / stock_df['Close'].iloc[event_pos] - 1
+        # Valuation Expansion
+        valuation_idx = min(len(stock_df)-1, event_pos+180)
+        valuation_change = stock_df['Close'].iloc[valuation_idx] / stock_df['Close'].iloc[event_pos] - 1
 
         # 5. Calculate Returns for Green Score
         if twin_portfolio is None or twin_portfolio.empty:
