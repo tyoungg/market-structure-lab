@@ -18,7 +18,7 @@ except Exception as e:
     st.error(f"Error loading additions: {e}")
     additions = []
 
-addition_options = ["Manual Input"] + [f"{str(ticker).split(' ')[0]} ({date.strftime('%Y-%m-%d')})" for ticker, date in additions]
+addition_options = ["Manual Input"] + [f"{ticker} ({date.strftime('%Y-%m-%d')})" for ticker, date in additions]
 
 selected_option = st.selectbox("Select Index Inclusion Event", options=addition_options)
 

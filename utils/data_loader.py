@@ -2,157 +2,129 @@ import pandas as pd
 import os
 import requests
 from io import StringIO
+import re
 
 DATA_DIR = "data"
 
 def load_sp500_changes():
-    """
-    Loads S&P 500 inclusion/exclusion data.
-    """
     path = os.path.join(DATA_DIR, "sp500_changes.csv")
     if os.path.exists(path):
         try:
             df = pd.read_csv(path)
-            if 'Date' in df.columns:
-                df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
-                df = df.dropna(subset=['Date'])
+            if 'event_date' in df.columns:
+                df['event_date'] = pd.to_datetime(df['event_date'], errors='coerce')
+                df = df.dropna(subset=['event_date'])
             return df
-        except:
-            return None
+        except: return None
+    return None
+
+def load_dow_changes():
+    path = os.path.join(DATA_DIR, "dow_changes.csv")
+    if os.path.exists(path):
+        try:
+            df = pd.read_csv(path)
+            if 'event_date' in df.columns:
+                df['event_date'] = pd.to_datetime(df['event_date'], errors='coerce')
+                df = df.dropna(subset=['event_date'])
+            return df
+        except: return None
+    return None
+
+def extract_ticker(text):
+    if pd.isna(text): return None
+    text = str(text)
+    match = re.search(r'\(([^)]+)\)', text)
+    if match:
+        ticker = match.group(1).split(':')[-1].strip()
+        return ticker.split(' ')[0]
+    words = text.split(' ')
+    for w in reversed(words):
+        w_clean = re.sub(r'[^A-Z.-]', '', w)
+        if 1 <= len(w_clean) <= 5 and w_clean.isupper():
+            return w_clean
+    return words[0]
+
+def normalize_index_changes(tables):
+    for t in tables:
+        if t.shape[1] < 2: continue
+        if isinstance(t.columns, pd.MultiIndex):
+            new_cols = []
+            for col in t.columns:
+                c0, c1 = str(col[0]), str(col[1])
+                if 'Added' in c0 and 'Ticker' in c1: new_cols.append('added_ticker')
+                elif 'Removed' in c0 and 'Ticker' in c1: new_cols.append('removed_ticker')
+                elif 'Date' in c0 or 'Date' in c1: new_cols.append('event_date')
+                else: new_cols.append(c1)
+            t.columns = new_cols
+
+        mapping = {}
+        for c in t.columns:
+            cl = str(c).lower()
+            if 'date' in cl: mapping[c] = 'event_date'
+            elif 'added' in cl or 'addition' in cl: mapping[c] = 'added_ticker'
+            elif 'removed' in cl or 'removal' in cl: mapping[c] = 'removed_ticker'
+            elif 'ticker' in cl:
+                if 'added_ticker' not in mapping.values(): mapping[c] = 'added_ticker'
+                elif 'removed_ticker' not in mapping.values(): mapping[c] = 'removed_ticker'
+
+        t = t.rename(columns=mapping)
+        if 'event_date' in t.columns and ('added_ticker' in t.columns or 'removed_ticker' in t.columns):
+            df = t.copy()
+            df['event_date'] = pd.to_datetime(df['event_date'], errors='coerce')
+            df = df.dropna(subset=['event_date'])
+            for col in ['added_ticker', 'removed_ticker']:
+                if col in df.columns:
+                    df[col] = df[col].apply(extract_ticker)
+                else:
+                    df[col] = None
+            return df[['event_date', 'added_ticker', 'removed_ticker']]
     return None
 
 def update_sp500_changes():
-    """
-    Scrapes historical S&P 500 changes from Wikipedia.
-    """
     url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
+    headers = {'User-Agent': 'Mozilla/5.0'}
     try:
         response = requests.get(url, headers=headers)
         tables = pd.read_html(StringIO(response.text))
-
-        df = None
-        for t in tables:
-            if isinstance(t.columns, pd.MultiIndex):
-                # Flatten the MultiIndex manually to avoid name collisions before renaming
-                # Table 1: ('Added', 'Ticker'), ('Removed', 'Ticker')
-                new_cols = []
-                for col in t.columns:
-                    if col[0] == 'Added' and col[1] == 'Ticker':
-                        new_cols.append('Added')
-                    elif col[0] == 'Removed' and col[1] == 'Ticker':
-                        new_cols.append('Removed')
-                    elif 'Date' in col[0] or 'Date' in col[1]:
-                        new_cols.append('Date')
-                    else:
-                        new_cols.append(col[1])
-                t.columns = new_cols
-                actual_cols = t.columns
-            else:
-                actual_cols = t.columns
-
-            # Robust header detection
-            cols_str = [str(c) for c in actual_cols]
-            if (any('Added' in c for c in cols_str) or any('Ticker' in c for c in cols_str)) and any('Date' in c for c in cols_str):
-                df = t
-                break
-
+        df = normalize_index_changes(tables)
         if df is not None:
-            if not os.path.exists(DATA_DIR):
-                os.makedirs(DATA_DIR)
-            path = os.path.join(DATA_DIR, "sp500_changes.csv")
-            df.to_csv(path, index=False)
+            if not os.path.exists(DATA_DIR): os.makedirs(DATA_DIR)
+            df.to_csv(os.path.join(DATA_DIR, "sp500_changes.csv"), index=False)
             return df
     except Exception as e:
         print(f"Error updating S&P 500 changes: {e}")
-        import traceback
-        traceback.print_exc()
     return None
 
 def update_dow_changes():
-    """
-    Scrapes historical Dow Jones changes from Wikipedia.
-    """
-    url = 'https://en.wikipedia.org/wiki/Historical_components_of_the_Dow_Jones_Industrial_Average'
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
+    url = 'https://en.wikipedia.org/wiki/Dow_Jones_Industrial_Average'
+    headers = {'User-Agent': 'Mozilla/5.0'}
     try:
         response = requests.get(url, headers=headers)
         tables = pd.read_html(StringIO(response.text))
-
-        all_changes = []
         for t in tables:
-            if isinstance(t.columns, pd.MultiIndex):
-                t.columns = t.columns.get_level_values(-1)
-
-            cols = [str(c) for c in t.columns]
-            # Dow page has many small tables for changes
-            if any('Added' in c for c in cols) or any('Removed' in c for c in cols):
-                # Standardize columns
-                t = t.copy()
-                t.columns = [str(c) for c in t.columns]
-
-                # Rename for consistency if needed
-                mapping = {
-                    'Member added': 'Added',
-                    'Member removed': 'Removed',
-                    'Addition': 'Added',
-                    'Removal': 'Removed'
-                }
-                t = t.rename(columns=mapping)
-                all_changes.append(t)
-
-        if all_changes:
-            df = pd.concat(all_changes, ignore_index=True)
-            # Normalize dates
-            if 'Date' in df.columns:
-                df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
-                df = df.dropna(subset=['Date'])
-
-            path = os.path.join(DATA_DIR, "dow_changes.csv")
-            df.to_csv(path, index=False)
-            return df
-
+            cols = [str(c).lower() for c in t.columns]
+            if 'symbol' in cols and 'date added' in cols:
+                df = t.rename(columns={'Symbol': 'added_ticker', 'Date added': 'event_date'})
+                df['event_date'] = pd.to_datetime(df['event_date'], errors='coerce')
+                df = df.dropna(subset=['event_date'])
+                df['removed_ticker'] = None
+                df = df[['event_date', 'added_ticker', 'removed_ticker']]
+                if not os.path.exists(DATA_DIR): os.makedirs(DATA_DIR)
+                df.to_csv(os.path.join(DATA_DIR, "dow_changes.csv"), index=False)
+                return df
     except Exception as e:
         print(f"Error updating Dow changes: {e}")
     return None
 
 def get_index_additions(index_type='sp500'):
-    """
-    Returns a list of (ticker, date) tuples for additions.
-    """
-    if index_type == 'sp500':
-        df = load_sp500_changes()
-    else:
-        df = load_dow_changes()
-
-    if df is None:
-        return []
-
-    date_col = next((c for c in df.columns if 'Date' in c), None)
-    ticker_col = next((c for c in df.columns if 'Added' in c or 'Ticker' in c or 'Symbol' in c), None)
-
-    if not date_col or not ticker_col:
-        return []
-
-    additions = df[df[ticker_col].notnull()].copy()
-    additions[date_col] = pd.to_datetime(additions[date_col], errors='coerce')
-    additions = additions.dropna(subset=[date_col])
-    additions = additions.sort_values(date_col, ascending=False)
-
-    return list(zip(additions[ticker_col], additions[date_col]))
+    df = load_sp500_changes() if index_type == 'sp500' else load_dow_changes()
+    if df is None: return []
+    additions = df[df['added_ticker'].notnull()].copy()
+    return list(zip(additions['added_ticker'], additions['event_date']))
 
 def get_current_sp500_constituents():
-    """
-    Fetches the current S&P 500 constituents.
-    """
     url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
+    headers = {'User-Agent': 'Mozilla/5.0'}
     try:
         response = requests.get(url, headers=headers)
         tables = pd.read_html(StringIO(response.text))
@@ -162,95 +134,34 @@ def get_current_sp500_constituents():
         symbol_col = next((c for c in current_df.columns if 'Symbol' in c or 'Ticker' in c), None)
         if symbol_col:
             return set(current_df[symbol_col].apply(lambda x: str(x).replace('.', '-')).tolist())
-    except Exception as e:
-        print(f"Error fetching current S&P 500 constituents: {e}")
+    except: pass
     return set()
 
 def get_current_dow_constituents():
-    """
-    Fetches the current Dow Jones constituents.
-    """
     url = 'https://en.wikipedia.org/wiki/Dow_Jones_Industrial_Average'
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
+    headers = {'User-Agent': 'Mozilla/5.0'}
     try:
         response = requests.get(url, headers=headers)
         tables = pd.read_html(StringIO(response.text))
         for t in tables:
             if 'Symbol' in t.columns:
                 return set(t['Symbol'].apply(lambda x: str(x).replace('.', '-')).tolist())
-    except Exception as e:
-        print(f"Error fetching current Dow constituents: {e}")
+    except: pass
     return set()
 
 def get_index_tickers_at_date(target_date, index_type='sp500', current_tickers=None):
-    """
-    Computes index members on a specific historical date with fallback.
-    """
     target_date = pd.to_datetime(target_date)
-
     if current_tickers is None:
-        if index_type == 'sp500':
-            current_tickers = get_current_sp500_constituents()
-        else:
-            current_tickers = get_current_dow_constituents()
+        current_tickers = get_current_sp500_constituents() if index_type == 'sp500' else get_current_dow_constituents()
 
-    if index_type == 'sp500':
-        changes_df = load_sp500_changes()
-    else:
-        changes_df = load_dow_changes()
+    changes_df = load_sp500_changes() if index_type == 'sp500' else load_dow_changes()
+    if changes_df is None: return current_tickers
 
-    if changes_df is None:
-        return current_tickers
-
-    date_col = next((c for c in changes_df.columns if 'Date' in c), 'Date')
-    added_col = next((c for c in changes_df.columns if 'Added' in c), 'Added')
-    removed_col = next((c for c in changes_df.columns if 'Removed' in c), 'Removed')
-
-    if date_col not in changes_df.columns:
-        return current_tickers
-
-    changes_df[date_col] = pd.to_datetime(changes_df[date_col], errors='coerce')
-    changes_df = changes_df.dropna(subset=[date_col])
-    changes_df = changes_df.sort_values(date_col, ascending=False)
-
+    changes_df = changes_df.sort_values('event_date', ascending=False)
     history_tickers = current_tickers.copy()
     for _, row in changes_df.iterrows():
-        if row[date_col] <= target_date:
-            break
-        if added_col in row and pd.notnull(row[added_col]):
-            history_tickers.discard(str(row[added_col]).split(' ')[0])
-        if removed_col in row and pd.notnull(row[removed_col]):
-            history_tickers.add(str(row[removed_col]).split(' ')[0])
-
+        if row['event_date'] > target_date:
+            if pd.notnull(row['added_ticker']): history_tickers.discard(row['added_ticker'])
+            if pd.notnull(row['removed_ticker']): history_tickers.add(row['removed_ticker'])
+        else: break
     return history_tickers
-
-def load_dow_changes():
-    """
-    Loads Dow Jones index change data.
-    """
-    path = os.path.join(DATA_DIR, "dow_changes.csv")
-    if os.path.exists(path):
-        try:
-            df = pd.read_csv(path)
-            if 'Date' in df.columns:
-                df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
-                df = df.dropna(subset=['Date'])
-            return df
-        except:
-            return None
-    return None
-
-def get_all_index_tickers():
-    """
-    Returns a set of all known index tickers.
-    """
-    tickers = set()
-    sp_df = load_sp500_changes()
-    if sp_df is not None and 'Added' in sp_df.columns:
-        tickers.update(sp_df['Added'].dropna().apply(lambda x: str(x).split(' ')[0]).unique())
-    dow_df = load_dow_changes()
-    if dow_df is not None and 'Added' in dow_df.columns:
-        tickers.update(dow_df['Added'].dropna().apply(lambda x: str(x).split(' ')[0]).unique())
-    return tickers
