@@ -19,6 +19,10 @@ def build_twin_portfolio(twin_tickers, start_date, end_date):
 
     price_df = pd.DataFrame(prices).dropna()
 
+    # Handle multi-index if present (sometimes happens with yfinance download)
+    if isinstance(price_df.columns, pd.MultiIndex):
+        price_df.columns = price_df.columns.get_level_values(0)
+
     # Calculate returns normalized to 1.0 at start
     returns = price_df.div(price_df.iloc[0])
 

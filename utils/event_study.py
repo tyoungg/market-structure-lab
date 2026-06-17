@@ -20,6 +20,12 @@ def calculate_abnormal_returns(stock_df, benchmark_df):
     Calculates abnormal returns relative to a benchmark.
     Assumes both dataframes have been aligned by index.
     """
+    # Handle multi-index if present
+    if isinstance(stock_df.columns, pd.MultiIndex):
+        stock_df.columns = stock_df.columns.get_level_values(0)
+    if isinstance(benchmark_df.columns, pd.MultiIndex):
+        benchmark_df.columns = benchmark_df.columns.get_level_values(0)
+
     # Align dataframes
     df = pd.concat([stock_df["Close"], benchmark_df["Close"]], axis=1).dropna()
     df.columns = ["stock", "benchmark"]
@@ -80,6 +86,10 @@ def run_event_analysis(ticker, event_date, universe_df, benchmark="SPY", current
         twin_portfolio = build_twin_portfolio(twin_tickers, start, end)
 
         # 4. Calculate Returns
+        # Handle multi-index if present
+        if isinstance(stock_df.columns, pd.MultiIndex):
+            stock_df.columns = stock_df.columns.get_level_values(0)
+
         # We need to align stock_df and twin_portfolio
         common_index = stock_df.index.intersection(twin_portfolio.index)
         stock_returns = stock_df.loc[common_index, "Close"] / stock_df.loc[common_index, "Close"].iloc[0]
