@@ -16,13 +16,25 @@ if universe is not None:
 else:
     st.warning("No fundamental universe found.")
 
-if st.button("Load Current S&P 500 Tickers"):
-    from utils.data_loader import get_current_sp500_constituents
-    current_sp = get_current_sp500_constituents()
-    if current_sp:
-        st.session_state['ticker_list'] = ",".join(sorted(list(current_sp)))
-    else:
-        st.error("Could not fetch S&P 500 constituents.")
+col_a, col_b = st.columns(2)
+with col_a:
+    if st.button("Load Current S&P 500 Tickers"):
+        from utils.data_loader import get_current_sp500_constituents
+        current_sp = get_current_sp500_constituents()
+        if current_sp:
+            st.session_state['ticker_list'] = ",".join(sorted(list(current_sp)))
+        else:
+            st.error("Could not fetch S&P 500 constituents.")
+
+with col_b:
+    if st.button("Load All Historical Tickers"):
+        from utils.data_loader import get_all_historical_tickers
+        hist_tickers = get_all_historical_tickers()
+        if hist_tickers:
+            st.session_state['ticker_list'] = ",".join(hist_tickers)
+            st.success(f"Loaded {len(hist_tickers)} historical tickers.")
+        else:
+            st.error("Could not fetch historical tickers.")
 
 default_tickers = "AAPL,MSFT,GOOGL,AMZN,META,TSLA,BRK-B,V,JNJ,WMT"
 tickers_input = st.text_area("Tickers to include in universe (comma-separated)",

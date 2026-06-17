@@ -25,13 +25,12 @@ def analyze_sp500_additions():
     if universe_df is None:
         return pd.DataFrame()
 
-    # Filter for additions only if the dataframe has an 'Added' column or similar
-    # Assuming 'Added' column exists per the design doc
     results = []
-    # If the CSV has 'Date' and 'Added' (ticker)
     for index, row in events_df.iterrows():
-        if pd.notnull(row.get('Added')):
-            res = run_event_analysis(row['Added'], row['Date'], universe_df)
+        ticker = row.get('added_ticker')
+        date = row.get('event_date')
+        if pd.notnull(ticker) and pd.notnull(date):
+            res = run_event_analysis(ticker, date, universe_df, index_type='sp500')
             if res:
                 results.append(res)
 
@@ -51,11 +50,10 @@ def analyze_dow_changes():
 
     results = []
     for index, row in events_df.iterrows():
-        # Assuming Dow CSV structure
-        ticker = row.get('Added') or row.get('ticker')
-        date = row.get('Date') or row.get('event_date')
-        if ticker and date:
-            res = run_event_analysis(ticker, date, universe_df)
+        ticker = row.get('added_ticker')
+        date = row.get('event_date')
+        if pd.notnull(ticker) and pd.notnull(date):
+            res = run_event_analysis(ticker, date, universe_df, index_type='dow')
             if res:
                 results.append(res)
 
