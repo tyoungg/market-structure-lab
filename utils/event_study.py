@@ -68,22 +68,13 @@ def summarize_event(abnormal_returns, event_date):
 
 def run_event_analysis(ticker, event_date, universe_df, benchmark="SPY", current_index=None, index_type='sp500'):
     """
-    Full orchestration for a single event analysis (Version 2).
+    Full orchestration for a single event analysis (Version 3 - Point-in-Time).
     """
     import os
     import numpy as np
     try:
-        # 0. Point-in-Time Fundamentals
-        # We ensure target ticker info is available as of event date
-        target_f = get_fundamentals(ticker, at_date=event_date)
-        if target_f:
-            target_row = pd.DataFrame([target_f]).set_index('ticker')
-            if ticker in universe_df.index:
-                universe_df = universe_df.drop(ticker)
-            universe_df = pd.concat([universe_df, target_row])
-        elif ticker not in universe_df.index:
-            print(f"Could not fetch fundamentals for {ticker}. Skipping.")
-            return None
+        # 0. Point-in-Time Fundamentals for target is now handled inside find_twins
+        # but we still need some base universe for sectors and fallbacks.
 
         # 1. Get Event window
         stock_df = get_event_window(ticker, event_date)

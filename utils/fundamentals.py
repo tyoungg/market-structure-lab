@@ -104,21 +104,22 @@ def get_momentum(ticker, as_of_date, lookback=252):
 def get_fundamentals(ticker, at_date=None):
     """
     Fetches fundamental data for a single ticker from yfinance.
-    If at_date is provided, attempts to fetch historical market cap (Price * Shares).
+    If at_date is provided, fetches historical metrics as of (at_date - 30 days)
+    to ensure point-in-time accuracy and avoid look-ahead bias.
     """
     try:
         t = yf.Ticker(ticker)
         info = t.info
 
-        market_cap = info.get("marketCap")
-
         if at_date:
+            # Shift 30 days back to ensure we use info known before the event
             target_dt = pd.to_datetime(at_date) - pd.Timedelta(days=30)
             market_cap = estimate_market_cap(ticker, target_dt)
             liquidity = get_avg_volume(ticker, target_dt)
             momentum = get_momentum(ticker, target_dt)
             volatility = get_volatility(ticker, target_dt)
         else:
+            market_cap = info.get("marketCap")
             target_dt = pd.Timestamp.now()
             liquidity = info.get("averageVolume") or get_avg_volume(ticker, target_dt)
             momentum = info.get("fiftyTwoWeekChange") or get_momentum(ticker, target_dt)

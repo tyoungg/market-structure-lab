@@ -1,6 +1,7 @@
 import pandas as pd
 import os
 import sys
+import time
 
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -9,16 +10,14 @@ from utils.fundamentals import estimate_market_cap, get_avg_volume, get_volatili
 from utils.data_loader import get_all_historical_tickers
 import yfinance as yf
 
-def build_historical_universe(start_year=2000, end_year=2026):
+def build_historical_universe(tickers=None, start_year=2000, end_year=2026):
     print(f"Building historical universe from {start_year} to {end_year}...")
-    tickers = get_all_historical_tickers()
+    if tickers is None:
+        tickers = get_all_historical_tickers()
     print(f"Total tickers to process: {len(tickers)}")
 
-    # Process from the end to get some diverse tickers
-    process_tickers = tickers[-30:]
-
     rows = []
-    for ticker in process_tickers:
+    for ticker in tickers:
         print(f"Processing {ticker}...")
         try:
             t = yf.Ticker(ticker)
@@ -60,6 +59,5 @@ def build_historical_universe(start_year=2000, end_year=2026):
 
 if __name__ == "__main__":
     # For the purpose of this task, we'll run a very small subset
-    import time
     # Adding sleep to avoid rate limiting if possible, but for the task we'll just do a tiny slice
     build_historical_universe(start_year=2020, end_year=2026)

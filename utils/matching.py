@@ -3,12 +3,17 @@ from sklearn.neighbors import NearestNeighbors
 import pandas as pd
 import numpy as np
 
-def find_twins(target_ticker, universe_df, event_date=None, k=5, exclude_tickers=None, save_matches=True):
+def find_twins(target_ticker, universe_df, event_date=None, k=5, exclude_tickers=None, save_matches=True, pit_refine=True):
     """
     Finds k-nearest neighbors for a target ticker within the universe.
     Uses historical matching metrics: market_cap, liquidity, volatility, momentum.
+
+    If event_date is provided, uses point-in-time (PIT) fundamentals for the target.
+    If pit_refine is True, it takes the best candidates from the historical pool
+    and refetches their exact PIT fundamentals for higher precision.
     """
     import os
+    from .fundamentals import get_fundamentals
     MATCHES_FILE = "data/twin_matches.parquet"
     HISTORICAL_UNIVERSE = "data/historical_universe.parquet"
 
@@ -32,15 +37,29 @@ def find_twins(target_ticker, universe_df, event_date=None, k=5, exclude_tickers
         except Exception as e:
             print(f"Error loading historical universe: {e}")
 
-    # 2. Extract Target and Sector
-    if target_ticker in pool.index:
-        target_row = pool.loc[[target_ticker], features]
-        target_sector = pool.loc[target_ticker, 'sector'] if 'sector' in pool.columns else universe_df.loc[target_ticker, 'sector']
-    elif target_ticker in universe_df.index:
-        target_row = universe_df.loc[[target_ticker], features]
-        target_sector = universe_df.loc[target_ticker, 'sector']
+    # 2. Extract Target and Sector with PIT data
+    if event_date:
+        target_f = get_fundamentals(target_ticker, at_date=event_date)
+        if target_f:
+            target_row = pd.DataFrame([target_f]).set_index('ticker')[features]
+            target_sector = target_f.get('sector')
+        else:
+            # Fallback to pool/universe
+            if target_ticker in pool.index:
+                target_row = pool.loc[[target_ticker], features]
+                target_sector = pool.loc[target_ticker, 'sector'] if 'sector' in pool.columns else universe_df.loc[target_ticker, 'sector']
+            else:
+                target_row = universe_df.loc[[target_ticker], features]
+                target_sector = universe_df.loc[target_ticker, 'sector']
     else:
-        raise ValueError(f"{target_ticker} not found in universe or historical pool")
+        if target_ticker in pool.index:
+            target_row = pool.loc[[target_ticker], features]
+            target_sector = pool.loc[target_ticker, 'sector'] if 'sector' in pool.columns else universe_df.loc[target_ticker, 'sector']
+        elif target_ticker in universe_df.index:
+            target_row = universe_df.loc[[target_ticker], features]
+            target_sector = universe_df.loc[target_ticker, 'sector']
+        else:
+            raise ValueError(f"{target_ticker} not found in universe or historical pool")
 
     if target_row.isnull().any().any():
         missing = target_row.columns[target_row.isnull().any()].tolist()
@@ -77,10 +96,30 @@ def find_twins(target_ticker, universe_df, event_date=None, k=5, exclude_tickers
     if len(pool) == 0:
         raise ValueError("Matching pool is empty after filtering and dropping NaNs.")
 
+    # 5. Optional PIT Refinement
+    if pit_refine and event_date and len(pool) >= k:
+        # Take top 50 candidates by market cap similarity first
+        target_mcap = target_row['market_cap'].iloc[0]
+        pool['mcap_diff'] = (pool['market_cap'] - target_mcap).abs()
+        candidates = pool.nsmallest(50, 'mcap_diff').index.tolist()
+
+        print(f"Refining {len(candidates)} candidates with PIT fundamentals...")
+        pit_rows = []
+        for c_ticker in candidates:
+            try:
+                cf = get_fundamentals(c_ticker, at_date=event_date)
+                if cf:
+                    cf['ticker'] = c_ticker
+                    pit_rows.append(cf)
+            except: pass
+
+        if pit_rows:
+            pool = pd.DataFrame(pit_rows).set_index('ticker')[features].dropna()
+
     if len(pool) < k:
         k = len(pool)
 
-    # 4. Nearest Neighbors
+    # 6. Nearest Neighbors
     scaler = StandardScaler()
     X = scaler.fit_transform(pool)
     target_scaled = scaler.transform(target_row)
