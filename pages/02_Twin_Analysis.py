@@ -61,7 +61,7 @@ else:
 
             with st.spinner("Finding twins (excluding index members at time of event)..."):
                 index_tickers_at_time = get_index_tickers_at_date(event_date, index_type=index_key)
-                twins = find_twins(ticker, universe_df, exclude_tickers=index_tickers_at_time)
+                twins = find_twins(ticker, universe_df, event_date=event_date, exclude_tickers=index_tickers_at_time)
 
             st.subheader("Identified Twins (Non-Index Members at Event Date)")
             st.dataframe(twins)
