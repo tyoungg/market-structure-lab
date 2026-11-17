@@ -60,12 +60,12 @@ coverage = summary.get("mean_return_coverage")
 c1, c2, c3, c4, c5 = st.columns(5)
 c1.metric("Expected intervals", f"{expected:,}")
 c2.metric("Observed intervals", f"{observed:,}")
-c3.metric("Strict estimates", f"{calculated:,}")
+c3.metric("Full endpoint-price coverage", f"{calculated:,}")
 c4.metric("Withheld", f"{withheld:,}")
 c5.metric("Mean return coverage", f"{coverage:.1%}" if isinstance(coverage, (int, float)) else "—")
 
-if observed < expected or missing:
-    st.warning(f"Panel is incomplete: {observed} of {expected} expected intervals observed; {missing} intervals lack a fund or benchmark observation.")
+if missing:
+    st.warning(f"Some consecutive report-date intervals could not be evaluated because of a long report-date gap or missing same-date benchmark observation ({missing} intervals).")
 if calculated == 0:
     st.error("No strict no-trade intervals passed the complete-return-coverage rule. The app will not display a panel effect estimate.")
 
