@@ -20,10 +20,12 @@ class NportDashboardLoaderTests(unittest.TestCase):
             folder = Path(tmp)
             (folder / "panel_summary.json").write_text(json.dumps({"expected_fund_intervals": 3}), encoding="utf-8")
             pd.DataFrame([{"STATUS": "CALCULATED"}]).to_csv(folder / "fund_interval_results.csv", index=False)
+            pd.DataFrame([{"SECURITY_KEY": "US0000000001", "MAPPING_VALIDATION_STATUS": "CANDIDATE_UNREVIEWED"}]).to_csv(folder / "security_crosswalk.csv", index=False)
             data = load_dashboard_data(folder)
         self.assertTrue(data["available"])
         self.assertEqual(data["summary"]["expected_fund_intervals"], 3)
         self.assertEqual(data["results"].iloc[0]["STATUS"], "CALCULATED")
+        self.assertEqual(data["crosswalk"].iloc[0]["MAPPING_VALIDATION_STATUS"], "CANDIDATE_UNREVIEWED")
 
 if __name__ == "__main__":
     unittest.main()
