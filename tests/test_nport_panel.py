@@ -156,6 +156,19 @@ class NportPanelTests(unittest.TestCase):
         override = {"OLD_TICKER": "MMC", "NEW_TICKER": "MRSH"}
         self.assertFalse(panel.pilot.dated_override_covers_ticker_candidates(row, override))
 
+    def test_dated_override_covers_only_explained_openfigi_conflict(self):
+        override = {"OLD_TICKER": "MMC", "NEW_TICKER": "MRSH"}
+        explained = {"existing_candidate": "MRSH", "openfigi_candidate": "MMC"}
+        unrelated = {"existing_candidate": "MRSH", "openfigi_candidate": "XYZ"}
+        self.assertTrue(panel.pilot.dated_override_covers_mapping_conflict(explained, override))
+        self.assertFalse(panel.pilot.dated_override_covers_mapping_conflict(unrelated, override))
+
+    def test_workflow_cancels_superseded_runs_and_blocks_stale_publish(self):
+        workflow = (ROOT / ".github" / "workflows" / "nport-multi-quarter-panel.yml").read_text()
+        self.assertIn("cancel-in-progress: true", workflow)
+        self.assertIn('TRIGGER_SHA="${GITHUB_SHA:?GITHUB_SHA is required}"', workflow)
+        self.assertIn('if [[ "$REMOTE_SHA" != "$TRIGGER_SHA" ]]', workflow)
+
     def test_ticker_transition_price_histories_must_overlap_and_match(self):
         dates = pd.to_datetime(["2026-01-12", "2026-01-13", "2026-01-14", "2026-01-15"])
         old = pd.Series([100.0, 101.0, 102.0, 103.0], index=dates)

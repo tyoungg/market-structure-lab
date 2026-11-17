@@ -151,6 +151,21 @@ def dated_override_covers_ticker_candidates(row, override):
     return bool(candidates) and candidates.issubset(documented)
 
 
+def dated_override_covers_mapping_conflict(conflict, override):
+    """Only treat an OpenFIGI disagreement as a ticker transition if both symbols match."""
+    candidates = {
+        str(conflict.get("existing_candidate", "")).strip().upper(),
+        str(conflict.get("openfigi_candidate", "")).strip().upper(),
+    }
+    candidates.discard("")
+    documented = {
+        str(override.get("OLD_TICKER", "")).strip().upper(),
+        str(override.get("NEW_TICKER", "")).strip().upper(),
+    }
+    documented.discard("")
+    return bool(candidates) and candidates.issubset(documented)
+
+
 def compare_ticker_price_series(old_series, new_series, effective_date,
                                 window_days=10, min_overlap=3, tolerance=0.005):
     """Check that old/new vendor histories agree on overlapping adjusted-price dates."""
@@ -361,7 +376,10 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
                         else:
                             mapping_review_status[key] = "CROSS_FUND_TICKER_CONFLICT_REVIEW_REQUIRED"
                     elif mapping_review_status[key] == "IDENTIFIER_CONFLICT_REVIEW_REQUIRED":
-                        mapping_review_status[key] = "DATED_TICKER_OVERRIDE_UNREVIEWED"
+                        if dated_override_covers_mapping_conflict(
+                            mapping_conflicts.get(key, {}), item
+                        ):
+                            mapping_review_status[key] = "DATED_TICKER_OVERRIDE_UNREVIEWED"
 
     endpoint_tickers = {}
     for key, ticker in mapping.items():
