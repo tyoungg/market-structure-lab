@@ -267,7 +267,7 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
         if t and key not in mapping_conflicts and "REVIEW_REQUIRED" not in mapping_review_status[key]
     ))
     if not tickers:
-        return pd.DataFrame([{"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": "" if k in mapping_conflicts else mapping[k],
+        return pd.DataFrame([{"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": "" if "REVIEW_REQUIRED" in mapping_review_status[k] else mapping[k],
                               "MAPPING_SOURCE": mapping_source[k], "PRICE_PROVIDER": "Yahoo Finance",
                               "PRICE_STATUS": mapping_review_status[k] if "REVIEW_REQUIRED" in mapping_review_status[k] else ("UNMAPPED_TICKER" if not mapping[k] else "NO_PRICE_REQUESTED"),
                               "MAPPING_VALIDATION_STATUS": mapping_review_status[k],
@@ -328,7 +328,7 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
 
     if cal.empty:
         return pd.DataFrame([
-            {"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": "" if k in mapping_conflicts else v,
+            {"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": "" if "REVIEW_REQUIRED" in mapping_review_status[k] else v,
              "MAPPING_SOURCE": mapping_source[k], "PRICE_PROVIDER": "Yahoo Finance",
              "PRICE_STATUS": mapping_review_status[k] if "REVIEW_REQUIRED" in mapping_review_status[k] else "MARKET_CALENDAR_UNAVAILABLE",
              "MAPPING_VALIDATION_STATUS": mapping_review_status[k],
@@ -371,7 +371,7 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
             except Exception as exc:
                 price_status = f"PRICE_EXTRACTION_ERROR:{type(exc).__name__}"
         out.append({
-            "SECURITY_KEY": key, "RETURN": value, "TICKER_RESOLVED": "" if key in mapping_conflicts else ticker,
+            "SECURITY_KEY": key, "RETURN": value, "TICKER_RESOLVED": "" if "REVIEW_REQUIRED" in mapping_review_status[key] else ticker,
             "MAPPING_SOURCE": mapping_source[key],
             "MAPPING_VALIDATION_STATUS": mapping_review_status[key],
             "NPORT_TICKER_CONFLICT": str(rows[key].get("TICKER_CONFLICT", "")),
