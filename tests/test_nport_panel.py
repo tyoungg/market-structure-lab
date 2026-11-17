@@ -146,6 +146,16 @@ class NportPanelTests(unittest.TestCase):
             ("BK", "BNY"),
         )
 
+    def test_dated_override_covers_old_and_new_cross_fund_candidates(self):
+        row = {"TICKER_CANDIDATES": '["MMC", "MRSH"]'}
+        override = {"OLD_TICKER": "MMC", "NEW_TICKER": "MRSH"}
+        self.assertTrue(panel.pilot.dated_override_covers_ticker_candidates(row, override))
+
+    def test_dated_override_does_not_suppress_unrelated_cross_fund_candidate(self):
+        row = {"TICKER_CANDIDATES": '["MMC", "XYZ"]'}
+        override = {"OLD_TICKER": "MMC", "NEW_TICKER": "MRSH"}
+        self.assertFalse(panel.pilot.dated_override_covers_ticker_candidates(row, override))
+
     def test_strict_no_trade_requires_every_position_return(self):
         start = pd.DataFrame({"SECURITY_KEY": ["A", "B"], "EQUITY_WEIGHT": [0.6, 0.4]})
         complete = pd.DataFrame({"SECURITY_KEY": ["A", "B"], "RETURN": [0.10, -0.10]})
