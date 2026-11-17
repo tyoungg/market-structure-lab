@@ -99,8 +99,28 @@ def calculate_no_trade(start, returns):
     x["EQUITY_WEIGHT"]=x.NT_RAW/x.NT_RAW.sum()
     return x[["SECURITY_KEY","EQUITY_WEIGHT"]],coverage
 
+def extract_close_series(prices, ticker):
+    """Return adjusted Close regardless of yfinance MultiIndex column order."""
+    if isinstance(prices.columns, pd.MultiIndex):
+        for key in ((ticker, "Close"), ("Close", ticker)):
+            if key in prices.columns:
+                return prices.loc[:, key].dropna()
+        raise KeyError(f"No Close column found for {ticker}; columns={list(prices.columns)[:8]}")
+    if "Close" in prices.columns:
+        return prices["Close"].dropna()
+    raise KeyError(f"No Close column found for {ticker}")
+
+
 def fetch_returns(start, start_date, end_date):
     import requests, yfinance as yf
+    from requests.adapters import HTTPAdapter
+    from urllib3.util.retry import Retry
+    session = requests.Session()
+    retry = Retry(total=5, connect=5, read=3, status=5, backoff_factor=2,
+                  status_forcelist=[429,500,502,503,504],
+                  allowed_methods=frozenset(["POST"]),
+                  respect_retry_after_header=True)
+    session.mount("https://", HTTPAdapter(max_retries=retry))
     jobs=[]; keys=[]; mapping={}
     for r in start.to_dict("records"):
         if r["ISIN"]:
@@ -111,8 +131,8 @@ def fetch_returns(start, start_date, end_date):
             keys.append(r["SECURITY_KEY"])
         else: mapping[r["SECURITY_KEY"]]=""
     for i in range(0,len(jobs),10):
-        res=requests.post("https://api.openfigi.com/v3/mapping",json=jobs[i:i+10],
-                          headers={"Content-Type":"application/json"},timeout=45)
+        res=session.post("https://api.openfigi.com/v3/mapping",json=jobs[i:i+10],
+                         headers={"Content-Type":"application/json"},timeout=45)
         res.raise_for_status()
         for key,item in zip(keys[i:i+10],res.json()):
             data=item.get("data",[])
@@ -130,9 +150,10 @@ def fetch_returns(start, start_date, end_date):
             end=(pd.Timestamp(end_date)+pd.Timedelta(days=5)).strftime("%Y-%m-%d"),
             auto_adjust=True,actions=True,progress=False,group_by="ticker",threads=True)
         def close(sym):
-            return (px[(sym,"Close")] if isinstance(px.columns,pd.MultiIndex) else px["Close"]).dropna()
+            return extract_close_series(px, sym)
         cal=close("SPY")
-    except Exception:
+    except Exception as exc:
+        print(f"Price download failed: {type(exc).__name__}: {exc}")
         return pd.DataFrame([{"SECURITY_KEY":k,"RETURN":None,"TICKER_RESOLVED":v} for k,v in mapping.items()])
     sd=cal.index[cal.index.date<=pd.Timestamp(start_date).date()]
     ed=cal.index[cal.index.date<=pd.Timestamp(end_date).date()]
