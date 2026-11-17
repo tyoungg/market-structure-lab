@@ -196,6 +196,22 @@ def fetch_returns(start, start_date, end_date):
                                      "exchCode": "US", "includeUnlistedEquities": True}))
     map_jobs(cusip_jobs, "cusip_fallback")
 
+    # Explicit, source-documented overrides for identifiers OpenFIGI fails to resolve
+    # or maps to a non-trading vendor code. Overrides supply symbols only; prices
+    # are still fetched from Yahoo and must exist on both required dates.
+    override_path = Path(__file__).resolve().parents[1] / "data" / "nport_pilot_inputs" / "ticker_overrides.csv"
+    if override_path.exists():
+        overrides = pd.read_csv(override_path, dtype=str).fillna("")
+        for item in overrides.to_dict("records"):
+            key = item.get("SECURITY_KEY", "")
+            ticker = item.get("TICKER", "").strip().upper()
+            if key in mapping and ticker and not mapping[key]:
+                mapping[key] = ticker
+                mapping_details[key]["manual_override"] = {
+                    "ticker": ticker, "source_url": item.get("SOURCE_URL", ""),
+                    "source_note": item.get("SOURCE_NOTE", "")
+                }
+
     tickers = sorted(set(t for t in mapping.values() if t))
     if not tickers:
         return pd.DataFrame([{"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": "",
