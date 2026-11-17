@@ -111,6 +111,12 @@ def extract_close_series(prices, ticker):
     raise KeyError(f"No Close column found for {ticker}")
 
 
+def nport_ticker_candidate(row):
+    """Return a normalized ticker candidate explicitly reported in N-PORT."""
+    value = str(row.get("TICKER", "") or "").strip().upper()
+    return value.replace("/", "-").replace(".", "-") if value else ""
+
+
 def fetch_returns(start, start_date, end_date, ticker_cache=None):
     import re
     import requests, yfinance as yf
@@ -134,9 +140,9 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None):
     # external symbology lookup. A ticker candidate is not, by itself,
     # proof of a valid historical security match.
     for key, row in rows.items():
-        nport_ticker = str(row.get("TICKER", "") or "").strip().upper()
+        nport_ticker = nport_ticker_candidate(row)
         if not mapping[key] and nport_ticker:
-            mapping[key] = nport_ticker.replace("/", "-").replace(".", "-")
+            mapping[key] = nport_ticker
             mapping_source[key] = "nport_reported_ticker"
             mapping_details[key]["nport_ticker_candidate"] = nport_ticker
 
