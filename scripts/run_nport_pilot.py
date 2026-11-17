@@ -121,7 +121,7 @@ def fetch_returns(start, start_date, end_date):
                   allowed_methods=frozenset(["POST"]),
                   respect_retry_after_header=True)
     session.mount("https://", HTTPAdapter(max_retries=retry))
-    jobs=[]; keys=[]; mapping={}
+    jobs=[]; keys=[]; mapping={}; mapping_details={}
     for r in start.to_dict("records"):
         if r["ISIN"]:
             jobs.append({"idType":"ID_ISIN","idValue":r["ISIN"],"exchCode":"US","includeUnlistedEquities":True})
@@ -141,20 +141,33 @@ def fetch_returns(start, start_date, end_date):
                    or "depositary receipt" in (d.get("securityType","")+" "+d.get("securityType2","")).lower())]
             ts=sorted(set(d.get("ticker","") for d in good if d.get("ticker")))
             mapping[key]=ts[0].replace(".","-").replace("/","-") if len(ts)==1 else ""
+            mapping_details[key]={
+                "figi_candidates":[
+                    {"ticker":d.get("ticker",""),"name":d.get("name",""),
+                     "figi":d.get("figi",""),"securityType":d.get("securityType",""),
+                     "securityType2":d.get("securityType2",""),"exchCode":d.get("exchCode","")}
+                    for d in good
+                ],
+                "mapping_error":item.get("error",""),
+                "unique_tickers":ts
+            }
         time.sleep(2.5)
     tickers=sorted(set(t for t in mapping.values() if t))
-    if not tickers: return pd.DataFrame(columns=["SECURITY_KEY","RETURN","TICKER_RESOLVED"])
+    if not tickers: return pd.DataFrame(columns=["SECURITY_KEY","RETURN","TICKER_RESOLVED","FIGI_CANDIDATES","MAPPING_ERROR"])
     try:
         px=yf.download(sorted(set(tickers+["SPY"])),
             start=(pd.Timestamp(start_date)-pd.Timedelta(days=10)).strftime("%Y-%m-%d"),
             end=(pd.Timestamp(end_date)+pd.Timedelta(days=5)).strftime("%Y-%m-%d"),
-            auto_adjust=True,actions=True,progress=False,group_by="ticker",threads=True)
+            auto_adjust=True,actions=True,progress=False,group_by="ticker",threads=False)
         def close(sym):
             return extract_close_series(px, sym)
         cal=close("SPY")
     except Exception as exc:
         print(f"Price download failed: {type(exc).__name__}: {exc}")
-        return pd.DataFrame([{"SECURITY_KEY":k,"RETURN":None,"TICKER_RESOLVED":v} for k,v in mapping.items()])
+        return pd.DataFrame([{"SECURITY_KEY":k,"RETURN":None,"TICKER_RESOLVED":v,
+                              "FIGI_CANDIDATES":json.dumps(mapping_details.get(k,{}).get("figi_candidates",[])),
+                              "MAPPING_ERROR":mapping_details.get(k,{}).get("mapping_error","")}
+                             for k,v in mapping.items()])
     sd=cal.index[cal.index.date<=pd.Timestamp(start_date).date()]
     ed=cal.index[cal.index.date<=pd.Timestamp(end_date).date()]
     sdate=sd[-1] if len(sd) else None; edate=ed[-1] if len(ed) else None
@@ -166,9 +179,12 @@ def fetch_returns(start, start_date, end_date):
                 p=close(ticker)
                 if sdate in p.index and edate in p.index: value=float(p.loc[edate]/p.loc[sdate]-1)
             except Exception: pass
+        detail=mapping_details.get(key,{})
         out.append({"SECURITY_KEY":key,"RETURN":value,"TICKER_RESOLVED":ticker,
                     "START_PRICE_DATE":str(sdate.date()) if sdate is not None else "",
-                    "END_PRICE_DATE":str(edate.date()) if edate is not None else ""})
+                    "END_PRICE_DATE":str(edate.date()) if edate is not None else "",
+                    "FIGI_CANDIDATES":json.dumps(detail.get("figi_candidates",[]),sort_keys=True),
+                    "MAPPING_ERROR":detail.get("mapping_error","")})
     return pd.DataFrame(out)
 
 def main():
