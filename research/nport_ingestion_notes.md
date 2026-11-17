@@ -100,3 +100,10 @@ References:
 - https://businesslibrary.uflib.ufl.edu/az.php
 
 This creates a scope decision for later: CRSP is the better research-quality return source if institutional access is available and subscription data is acceptable. If the project must remain fully public-data-only, the return source and delisting treatment need a separate feasibility test.
+
+
+## Filing resolver rule added in the pilot pipeline
+
+The pilot resolver treats only `NPORT-P` and `NPORT-P/A` as portfolio observations. `NT NPORT-P` is a notice of late filing, not a holdings snapshot, and is excluded from the resolved panel. Within each fund-series/report-date group, the latest valid filing date wins; `NPORT-P/A` has priority over `NPORT-P` on a same-day tie, followed by accession ordering as a deterministic final tie-breaker. The resolver retains the full filing rows and a group filing count for audit.
+
+This rule is implemented in `scripts/run_nport_pilot.py` and covered by a synthetic unit test. It must be applied after concatenating all quarterly archives and deduplicating repeated accessions when the full historical panel is built.
