@@ -54,7 +54,7 @@ def get_partition(table: str, year: int, quarter: int, cache_dir: Path) -> Path:
     return Path(path)
 
 
-def load_metadata(cache_dir: Path, partitions: list[tuple[int, int]], series_ids: set[str], dates: set[str]) -> pd.DataFrame:
+def load_metadata(cache_dir: Path, partitions: list[tuple[int, int]], series_ids: set[str], dates: set[str] | None = None) -> pd.DataFrame:
     filing_parts: list[pd.DataFrame] = []
     for year, quarter in partitions:
         frames = {}
@@ -70,11 +70,10 @@ def load_metadata(cache_dir: Path, partitions: list[tuple[int, int]], series_ids
         x["SOURCE_QUARTER"] = quarter
         x["REPORT_DATE"] = pd.to_datetime(x["REPORT_DATE"], errors="coerce").dt.strftime("%Y-%m-%d")
         x["FILING_DATE"] = pd.to_datetime(x["FILING_DATE"], errors="coerce")
-        x = x[
-            x["SUB_TYPE"].isin(["NPORT-P", "NPORT-P/A"])
-            & x["SERIES_ID"].isin(series_ids)
-            & x["REPORT_DATE"].isin(dates)
-        ].copy()
+        mask = x["SUB_TYPE"].isin(["NPORT-P", "NPORT-P/A"]) & x["SERIES_ID"].isin(series_ids)
+        if dates is not None:
+            mask &= x["REPORT_DATE"].isin(dates)
+        x = x[mask].copy()
         filing_parts.append(x)
     if not filing_parts:
         return pd.DataFrame()
@@ -205,7 +204,10 @@ def main() -> None:
     parser.add_argument("--funds", type=Path, default=ROOT / "data/nport_panel/sample_funds.csv")
     parser.add_argument("--cache-dir", type=Path, default=ROOT / ".cache/nport_hf")
     parser.add_argument("--output-dir", type=Path, default=ROOT / "data/nport_panel_output")
-    parser.add_argument("--dates", nargs="+", default=REPORT_DATES)
+    parser.add_argument("--start-date", default="2025-10-01")
+    parser.add_argument("--end-date", default="2026-09-30")
+    parser.add_argument("--dates", nargs="+", default=None,
+                        help="Optional explicit report dates; normally use each fund's actual filing calendar.")
     parser.add_argument("--partitions", nargs="+", default=["2025Q4", "2026Q1", "2026Q2", "2026Q3"])
     parser.add_argument("--benchmark-series", default=BENCHMARK_SERIES)
     args = parser.parse_args()
@@ -216,34 +218,31 @@ def main() -> None:
     funds = pd.read_csv(args.funds, dtype=str).fillna("")
     fund_ids = set(funds["SERIES_ID"])
     all_series = fund_ids | {args.benchmark_series}
-    dates = set(args.dates)
+    explicit_dates = set(args.dates) if args.dates else None
 
-    print(f"Loading filing metadata from {DATASET_REPO}: {partitions}", flush=True)
-    filings = load_metadata(args.cache_dir, partitions, all_series, dates)
+    print(f"Loading actual filing dates from {DATASET_REPO}: {partitions}", flush=True)
+    filings = load_metadata(args.cache_dir, partitions, all_series, explicit_dates)
     if filings.empty:
-        raise ValueError("No filings found for selected sample and report dates")
+        raise ValueError("No filings found for selected fund series and source partitions")
+    filings = filings[filings["REPORT_DATE"].between(args.start_date, args.end_date, inclusive="both")].copy()
+    if filings.empty:
+        raise ValueError("No filings found inside requested report-date window")
+
+    # One latest valid filing per series/report date. NT notices are excluded.
     selected = filings.copy()
     selected.to_csv(args.output_dir / "filing_resolution.csv", index=False)
 
-    expected = []
-    for series_id in sorted(fund_ids):
-        fund_name = funds.loc[funds.SERIES_ID == series_id, "FUND_NAME"].iloc[0]
-        for date in args.dates:
-            expected.append({"SERIES_ID": series_id, "FUND_NAME": fund_name, "REPORT_DATE": date})
-    for date in args.dates:
-        expected.append({"SERIES_ID": args.benchmark_series, "FUND_NAME": "IVV benchmark proxy", "REPORT_DATE": date})
-    expected_df = pd.DataFrame(expected)
-    availability = expected_df.merge(
-        selected[["SERIES_ID", "REPORT_DATE", "ACCESSION_NUMBER", "FILING_DATE", "SUB_TYPE", "NET_ASSETS", "REGISTRANT_NAME", "FILING_COUNT"]],
-        on=["SERIES_ID", "REPORT_DATE"], how="left", validate="one_to_one"
+    fund_names = funds.set_index("SERIES_ID")["FUND_NAME"].to_dict()
+    availability = selected.copy()
+    availability["FUND_NAME"] = availability["SERIES_ID"].map(fund_names).fillna("IVV benchmark proxy")
+    availability["OBSERVATION_ROLE"] = availability["SERIES_ID"].map(
+        lambda x: "BENCHMARK" if x == args.benchmark_series else "FUND"
     )
-    availability.to_csv(args.output_dir / "observation_availability.csv", index=False)
-    missing_obs = availability[availability["ACCESSION_NUMBER"].isna()]
-    if not missing_obs.empty:
-        print(f"WARNING: {len(missing_obs)} expected fund/benchmark observations missing", flush=True)
+    availability.sort_values(["SERIES_ID", "REPORT_DATE"]).to_csv(
+        args.output_dir / "observation_availability.csv", index=False
+    )
 
-    valid_accessions = set(availability["ACCESSION_NUMBER"].dropna().astype(str))
-    selected_rows = selected[selected["ACCESSION_NUMBER"].astype(str).isin(valid_accessions)].copy()
+    selected_rows = selected[selected["ACCESSION_NUMBER"].notna()].copy()
     holdings = extract_all_selected_holdings(args.cache_dir, selected_rows)
     holdings.to_parquet(args.output_dir / "selected_holdings_with_identifiers.parquet", index=False)
 
@@ -257,12 +256,13 @@ def main() -> None:
         weights.assign(SERIES_ID=key[0], REPORT_DATE=key[1]).to_csv(
             args.output_dir / f"weights_{key[0]}_{key[1]}.csv", index=False
         )
-    long_weights = pd.concat([
+    if not portfolios:
+        raise ValueError("No selected portfolio holdings were extracted")
+    pd.concat([
         frame.assign(SERIES_ID=key[0], REPORT_DATE=key[1]) for key, frame in portfolios.items()
-    ], ignore_index=True)
-    long_weights.to_parquet(args.output_dir / "portfolio_equity_weights.parquet", index=False)
+    ], ignore_index=True).to_parquet(args.output_dir / "portfolio_equity_weights.parquet", index=False)
 
-    # Cross-check the June 2026 mirror extraction against the original SEC ZIP pilot.
+    # Preserve the original SEC ZIP reconciliation gate for the June 2026 AB/IVV observation.
     ab_official = ROOT / "data/nport_pilot_inputs/ab_june_2026_equity.csv"
     ivv_compact = ROOT / "data/nport_pilot_inputs/ivv_june_2026_compact_equity.csv"
     if ab_official.exists() and ivv_compact.exists() and ("S000010411", "2026-06-30") in portfolios:
@@ -276,64 +276,83 @@ def main() -> None:
         if abs(as_ref - as_hf) > 1e-6:
             raise ValueError(f"Hugging Face mirror does not reconcile to SEC ZIP pilot: {as_ref} vs {as_hf}")
 
-    interval_pairs = list(zip(args.dates[:-1], args.dates[1:]))
+    # Each fund contributes intervals between its own consecutive observed report dates.
+    # A benchmark holding observation is required on the fund's ending report date.
+    intervals_by_dates: dict[tuple[str, str], list[str]] = {}
     result_rows = []
-    coverage_rows = []
+    for series_id in sorted(fund_ids):
+        observed = sorted(date for (sid, date) in portfolios if sid == series_id)
+        for start_date, end_date in zip(observed[:-1], observed[1:]):
+            gap_days = (pd.Timestamp(end_date) - pd.Timestamp(start_date)).days
+            base = {
+                "SERIES_ID": series_id, "FUND_NAME": fund_names.get(series_id, series_id),
+                "STYLE": funds.loc[funds.SERIES_ID == series_id, "STYLE"].iloc[0],
+                "START_DATE": start_date, "END_DATE": end_date, "INTERVAL_DAYS": gap_days,
+            }
+            if gap_days > 150:
+                result_rows.append({**base, "STATUS": "REPORT_DATE_GAP_OVER_150_DAYS"})
+            elif (args.benchmark_series, end_date) not in portfolios:
+                result_rows.append({**base, "STATUS": "BENCHMARK_OBSERVATION_MISSING_ON_FUND_END_DATE"})
+            else:
+                intervals_by_dates.setdefault((start_date, end_date), []).append(series_id)
+
     ticker_cache: dict[str, str] = {}
-    for start_date, end_date in interval_pairs:
-        start_frames = []
-        for series_id in sorted(fund_ids):
-            frame = portfolios.get((series_id, start_date))
-            if frame is not None:
-                start_frames.append(frame)
-        if not start_frames:
-            continue
-        union = pd.concat(start_frames, ignore_index=True).drop_duplicates("SECURITY_KEY")
+    coverage_rows = []
+    crosswalk_parts = []
+    for (start_date, end_date), series_list in sorted(intervals_by_dates.items()):
+        union = pd.concat(
+            [portfolios[(sid, start_date)] for sid in series_list], ignore_index=True
+        ).drop_duplicates("SECURITY_KEY")
         print(f"Fetching returns for {len(union)} unique starting securities: {start_date} to {end_date}", flush=True)
         returns = pilot.fetch_returns(union, start_date, end_date, ticker_cache=ticker_cache)
-        ticker_cache.update({str(r.SECURITY_KEY): str(r.TICKER_RESOLVED or "") for r in returns.itertuples()})
+        ticker_cache.update({
+            str(r.SECURITY_KEY): str(r.TICKER_RESOLVED or "") for r in returns.itertuples()
+        })
         returns.to_csv(args.output_dir / f"security_returns_{start_date}_{end_date}.csv", index=False)
+        cw = returns.copy()
+        cw["INTERVAL_START"] = start_date
+        cw["INTERVAL_END"] = end_date
+        cw["RETURN_AVAILABLE"] = cw["RETURN"].notna()
+        crosswalk_parts.append(cw)
 
-        benchmark = portfolios.get((args.benchmark_series, end_date))
-        for series_id in sorted(fund_ids):
-            start = portfolios.get((series_id, start_date))
-            actual = portfolios.get((series_id, end_date))
-            meta0 = portfolio_meta.get((series_id, start_date))
-            meta1 = portfolio_meta.get((series_id, end_date))
-            if start is None or actual is None or benchmark is None:
-                result_rows.append({
-                    "SERIES_ID": series_id, "FUND_NAME": funds.loc[funds.SERIES_ID == series_id, "FUND_NAME"].iloc[0],
-                    "START_DATE": start_date, "END_DATE": end_date, "STATUS": "MISSING_FUND_OR_BENCHMARK_OBSERVATION"
-                })
-                continue
+        benchmark = portfolios[(args.benchmark_series, end_date)]
+        for series_id in series_list:
+            start = portfolios[(series_id, start_date)]
+            actual = portfolios[(series_id, end_date)]
+            meta0, meta1 = portfolio_meta[(series_id, start_date)], portfolio_meta[(series_id, end_date)]
             nt, coverage, missing_keys = strict_no_trade(start, returns)
             actual_as = pilot.active_share(actual, benchmark)
             no_trade_as = pilot.active_share(nt, benchmark) if nt is not None else None
-            delta = actual_as - no_trade_as if no_trade_as is not None else None
-            result_rows.append({
-                "SERIES_ID": series_id,
-                "FUND_NAME": funds.loc[funds.SERIES_ID == series_id, "FUND_NAME"].iloc[0],
+            record = {
+                "SERIES_ID": series_id, "FUND_NAME": fund_names.get(series_id, series_id),
                 "STYLE": funds.loc[funds.SERIES_ID == series_id, "STYLE"].iloc[0],
                 "START_DATE": start_date, "END_DATE": end_date,
+                "INTERVAL_DAYS": (pd.Timestamp(end_date) - pd.Timestamp(start_date)).days,
                 "START_ACCESSION": meta0["ACCESSION_NUMBER"], "END_ACCESSION": meta1["ACCESSION_NUMBER"],
+                "BENCHMARK_ACCESSION": portfolio_meta[(args.benchmark_series, end_date)]["ACCESSION_NUMBER"],
                 "START_NET_ASSETS_USD": float(meta0["NET_ASSETS"]), "END_NET_ASSETS_USD": float(meta1["NET_ASSETS"]),
-                "START_EQUITY_PCT_NAV": float(meta0["EQUITY_PCT_NAV"]),
-                "END_EQUITY_PCT_NAV": float(meta1["EQUITY_PCT_NAV"]),
+                "START_EQUITY_PCT_NAV": float(meta0["EQUITY_PCT_NAV"]), "END_EQUITY_PCT_NAV": float(meta1["EQUITY_PCT_NAV"]),
                 "START_EQUITY_POSITIONS": int(len(start)), "END_EQUITY_POSITIONS": int(len(actual)),
-                "RETURN_COVERAGE_START_EQUITY_WEIGHT": coverage,
-                "POSITIONS_MISSING_RETURN": int(len(missing_keys)),
+                "RETURN_COVERAGE_START_EQUITY_WEIGHT": coverage, "POSITIONS_MISSING_RETURN": int(len(missing_keys)),
                 "STRICT_NO_TRADE_CALCULATED": nt is not None,
                 "ACTUAL_END_ACTIVE_SHARE_VS_IVV": actual_as,
                 "NO_TRADE_ACTIVE_SHARE_VS_IVV": no_trade_as,
-                "ACTUAL_MINUS_NO_TRADE_ACTIVE_SHARE": delta,
+                "ACTUAL_MINUS_NO_TRADE_ACTIVE_SHARE": actual_as - no_trade_as if no_trade_as is not None else None,
                 "STATUS": "CALCULATED" if nt is not None else "WITHHELD_INCOMPLETE_RETURN_COVERAGE",
-            })
+            }
+            result_rows.append(record)
             if missing_keys:
-                miss = start[start.SECURITY_KEY.isin(missing_keys)].copy()
-                for rec in miss.to_dict("records"):
+                missing = start[start.SECURITY_KEY.isin(missing_keys)]
+                lookup = returns.set_index("SECURITY_KEY")
+                for rec in missing.to_dict("records"):
+                    details = lookup.loc[rec["SECURITY_KEY"]].to_dict()
                     coverage_rows.append({
-                        "SERIES_ID": series_id, "FUND_NAME": funds.loc[funds.SERIES_ID == series_id, "FUND_NAME"].iloc[0],
-                        "START_DATE": start_date, "END_DATE": end_date, **rec
+                        "SERIES_ID": series_id, "FUND_NAME": fund_names.get(series_id, series_id),
+                        "START_DATE": start_date, "END_DATE": end_date, **rec,
+                        "TICKER_RESOLVED": details.get("TICKER_RESOLVED", ""),
+                        "MAPPING_SOURCE": details.get("MAPPING_SOURCE", ""),
+                        "NPORT_TICKER": details.get("NPORT_TICKER", ""),
+                        "RETURN_MISSING_REASON": "NO_PRICE_RETURN_OR_UNRESOLVED_TICKER",
                     })
             if nt is not None:
                 nt.assign(SERIES_ID=series_id, START_DATE=start_date, END_DATE=end_date).to_csv(
@@ -343,21 +362,27 @@ def main() -> None:
     results = pd.DataFrame(result_rows)
     results.to_csv(args.output_dir / "fund_interval_results.csv", index=False)
     pd.DataFrame(coverage_rows).to_csv(args.output_dir / "uncovered_positions.csv", index=False)
+    if crosswalk_parts:
+        pd.concat(crosswalk_parts, ignore_index=True).to_csv(args.output_dir / "security_crosswalk.csv", index=False)
+    else:
+        pd.DataFrame(columns=["SECURITY_KEY", "TICKER_RESOLVED", "MAPPING_SOURCE", "RETURN_AVAILABLE"]).to_csv(
+            args.output_dir / "security_crosswalk.csv", index=False
+        )
 
     calculated = results[results["STATUS"] == "CALCULATED"].copy() if not results.empty else pd.DataFrame()
     aggregate = {
         "source_dataset": DATASET_REPO,
         "source_note": "Unofficial Hugging Face Parquet mirror of SEC public-domain Form N-PORT structured data; SEC remains authoritative.",
         "funds_in_sample_manifest": int(len(funds)),
-        "report_dates": args.dates,
+        "report_date_window": {"start": args.start_date, "end": args.end_date},
+        "observed_report_dates": sorted(selected["REPORT_DATE"].dropna().unique().tolist()),
         "source_partitions": args.partitions,
         "benchmark_series": args.benchmark_series,
         "benchmark_name": "iShares Core S&P 500 ETF (IVV) N-PORT holdings proxy",
-        "expected_fund_intervals": int(len(funds) * max(len(args.dates)-1, 0)),
-        "observed_fund_intervals": int(len(results)),
+        "expected_fund_intervals": int(len(results)), "observed_fund_intervals": int(len(results)),
         "strict_no_trade_intervals_calculated": int(len(calculated)),
         "intervals_withheld_for_incomplete_coverage": int((results.STATUS == "WITHHELD_INCOMPLETE_RETURN_COVERAGE").sum()) if not results.empty else 0,
-        "missing_fund_or_benchmark_observations": int((results.STATUS == "MISSING_FUND_OR_BENCHMARK_OBSERVATION").sum()) if not results.empty else 0,
+        "missing_fund_or_benchmark_observations": int(results.STATUS.astype(str).str.contains("MISSING|GAP", regex=True).sum()) if not results.empty else 0,
         "mean_return_coverage": float(results.RETURN_COVERAGE_START_EQUITY_WEIGHT.mean()) if not results.empty and "RETURN_COVERAGE_START_EQUITY_WEIGHT" in results else None,
         "mean_actual_minus_no_trade_active_share": float(calculated.ACTUAL_MINUS_NO_TRADE_ACTIVE_SHARE.mean()) if not calculated.empty else None,
         "median_actual_minus_no_trade_active_share": float(calculated.ACTUAL_MINUS_NO_TRADE_ACTIVE_SHARE.median()) if not calculated.empty else None,
@@ -365,12 +390,13 @@ def main() -> None:
         "asset_weighted_actual_minus_no_trade_active_share": None,
         "interpretation": "Negative means actual ending equity sleeve is closer to the IVV holdings proxy than return-drift-only no-trade weights. Descriptive, not causal.",
         "limitations": [
-            "The sample is selected from funds present in the latest 2026 Q3 public release and with large-cap labels/strategy evidence; it is not survivorship-bias-free or representative of the full active-fund universe.",
-            "A balanced four-quarter sample can exclude entrants, liquidated funds, merged funds, and funds that changed names or strategies.",
+            "The cohort is selected from funds present in the latest 2026 Q3 public release and with large-cap labels/strategy evidence; it is not survivorship-bias-free or representative of the full active-fund universe.",
+            "The cohort remains purposive and size-biased; historical funds that disappeared before the latest release are not included.",
             "Only common-equity (ASSET_CAT=EC) holdings are modeled; cash, derivatives, shorts and other asset classes are excluded from the equity-sleeve calculation.",
             "Fund flows are not allocated to securities; the equity-sleeve counterfactual assumes proportional treatment of flows.",
             "Yahoo adjusted prices and OpenFIGI mappings are public feasibility sources, not an institutional-grade security master.",
-            "Foreign-listed positions, FX, mergers, delistings, ticker changes and corporate actions require position-level validation; strict no-trade results are withheld when any starting position lacks a return.",
+            "Foreign-listed positions, FX, mergers, delistings and corporate actions still require position-level validation.",
+            "N-PORT-reported tickers are mapping candidates, not independently verified security identities.",
             "IVV holdings are a tracker-fund proxy, not official S&P 500 index weights.",
         ],
     }
@@ -383,7 +409,6 @@ def main() -> None:
     (args.output_dir / "panel_summary.json").write_text(json.dumps(aggregate, indent=2), encoding="utf-8")
     funds.to_csv(args.output_dir / "sample_funds.csv", index=False)
     print(json.dumps(aggregate, indent=2), flush=True)
-
 
 if __name__ == "__main__":
     main()
