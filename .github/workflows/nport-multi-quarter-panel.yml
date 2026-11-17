@@ -1,0 +1,53 @@
+name: N-PORT multi-quarter panel
+
+on:
+  push:
+    branches:
+      - research/no-trade-large-cap
+    paths:
+      - "scripts/run_nport_panel.py"
+      - "scripts/run_nport_pilot.py"
+      - "tests/test_nport_panel.py"
+      - "data/nport_panel/**"
+      - ".github/workflows/nport-multi-quarter-panel.yml"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install test dependencies
+        run: python -m pip install --upgrade pip pandas huggingface_hub
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
+
+  panel:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install public-data dependencies
+        run: python -m pip install --upgrade pip pandas pyarrow huggingface_hub requests yfinance
+      - name: Run four-quarter, eleven-fund panel
+        run: |
+          python scripts/run_nport_panel.py \
+            --funds data/nport_panel/sample_funds.csv \
+            --partitions 2025Q4 2026Q1 2026Q2 2026Q3 \
+            --dates 2025-09-30 2025-12-31 2026-03-31 2026-06-30 \
+            --output-dir data/nport_panel_output
+      - name: Upload panel outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nport-eleven-fund-four-quarter-panel
+          path: data/nport_panel_output/
+          if-no-files-found: warn
+          retention-days: 30
