@@ -23,11 +23,12 @@ results = data["results"].copy()
 availability = data["availability"].copy()
 funds = data["funds"].copy()
 uncovered = data["uncovered"].copy()
+crosswalk = data["crosswalk"].copy()
 
 st.warning(
     "**Research status:** descriptive feasibility analysis, not causal evidence. "
     "The benchmark is IVV's reported N-PORT holdings (a tracker-fund proxy), not official S&P 500 weights. "
-    "Only the common-equity sleeve is modeled."
+    "Only the common-equity sleeve is modeled. A complete endpoint-price match is not yet the same as a manually validated security identity."
 )
 
 if not data["available"]:
@@ -118,10 +119,15 @@ with tabs[2]:
     q2.metric("Intervals withheld", withheld)
     q3.metric("Positions missing returns", f"{len(uncovered):,}")
     if not availability.empty:
-        st.markdown("**Expected observation availability**")
+        st.markdown("**Observed fund and benchmark filings (actual report dates)**")
         st.dataframe(availability, use_container_width=True, hide_index=True)
+    if not crosswalk.empty:
+        st.markdown("**Security crosswalk and endpoint-price evidence**")
+        st.caption("Mappings are candidate/unreviewed. Review issuer identity, share class, exchange line and corporate actions before treating returns as validated.")
+        st.dataframe(crosswalk, use_container_width=True, hide_index=True)
+        st.download_button("Download security crosswalk CSV", crosswalk.to_csv(index=False).encode("utf-8"), "nport_security_crosswalk.csv", "text/csv")
     if not uncovered.empty:
-        st.markdown("**Starting positions without a validated return**")
+        st.markdown("**Starting positions without an endpoint-price return**")
         st.dataframe(uncovered, use_container_width=True, hide_index=True)
         st.download_button("Download uncovered positions CSV", uncovered.to_csv(index=False).encode("utf-8"), "nport_uncovered_positions.csv", "text/csv")
     if not data["filings"].empty:
@@ -152,13 +158,15 @@ with tabs[3]:
     st.markdown("**Rules that matter**")
     st.markdown(
         """
-        - The no-trade estimate is withheld unless every beginning equity position has a validated return.
+        - The no-trade price-coverage estimate is withheld unless every beginning equity position has an endpoint price return.
+        - Security-to-ticker mappings remain candidate/unreviewed until a documented identity review is completed.
         - Common-equity (ASSET_CAT=EC) holdings are normalized within the equity sleeve; as-filed NAV percentages remain separate.
         - The one-to-many N-PORT identifier bridge is aggregated before joining to holdings.
         - Latest valid original/amended N-PORT filing is selected; late-filing notices are excluded.
         - The calculation assumes proportional treatment of fund flows within the equity sleeve.
         - IVV is a tracker-fund proxy, not official index constituent weights.
         - Yahoo adjusted prices and OpenFIGI mappings are public feasibility sources, not an institutional-grade security master.
+        - The crosswalk preserves mapping provenance, endpoint adjusted prices, dates and price availability for manual review.
         - Foreign listings, FX, delistings, mergers, ticker changes and corporate actions need position-level validation.
         - The selected 11-fund cohort is purposive, size-screened and survivorship-biased; it is not representative.
         - Results are descriptive, not causal.
