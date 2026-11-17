@@ -165,3 +165,10 @@ Report distributions and coverage before estimating trends. Show results by fund
 The SEC's stated October 2019–September 2026 coverage is distributed across separate quarterly ZIP releases. The 2026 Q3 archive alone is not the historical panel: its report dates run from 2024-04-30 to 2026-07-31 and are concentrated in the latest months, with older dates appearing sparsely in amendments. The panel must be built by combining the quarterly archives from 2019 Q4 onward, deduplicating repeated accessions, and resolving amendments across the combined history.
 
 The 2026 Q3 Phase 0 audit found that 20.7% of holding IDs have multiple identifier rows. Never sum holdings after a raw one-to-many join to IDENTIFIERS; first construct a holding-level identifier bridge or aggregate identifiers without multiplying positions. See [the Q3 audit](nport_phase0_q3_audit.md) for the detailed counts, candidate holdings test, original-filing validation, and remaining blockers.
+
+
+## Security-return and benchmark data-source decision
+
+N-PORT does not contain security-level total returns. A candidate institutional solution is CRSP via WRDS, which provides historical U.S. security identifiers, monthly total returns, corporate actions, and delisting information, plus historical S&P 500 membership. CRSP is subscription data, and its S&P 500 membership history does not itself provide official float-adjusted constituent weights. A tracker fund's N-PORT holdings can be used as a clearly labeled benchmark-weight proxy if official historical weights are unavailable.
+
+This is a research-scope decision, not a settled choice: if the study must use only publicly available data, CRSP cannot be assumed. Any foreign holdings outside the U.S. CRSP universe must be mapped to another source or retained as an explicit missing-return exposure. See the Phase 0 audit for references and caveats.
