@@ -112,79 +112,138 @@ def extract_close_series(prices, ticker):
 
 
 def fetch_returns(start, start_date, end_date):
+    import re
     import requests, yfinance as yf
     from requests.adapters import HTTPAdapter
     from urllib3.util.retry import Retry
+
     session = requests.Session()
     retry = Retry(total=5, connect=5, read=3, status=5, backoff_factor=2,
                   status_forcelist=[429,500,502,503,504],
                   allowed_methods=frozenset(["POST"]),
                   respect_retry_after_header=True)
     session.mount("https://", HTTPAdapter(max_retries=retry))
-    jobs=[]; keys=[]; mapping={}; mapping_details={}
-    for r in start.to_dict("records"):
-        if r["ISIN"]:
-            jobs.append({"idType":"ID_ISIN","idValue":r["ISIN"],"exchCode":"US","includeUnlistedEquities":True})
-            keys.append(r["SECURITY_KEY"])
-        elif r["ISSUER_CUSIP"] and r["ISSUER_CUSIP"]!="000000000":
-            jobs.append({"idType":"ID_CUSIP","idValue":r["ISSUER_CUSIP"],"exchCode":"US","includeUnlistedEquities":True})
-            keys.append(r["SECURITY_KEY"])
-        else: mapping[r["SECURITY_KEY"]]=""
-    for i in range(0,len(jobs),10):
-        res=session.post("https://api.openfigi.com/v3/mapping",json=jobs[i:i+10],
-                         headers={"Content-Type":"application/json"},timeout=45)
-        res.raise_for_status()
-        for key,item in zip(keys[i:i+10],res.json()):
-            data=item.get("data",[])
-            good=[d for d in data if d.get("exchCode")=="US" and
-                  ("common stock" in (d.get("securityType","")+" "+d.get("securityType2","")).lower()
-                   or "depositary receipt" in (d.get("securityType","")+" "+d.get("securityType2","")).lower())]
-            ts=sorted(set(d.get("ticker","") for d in good if d.get("ticker")))
-            mapping[key]=ts[0].replace(".","-").replace("/","-") if len(ts)==1 else ""
-            mapping_details[key]={
-                "figi_candidates":[
-                    {"ticker":d.get("ticker",""),"name":d.get("name",""),
-                     "figi":d.get("figi",""),"securityType":d.get("securityType",""),
-                     "securityType2":d.get("securityType2",""),"exchCode":d.get("exchCode","")}
-                    for d in good
-                ],
-                "mapping_error":item.get("error",""),
-                "unique_tickers":ts
-            }
-        time.sleep(2.5)
-    tickers=sorted(set(t for t in mapping.values() if t))
-    if not tickers: return pd.DataFrame(columns=["SECURITY_KEY","RETURN","TICKER_RESOLVED","FIGI_CANDIDATES","MAPPING_ERROR"])
+
+    rows = {r["SECURITY_KEY"]: r for r in start.to_dict("records")}
+    mapping = {key: "" for key in rows}
+    mapping_details = {key: {} for key in rows}
+
+    def norm_name(value):
+        return re.sub(r"[^A-Z0-9]", "", str(value or "").upper())
+
+    def choose_ticker(good, issuer_name):
+        candidates = []
+        for d in good:
+            raw = str(d.get("ticker", "")).strip().upper()
+            yahoo = raw.replace("/", "-").replace(".", "-")
+            # Avoid non-symbol codes and special when-issued/warrant lines.
+            if not re.fullmatch(r"[A-Z][A-Z0-9.-]{0,5}", yahoo):
+                continue
+            name = str(d.get("name", ""))
+            upper_name = name.upper()
+            if any(flag in upper_name for flag in ("W/D", "WHEN ISSUED", "WARRANT", "RIGHT")):
+                continue
+            candidates.append((yahoo, d))
+        exact = [item for item in candidates
+                 if norm_name(item[1].get("name", "")) == norm_name(issuer_name)]
+        pool = exact if exact else candidates
+        tickers = sorted(set(t for t, _ in pool))
+        return tickers[0] if len(tickers) == 1 else ""
+
+    def map_jobs(job_rows, source):
+        for i in range(0, len(job_rows), 10):
+            batch = job_rows[i:i+10]
+            res = session.post(
+                "https://api.openfigi.com/v3/mapping", json=[j[1] for j in batch],
+                headers={"Content-Type": "application/json"}, timeout=45
+            )
+            res.raise_for_status()
+            for (key, _), item in zip(batch, res.json()):
+                data = item.get("data", [])
+                good = [d for d in data if d.get("exchCode") == "US" and
+                        ("common stock" in (d.get("securityType", "") + " " + d.get("securityType2", "")).lower()
+                         or "depositary receipt" in (d.get("securityType", "") + " " + d.get("securityType2", "")).lower())]
+                chosen = choose_ticker(good, rows[key].get("ISSUER_NAME", ""))
+                mapping_details[key][source] = {
+                    "chosen_ticker": chosen,
+                    "figi_candidates": [
+                        {"ticker": d.get("ticker", ""), "name": d.get("name", ""),
+                         "figi": d.get("figi", ""), "securityType": d.get("securityType", ""),
+                         "securityType2": d.get("securityType2", ""), "exchCode": d.get("exchCode", "")}
+                        for d in good
+                    ],
+                    "mapping_error": item.get("error", "")
+                }
+                if chosen:
+                    mapping[key] = chosen
+            time.sleep(2.5)
+
+    # First pass: ISIN mapping.
+    isin_jobs = []
+    for key, row in rows.items():
+        isin = str(row.get("ISIN", "")).strip()
+        if isin:
+            isin_jobs.append((key, {"idType": "ID_ISIN", "idValue": isin,
+                                    "exchCode": "US", "includeUnlistedEquities": True}))
+    map_jobs(isin_jobs, "isin")
+
+    # Second pass: CUSIP fallback for every unresolved/ambiguous ISIN.
+    cusip_jobs = []
+    for key, row in rows.items():
+        cusip = str(row.get("ISSUER_CUSIP", "")).strip()
+        if not mapping[key] and cusip and cusip != "000000000":
+            cusip_jobs.append((key, {"idType": "ID_CUSIP", "idValue": cusip,
+                                     "exchCode": "US", "includeUnlistedEquities": True}))
+    map_jobs(cusip_jobs, "cusip_fallback")
+
+    tickers = sorted(set(t for t in mapping.values() if t))
+    if not tickers:
+        return pd.DataFrame([{"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": "",
+                              "FIGI_CANDIDATES": json.dumps(mapping_details[k], sort_keys=True),
+                              "MAPPING_ERROR": ""} for k in rows])
+
     try:
-        px=yf.download(sorted(set(tickers+["SPY"])),
-            start=(pd.Timestamp(start_date)-pd.Timedelta(days=10)).strftime("%Y-%m-%d"),
-            end=(pd.Timestamp(end_date)+pd.Timedelta(days=5)).strftime("%Y-%m-%d"),
-            auto_adjust=True,actions=True,progress=False,group_by="ticker",threads=False)
+        px = yf.download(
+            sorted(set(tickers + ["SPY"])),
+            start=(pd.Timestamp(start_date) - pd.Timedelta(days=10)).strftime("%Y-%m-%d"),
+            end=(pd.Timestamp(end_date) + pd.Timedelta(days=5)).strftime("%Y-%m-%d"),
+            auto_adjust=True, actions=True, progress=False, group_by="ticker",
+            threads=False, timeout=20
+        )
         def close(sym):
             return extract_close_series(px, sym)
-        cal=close("SPY")
+        cal = close("SPY")
     except Exception as exc:
         print(f"Price download failed: {type(exc).__name__}: {exc}")
-        return pd.DataFrame([{"SECURITY_KEY":k,"RETURN":None,"TICKER_RESOLVED":v,
-                              "FIGI_CANDIDATES":json.dumps(mapping_details.get(k,{}).get("figi_candidates",[])),
-                              "MAPPING_ERROR":mapping_details.get(k,{}).get("mapping_error","")}
-                             for k,v in mapping.items()])
-    sd=cal.index[cal.index.date<=pd.Timestamp(start_date).date()]
-    ed=cal.index[cal.index.date<=pd.Timestamp(end_date).date()]
-    sdate=sd[-1] if len(sd) else None; edate=ed[-1] if len(ed) else None
-    out=[]
-    for key,ticker in mapping.items():
-        value=None
+        return pd.DataFrame([
+            {"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": v,
+             "FIGI_CANDIDATES": json.dumps(mapping_details[k], sort_keys=True),
+             "MAPPING_ERROR": ""}
+            for k, v in mapping.items()
+        ])
+
+    sd = cal.index[cal.index.date <= pd.Timestamp(start_date).date()]
+    ed = cal.index[cal.index.date <= pd.Timestamp(end_date).date()]
+    sdate = sd[-1] if len(sd) else None
+    edate = ed[-1] if len(ed) else None
+    out = []
+    for key, ticker in mapping.items():
+        value = None
         if ticker and sdate is not None and edate is not None:
             try:
-                p=close(ticker)
-                if sdate in p.index and edate in p.index: value=float(p.loc[edate]/p.loc[sdate]-1)
-            except Exception: pass
-        detail=mapping_details.get(key,{})
-        out.append({"SECURITY_KEY":key,"RETURN":value,"TICKER_RESOLVED":ticker,
-                    "START_PRICE_DATE":str(sdate.date()) if sdate is not None else "",
-                    "END_PRICE_DATE":str(edate.date()) if edate is not None else "",
-                    "FIGI_CANDIDATES":json.dumps(detail.get("figi_candidates",[]),sort_keys=True),
-                    "MAPPING_ERROR":detail.get("mapping_error","")})
+                p = close(ticker)
+                # Require actual observations on both required market dates.
+                if sdate in p.index and edate in p.index:
+                    value = float(p.loc[edate] / p.loc[sdate] - 1)
+            except Exception:
+                pass
+        out.append({
+            "SECURITY_KEY": key, "RETURN": value, "TICKER_RESOLVED": ticker,
+            "START_PRICE_DATE": str(sdate.date()) if sdate is not None else "",
+            "END_PRICE_DATE": str(edate.date()) if edate is not None else "",
+            "FIGI_CANDIDATES": json.dumps(mapping_details[key], sort_keys=True),
+            "MAPPING_ERROR": ""
+        })
     return pd.DataFrame(out)
 
 def main():
