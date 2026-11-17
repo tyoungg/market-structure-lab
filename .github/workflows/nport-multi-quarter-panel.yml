@@ -53,17 +53,6 @@ jobs:
             --start-date 2025-07-01 \
             --end-date 2026-09-30 \
             --output-dir data/nport_panel_output
-      - name: Publish compact dashboard outputs to research branch
-        if: success()
-        run: |
-          mkdir -p data/nport_dashboard
-          cp data/nport_panel_output/panel_summary.json data/nport_dashboard/
-          cp data/nport_panel_output/fund_interval_results.csv data/nport_dashboard/
-          cp data/nport_panel_output/observation_availability.csv data/nport_dashboard/
-          cp data/nport_panel_output/uncovered_positions.csv data/nport_dashboard/
-          cp data/nport_panel_output/security_crosswalk.csv data/nport_dashboard/
-          cp data/nport_panel_output/filing_resolution.csv data/nport_dashboard/
-          cp data/nport_panel_output/sample_funds.csv data/nport_dashboard/
       - name: Commit and push dashboard data safely
         if: success()
         env:
@@ -87,11 +76,14 @@ jobs:
           cp data/nport_panel_output/sample_funds.csv "$PUBLISH_DIR/"
 
           # Start each attempt from the current remote branch tip, then apply
-          # this run's outputs as one atomic snapshot. No force-push or merge
-          # of competing generated files.
+          # this run's outputs as one atomic snapshot. The explicit
+          # --discard-changes is safe here because the run's generated files
+          # are already preserved in PUBLISH_DIR. It also handles retries
+          # after a rejected push, when the prior attempt left staged files.
+          # No force-push or merge of competing generated files.
           for attempt in 1 2 3; do
             git fetch origin "$TARGET_BRANCH"
-            git switch --force-create "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
+            git switch --discard-changes --force-create "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
             cp "$PUBLISH_DIR"/* data/nport_dashboard/
             git add data/nport_dashboard/*.json data/nport_dashboard/*.csv
 
