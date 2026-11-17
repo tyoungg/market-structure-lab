@@ -323,6 +323,7 @@ def main() -> None:
             result_rows.append({**base, "STATUS": item["STATUS"]})
 
     ticker_cache: dict[str, str] = {}
+    ticker_source_cache: dict[str, str] = {}
     coverage_rows = []
     crosswalk_parts = []
     for (start_date, end_date), series_list in sorted(intervals_by_dates.items()):
@@ -330,9 +331,15 @@ def main() -> None:
             [portfolios[(sid, start_date)] for sid in series_list], ignore_index=True
         ).drop_duplicates("SECURITY_KEY")
         print(f"Fetching returns for {len(union)} unique starting securities: {start_date} to {end_date}", flush=True)
-        returns = pilot.fetch_returns(union, start_date, end_date, ticker_cache=ticker_cache)
+        returns = pilot.fetch_returns(
+            union, start_date, end_date,
+            ticker_cache=ticker_cache, ticker_source_cache=ticker_source_cache,
+        )
         ticker_cache.update({
             str(r.SECURITY_KEY): str(r.TICKER_RESOLVED or "") for r in returns.itertuples()
+        })
+        ticker_source_cache.update({
+            str(r.SECURITY_KEY): str(r.MAPPING_SOURCE or "") for r in returns.itertuples()
         })
         returns.to_csv(args.output_dir / f"security_returns_{start_date}_{end_date}.csv", index=False)
         cw = returns.copy()
@@ -389,7 +396,12 @@ def main() -> None:
     results.to_csv(args.output_dir / "fund_interval_results.csv", index=False)
     pd.DataFrame(coverage_rows).to_csv(args.output_dir / "uncovered_positions.csv", index=False)
     if crosswalk_parts:
-        pd.concat(crosswalk_parts, ignore_index=True).to_csv(args.output_dir / "security_crosswalk.csv", index=False)
+        crosswalk_output = pd.concat(crosswalk_parts, ignore_index=True)
+        if "MAPPING_VALIDATION_STATUS" not in crosswalk_output:
+            crosswalk_output["MAPPING_VALIDATION_STATUS"] = "CANDIDATE_UNREVIEWED"
+        else:
+            crosswalk_output["MAPPING_VALIDATION_STATUS"] = crosswalk_output["MAPPING_VALIDATION_STATUS"].fillna("CANDIDATE_UNREVIEWED")
+        crosswalk_output.to_csv(args.output_dir / "security_crosswalk.csv", index=False)
     else:
         pd.DataFrame(columns=["SECURITY_KEY", "TICKER_RESOLVED", "MAPPING_SOURCE", "RETURN_AVAILABLE"]).to_csv(
             args.output_dir / "security_crosswalk.csv", index=False
@@ -407,6 +419,9 @@ def main() -> None:
         "benchmark_name": "iShares Core S&P 500 ETF (IVV) N-PORT holdings proxy",
         "expected_fund_intervals": int(len(results)), "observed_fund_intervals": int(len(results)),
         "strict_no_trade_intervals_calculated": int(len(calculated)),
+        "identity_reviewed_intervals": 0,
+        "return_coverage_definition": "All beginning equity positions have endpoint prices for a candidate ticker; security identity mappings have not yet received manual approval.",
+
         "intervals_withheld_for_incomplete_coverage": int((results.STATUS == "WITHHELD_INCOMPLETE_RETURN_COVERAGE").sum()) if not results.empty else 0,
         "missing_fund_or_benchmark_observations": int(results.STATUS.astype(str).str.contains("MISSING|GAP", regex=True).sum()) if not results.empty else 0,
         "mean_return_coverage": float(results.RETURN_COVERAGE_START_EQUITY_WEIGHT.mean()) if not results.empty and "RETURN_COVERAGE_START_EQUITY_WEIGHT" in results else None,
@@ -422,7 +437,8 @@ def main() -> None:
             "Fund flows are not allocated to securities; the equity-sleeve counterfactual assumes proportional treatment of flows.",
             "Yahoo adjusted prices and OpenFIGI mappings are public feasibility sources, not an institutional-grade security master.",
             "Foreign-listed positions, FX, mergers, delistings and corporate actions still require position-level validation.",
-            "N-PORT-reported tickers are mapping candidates, not independently verified security identities.",
+            "All security mappings remain candidate/unreviewed; complete endpoint-price coverage is not equivalent to identity validation.",
+            "Raw adjusted endpoint prices and dates are retained in security_crosswalk.csv for manual review.",
             "IVV holdings are a tracker-fund proxy, not official S&P 500 index weights.",
         ],
     }
