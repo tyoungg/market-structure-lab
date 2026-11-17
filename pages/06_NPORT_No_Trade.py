@@ -1,6 +1,16 @@
 from __future__ import annotations
+import sys
+from pathlib import Path
+
 import pandas as pd
 import streamlit as st
+
+# Streamlit Cloud may execute a multipage script with pages/ as its import
+# root. Add the repository root explicitly so the shared utils package resolves.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from utils.nport_dashboard import load_dashboard_data
 
 st.set_page_config(page_title="N-PORT No-Trade Counterfactual", page_icon="📊", layout="wide")
