@@ -115,13 +115,16 @@ def fetch_returns(start, start_date, end_date):
         time.sleep(2.5)
     tickers=sorted(set(t for t in mapping.values() if t))
     if not tickers: return pd.DataFrame(columns=["SECURITY_KEY","RETURN","TICKER_RESOLVED"])
-    px=yf.download(sorted(set(tickers+["SPY"])),
-        start=(pd.Timestamp(start_date)-pd.Timedelta(days=10)).strftime("%Y-%m-%d"),
-        end=(pd.Timestamp(end_date)+pd.Timedelta(days=5)).strftime("%Y-%m-%d"),
-        auto_adjust=True,actions=True,progress=False,group_by="ticker",threads=True)
-    def close(sym):
-        return (px[(sym,"Close")] if isinstance(px.columns,pd.MultiIndex) else px["Close"]).dropna()
-    cal=close("SPY")
+    try:
+        px=yf.download(sorted(set(tickers+["SPY"])),
+            start=(pd.Timestamp(start_date)-pd.Timedelta(days=10)).strftime("%Y-%m-%d"),
+            end=(pd.Timestamp(end_date)+pd.Timedelta(days=5)).strftime("%Y-%m-%d"),
+            auto_adjust=True,actions=True,progress=False,group_by="ticker",threads=True)
+        def close(sym):
+            return (px[(sym,"Close")] if isinstance(px.columns,pd.MultiIndex) else px["Close"]).dropna()
+        cal=close("SPY")
+    except Exception:
+        return pd.DataFrame([{"SECURITY_KEY":k,"RETURN":None,"TICKER_RESOLVED":v} for k,v in mapping.items()])
     sd=cal.index[cal.index.date<=pd.Timestamp(start_date).date()]
     ed=cal.index[cal.index.date<=pd.Timestamp(end_date).date()]
     sdate=sd[-1] if len(sd) else None; edate=ed[-1] if len(ed) else None
