@@ -301,6 +301,17 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
                     # Identity and historical vendor-series validation remain open.
                     if mapping_review_status[key] == "IDENTIFIER_CONFLICT_REVIEW_REQUIRED":
                         mapping_review_status[key] = "DATED_TICKER_OVERRIDE_UNREVIEWED"
+                    elif mapping_review_status[key] == "CROSS_FUND_TICKER_CONFLICT_REVIEW_REQUIRED":
+                        try:
+                            candidates = set(json.loads(str(rows[key].get("TICKER_CANDIDATES", "[]"))))
+                        except (TypeError, ValueError):
+                            candidates = set()
+                        documented_symbols = {
+                            item["OLD_TICKER"].strip().upper(),
+                            item["NEW_TICKER"].strip().upper(),
+                        }
+                        if candidates and candidates.issubset(documented_symbols):
+                            mapping_review_status[key] = "DATED_TICKER_OVERRIDE_UNREVIEWED"
 
     endpoint_tickers = {}
     for key, ticker in mapping.items():
@@ -315,7 +326,7 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
         symbol for key, pair in endpoint_tickers.items()
         for symbol in pair
         if symbol and (key not in mapping_conflicts or key in dated_overrides)
-        and ("REVIEW_REQUIRED" not in mapping_review_status[key] or key in dated_overrides)
+        and "REVIEW_REQUIRED" not in mapping_review_status[key]
     ))
     if not tickers:
         return pd.DataFrame([{"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": "" if "REVIEW_REQUIRED" in mapping_review_status[k] else mapping[k],
@@ -405,7 +416,7 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
         start_px = end_px = None
         start_ticker, end_ticker = endpoint_tickers.get(key, (ticker, ticker))
         price_status = "UNMAPPED_TICKER" if not (start_ticker and end_ticker) else "MARKET_DATE_UNAVAILABLE"
-        if "REVIEW_REQUIRED" in mapping_review_status[key] and key not in dated_overrides:
+        if "REVIEW_REQUIRED" in mapping_review_status[key]:
             price_status = mapping_review_status[key]
         elif start_ticker and end_ticker and sdate is not None and edate is not None:
             try:
@@ -426,7 +437,7 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
                 price_status = f"PRICE_EXTRACTION_ERROR:{type(exc).__name__}"
         out.append({
             "SECURITY_KEY": key, "RETURN": value,
-            "TICKER_RESOLVED": "" if ("REVIEW_REQUIRED" in mapping_review_status[key] and key not in dated_overrides) else ticker,
+            "TICKER_RESOLVED": "" if "REVIEW_REQUIRED" in mapping_review_status[key] else ticker,
             "START_TICKER": start_ticker, "END_TICKER": end_ticker,
             "MAPPING_SOURCE": mapping_source[key],
             "MAPPING_VALIDATION_STATUS": mapping_review_status[key],
@@ -436,7 +447,6 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
             "PRICE_PROVIDER": "Yahoo Finance (yfinance), auto_adjust=True",
             "PRICE_STATUS": price_status,
             "START_ADJUSTED_CLOSE": start_px, "END_ADJUSTED_CLOSE": end_px,
-            "START_TICKER": start_ticker, "END_TICKER": end_ticker,
             "NPORT_TICKER": str(rows[key].get("TICKER", "") or ""),
             "ISSUER_NAME": str(rows[key].get("ISSUER_NAME", "") or ""),
             "ISIN": str(rows[key].get("ISIN", "") or ""),
