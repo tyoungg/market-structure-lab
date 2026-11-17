@@ -15,13 +15,14 @@ def load_dashboard_data(data_dir: str | Path | None = None) -> dict:
         "results": folder / "fund_interval_results.csv",
         "availability": folder / "observation_availability.csv",
         "uncovered": folder / "uncovered_positions.csv",
+        "crosswalk": folder / "security_crosswalk.csv",
         "filings": folder / "filing_resolution.csv",
         "funds": folder / "sample_funds.csv",
     }
     data = {"data_dir": folder, "available": False}
     if files["summary"].exists():
         data["summary"] = json.loads(files["summary"].read_text(encoding="utf-8"))
-    for key in ("results", "availability", "uncovered", "filings", "funds"):
+    for key in ("results", "availability", "uncovered", "crosswalk", "filings", "funds"):
         source = files[key]
         if key == "funds" and not source.exists():
             source = ROOT / "data" / "nport_panel" / "sample_funds.csv"
