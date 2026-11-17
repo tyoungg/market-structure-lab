@@ -156,6 +156,31 @@ class NportPanelTests(unittest.TestCase):
         override = {"OLD_TICKER": "MMC", "NEW_TICKER": "MRSH"}
         self.assertFalse(panel.pilot.dated_override_covers_ticker_candidates(row, override))
 
+    def test_ticker_transition_price_histories_must_overlap_and_match(self):
+        dates = pd.to_datetime(["2026-01-12", "2026-01-13", "2026-01-14", "2026-01-15"])
+        old = pd.Series([100.0, 101.0, 102.0, 103.0], index=dates)
+        new = pd.Series([100.0, 101.0, 102.0, 103.0], index=dates)
+        result = panel.pilot.compare_ticker_price_series(old, new, "2026-01-14")
+        self.assertEqual(result["status"], "MATCH")
+        self.assertEqual(result["overlap_days"], 4)
+        self.assertAlmostEqual(result["max_abs_price_diff_pct"], 0.0)
+
+    def test_ticker_transition_price_history_mismatch_is_rejected(self):
+        dates = pd.to_datetime(["2026-01-12", "2026-01-13", "2026-01-14", "2026-01-15"])
+        old = pd.Series([100.0, 101.0, 102.0, 103.0], index=dates)
+        new = pd.Series([100.0, 101.0, 104.0, 105.0], index=dates)
+        result = panel.pilot.compare_ticker_price_series(old, new, "2026-01-14")
+        self.assertEqual(result["status"], "MISMATCH")
+        self.assertGreater(result["max_abs_price_diff_pct"], 0.5)
+
+    def test_ticker_transition_without_sufficient_overlap_is_not_approved(self):
+        old_dates = pd.to_datetime(["2026-01-05", "2026-01-06"])
+        new_dates = pd.to_datetime(["2026-01-14", "2026-01-15"])
+        old = pd.Series([100.0, 101.0], index=old_dates)
+        new = pd.Series([102.0, 103.0], index=new_dates)
+        result = panel.pilot.compare_ticker_price_series(old, new, "2026-01-14")
+        self.assertEqual(result["status"], "INSUFFICIENT_OVERLAP")
+
     def test_strict_no_trade_requires_every_position_return(self):
         start = pd.DataFrame({"SECURITY_KEY": ["A", "B"], "EQUITY_WEIGHT": [0.6, 0.4]})
         complete = pd.DataFrame({"SECURITY_KEY": ["A", "B"], "RETURN": [0.10, -0.10]})
