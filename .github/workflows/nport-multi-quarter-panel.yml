@@ -15,6 +15,11 @@ on:
 permissions:
   contents: write
 
+# Prevent overlapping panel runs from pushing from stale checkouts.
+concurrency:
+  group: nport-panel-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -56,12 +61,31 @@ jobs:
           cp data/nport_panel_output/uncovered_positions.csv data/nport_dashboard/
           cp data/nport_panel_output/filing_resolution.csv data/nport_dashboard/
           cp data/nport_panel_output/sample_funds.csv data/nport_dashboard/
-      - name: Commit dashboard data
+      - name: Commit and push dashboard data safely
         if: success()
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "Publish latest N-PORT dashboard data"
-          file_pattern: "data/nport_dashboard/*.json data/nport_dashboard/*.csv"
+        env:
+          TARGET_BRANCH: ${{ github.ref_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/nport_dashboard/*.json data/nport_dashboard/*.csv
+          if git diff --cached --quiet; then
+            echo "Dashboard outputs are unchanged; nothing to commit."
+            exit 0
+          fi
+          git commit -m "Publish latest N-PORT dashboard data"
+          # Rebase onto the latest remote tip before pushing. Retry if another
+          # commit lands between fetch/rebase and push; never force-push.
+          for attempt in 1 2 3; do
+            git fetch origin "$TARGET_BRANCH"
+            git rebase "origin/$TARGET_BRANCH"
+            if git push origin "HEAD:$TARGET_BRANCH"; then
+              exit 0
+            fi
+            echo "Push attempt $attempt failed; retrying after fetching latest branch."
+          done
+          echo "Could not publish dashboard data after three safe push attempts."
+          exit 1
       - name: Upload panel outputs
         if: always()
         uses: actions/upload-artifact@v4
