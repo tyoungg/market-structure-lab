@@ -141,3 +141,25 @@ Next sequence:
 4. Re-run the pilot over consecutive public reporting dates; only then calculate no-trade weights and Active Share.
 
 **Conclusion:** N-PORT is a viable holdings source, but the current archive is only a first cross-sectional feasibility test. The historical panel, active-fund classification, official benchmark weights, and security-return source remain prerequisites. No empirical conclusion about active-manager trading versus passive mechanical flows is warranted yet.
+
+
+## 8. Candidate return-data and benchmark path
+
+A strong institutional-data candidate is the CRSP U.S. Stock Database through WRDS:
+
+- CRSP describes its stock database as covering active and inactive U.S. securities, with permanent PERMNO/PERMCO identifiers, historical identifiers, corporate actions, and delisting information.
+- CRSP monthly returns are total returns with ordinary dividends reinvested; the current CIZ format documents monthly total returns and the handling of delisting returns.
+- WRDS provides historical S&P 500 constituent membership through CRSP index tables/tools, with history extending back to 1958. Membership is not the same thing as official float-adjusted index weights.
+- UF Libraries lists CRSP stock data and the CRSP survivor-bias-free U.S. mutual-fund database through WRDS, with access requiring a WRDS login. Access for this project has not been confirmed.
+
+Sources:
+- CRSP U.S. Stock Databases: https://www.crsp.org/research/crsp-us-stock-databases/
+- CRSP CIZ data descriptions: https://www.crsp.org/crsp_pdf/crsp-us-stock-indexes-databases-data-descriptions-guide-crspaccess/
+- WRDS S&P 500 constituent tool: https://wrds-www.wharton.upenn.edu/pages/classroom/the-sp-500/
+- UF Business Library database list: https://businesslibrary.uflib.ufl.edu/az.php
+
+**Important scope trade-off:** CRSP is subscription data, so it would not satisfy a strict “publicly available data only” requirement. If institutional WRDS access is available and acceptable for the research, CRSP is substantially better suited to the no-trade return path than a current-ticker/free-price-data approach. If public-only reproducibility is mandatory, we need a separate public-data design and must be more conservative about delisted securities and corporate actions.
+
+For the benchmark, CRSP historical S&P 500 membership can help avoid using today's constituents for the entire sample. It does not by itself supply official float-adjusted S&P 500 weights. A point-in-time S&P 500 tracker filing from N-PORT (for example, a large index mutual fund or ETF) can provide a clearly labeled holdings-weight proxy; it must not be called the official index. Compare more than one tracker if tracking differences are material.
+
+The CRSP U.S. stock universe also does not automatically solve every non-U.S. position in a fund. Any foreign issuer/security not covered by the U.S. stock file must be mapped to a suitable international source or retained as an explicit missing-return exposure, not silently dropped.
