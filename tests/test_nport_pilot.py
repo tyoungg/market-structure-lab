@@ -21,6 +21,24 @@ class NoTradeMathTests(unittest.TestCase):
         self.assertEqual(chosen.iloc[0].ACCESSION_NUMBER,"b")
         self.assertNotIn("c",set(valid.ACCESSION_NUMBER))
 
+    def test_yfinance_price_first_multiindex_columns(self):
+        prices = pd.DataFrame(
+            [[100.0, 200.0], [101.0, 202.0]],
+            columns=pd.MultiIndex.from_tuples([("Close", "AAPL"), ("Close", "SPY")]),
+            index=pd.to_datetime(["2026-05-29", "2026-06-30"]),
+        )
+        got = pilot.extract_close_series(prices, "AAPL")
+        self.assertEqual(got.tolist(), [100.0, 101.0])
+
+    def test_yfinance_ticker_first_multiindex_columns(self):
+        prices = pd.DataFrame(
+            [[100.0, 200.0], [101.0, 202.0]],
+            columns=pd.MultiIndex.from_tuples([("AAPL", "Close"), ("SPY", "Close")]),
+            index=pd.to_datetime(["2026-05-29", "2026-06-30"]),
+        )
+        got = pilot.extract_close_series(prices, "AAPL")
+        self.assertEqual(got.tolist(), [100.0, 101.0])
+
     def test_active_share(self):
         a = pd.DataFrame({"SECURITY_KEY":["A","B"],"EQUITY_WEIGHT":[.6,.4]})
         b = pd.DataFrame({"SECURITY_KEY":["A","B"],"EQUITY_WEIGHT":[.5,.5]})
