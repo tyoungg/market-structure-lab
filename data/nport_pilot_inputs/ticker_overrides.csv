@@ -1,8 +1,3 @@
-SECURITY_KEY,TICKER,SOURCE_URL,SOURCE_NOTE
-US09264B1070,BXDC,https://www.sec.gov/Archives/edgar/data/2100161/000210016126000007/bxdc-20260630.htm,SEC Form 10-Q identifies BXDC common stock; began NYSE trading 2026-05-14
-US22002T1088,CDP,https://investors.copt.com/company-information,COPT issuer investor relations identifies NYSE ticker CDP
-US2538681030,DLR,https://www.sec.gov/Archives/edgar/data/1924868/000089418926011055/xslFormNPORT-P_X01/primary_doc.xml,SEC N-PORT filing identifies Digital Realty Trust CUSIP and ticker DLR
-US30231G1022,XOM,https://www.sec.gov/Archives/edgar/data/1580353/000094040026034807/primary_doc.xml,SEC N-PORT filing identifies Exxon Mobil ISIN and ticker XOM
-US42226B5012,NHP,https://www.sec.gov/Archives/edgar/data/1561032/000156103226000055/hct-20260630.htm,SEC Form 10-Q identifies NHP Class A common stock; Nasdaq trading began 2026-04-22
-US4781601046,JNJ,https://www.sec.gov/Archives/edgar/data/200406/000020040626000197/jnj-20260927.htm,SEC Form 10-Q identifies JNJ common stock on NYSE
-US78377T1079,RHP,https://www.sec.gov/Archives/edgar/data/1331971/000119312526439478/primary_doc.xml,SEC N-PORT filing identifies Ryman Hospitality Properties ticker RHP
+SECURITY_KEY,OLD_TICKER,NEW_TICKER,EFFECTIVE_DATE,SOURCE_URL,SOURCE_NOTE
+US5717481023,MMC,MRSH,2026-01-14,https://www.marsh.com/en/corp/about/news/marsh-mclennan-to-change-nyse-symbol-to-mrsh.html,Issuer confirms NYSE common-stock ticker changed from MMC to MRSH effective 2026-01-14; same permanent security identifier. Endpoint symbols must be checked separately; this is not identity or Yahoo price-series approval.
+US0640581007,BK,BNY,2026-05-21,https://www.bny.com/corporate/global/en/about-us/newsroom/press-release/bny-announces-planned-change-of-stock-ticker-symbol-to-bny-130465.html,Issuer confirms NYSE common-stock ticker changed from BK to BNY effective 2026-05-21; same permanent security identifier. Endpoint symbols must be checked separately; this is not identity or Yahoo price-series approval.
