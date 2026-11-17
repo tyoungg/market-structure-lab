@@ -365,10 +365,6 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
                     }
                     # Issuer evidence resolves the symbol-change conflict only.
                     # Identity and historical vendor-series validation remain open.
-                    documented_symbols = {
-                        item["OLD_TICKER"].strip().upper(),
-                        item["NEW_TICKER"].strip().upper(),
-                    }
                     has_cross_fund_conflict = str(rows[key].get("TICKER_CONFLICT", "")).strip().lower() in {"true", "1"}
                     if has_cross_fund_conflict:
                         if dated_override_covers_ticker_candidates(rows[key], item):
