@@ -111,7 +111,7 @@ def extract_close_series(prices, ticker):
     raise KeyError(f"No Close column found for {ticker}")
 
 
-def fetch_returns(start, start_date, end_date):
+def fetch_returns(start, start_date, end_date, ticker_cache=None):
     import re
     import requests, yfinance as yf
     from requests.adapters import HTTPAdapter
@@ -125,8 +125,9 @@ def fetch_returns(start, start_date, end_date):
     session.mount("https://", HTTPAdapter(max_retries=retry))
 
     rows = {r["SECURITY_KEY"]: r for r in start.to_dict("records")}
-    mapping = {key: "" for key in rows}
-    mapping_details = {key: {} for key in rows}
+    ticker_cache = ticker_cache or {}
+    mapping = {key: str(ticker_cache.get(key, "") or "") for key in rows}
+    mapping_details = {key: ({"ticker_cache": True} if mapping[key] else {}) for key in rows}
 
     def norm_name(value):
         return re.sub(r"[^A-Z0-9]", "", str(value or "").upper())
@@ -182,7 +183,7 @@ def fetch_returns(start, start_date, end_date):
     isin_jobs = []
     for key, row in rows.items():
         isin = str(row.get("ISIN", "")).strip()
-        if isin:
+        if isin and not mapping[key]:
             isin_jobs.append((key, {"idType": "ID_ISIN", "idValue": isin,
                                     "exchCode": "US", "includeUnlistedEquities": True}))
     map_jobs(isin_jobs, "isin")
@@ -218,19 +219,52 @@ def fetch_returns(start, start_date, end_date):
                               "FIGI_CANDIDATES": json.dumps(mapping_details[k], sort_keys=True),
                               "MAPPING_ERROR": ""} for k in rows])
 
-    try:
-        px = yf.download(
-            sorted(set(tickers + ["SPY"])),
-            start=(pd.Timestamp(start_date) - pd.Timedelta(days=10)).strftime("%Y-%m-%d"),
-            end=(pd.Timestamp(end_date) + pd.Timedelta(days=5)).strftime("%Y-%m-%d"),
-            auto_adjust=True, actions=True, progress=False, group_by="ticker",
-            threads=False, timeout=20
-        )
-        def close(sym):
-            return extract_close_series(px, sym)
-        cal = close("SPY")
-    except Exception as exc:
-        print(f"Price download failed: {type(exc).__name__}: {exc}")
+    price_series = {}
+    cal = None
+    price_start = (pd.Timestamp(start_date) - pd.Timedelta(days=10)).strftime("%Y-%m-%d")
+    price_end = (pd.Timestamp(end_date) + pd.Timedelta(days=5)).strftime("%Y-%m-%d")
+    # Keep requests serial to avoid yfinance's shared SQLite timezone-cache lock;
+    # download manageable batches so a large cross-fund union does not become one fragile request.
+    for offset in range(0, len(tickers), 40):
+        batch = tickers[offset:offset + 40]
+        symbols = list(batch)
+        if offset == 0 and "SPY" not in symbols:
+            symbols.append("SPY")
+        try:
+            px = yf.download(
+                symbols, start=price_start, end=price_end,
+                auto_adjust=True, actions=True, progress=False, group_by="ticker",
+                threads=False, timeout=30
+            )
+            for symbol in batch:
+                try:
+                    price_series[symbol] = extract_close_series(px, symbol)
+                except Exception as exc:
+                    print(f"No usable Yahoo Close for {symbol}: {type(exc).__name__}: {exc}")
+                    price_series[symbol] = pd.Series(dtype=float)
+            if offset == 0:
+                try:
+                    cal = extract_close_series(px, "SPY")
+                except Exception:
+                    cal = None
+        except Exception as exc:
+            print(f"Price batch failed ({batch[0]}..{batch[-1]}): {type(exc).__name__}: {exc}")
+            for symbol in batch:
+                price_series[symbol] = pd.Series(dtype=float)
+
+    if cal is None or cal.empty:
+        try:
+            spy = yf.download(
+                ["SPY"], start=price_start, end=price_end,
+                auto_adjust=True, actions=True, progress=False, group_by="ticker",
+                threads=False, timeout=30
+            )
+            cal = extract_close_series(spy, "SPY")
+        except Exception as exc:
+            print(f"SPY calendar download failed: {type(exc).__name__}: {exc}")
+            cal = pd.Series(dtype=float)
+
+    if cal.empty:
         return pd.DataFrame([
             {"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": v,
              "FIGI_CANDIDATES": json.dumps(mapping_details[k], sort_keys=True),
@@ -247,9 +281,8 @@ def fetch_returns(start, start_date, end_date):
         value = None
         if ticker and sdate is not None and edate is not None:
             try:
-                p = close(ticker)
+                p = price_series.get(ticker, pd.Series(dtype=float))
                 # Require actual observations on both required market dates.
-                if sdate in p.index and edate in p.index:
                     value = float(p.loc[edate] / p.loc[sdate] - 1)
             except Exception:
                 pass
