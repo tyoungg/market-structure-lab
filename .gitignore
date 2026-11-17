@@ -6,3 +6,7 @@ data/nport_raw/
 data/nport/
 cache/*.parquet
 results/
+
+# N-PORT multi-quarter panel caches and generated outputs
+.cache/nport_hf/
+data/nport_panel_output/
