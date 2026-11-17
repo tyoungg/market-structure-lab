@@ -117,6 +117,22 @@ def nport_ticker_candidate(row):
     return value.replace("/", "-").replace(".", "-") if value else ""
 
 
+def resolve_dated_ticker_pair(override, start_date, end_date, default_ticker=""):
+    """Resolve endpoint symbols around an issuer-documented ticker change.
+
+    The effective date is inclusive for the new ticker. This resolves symbols;
+    it does not approve the underlying security identity or vendor price series.
+    """
+    effective = pd.Timestamp(override["EFFECTIVE_DATE"]).date()
+    start_symbol = str(override.get("OLD_TICKER", "")).strip().upper() or default_ticker
+    end_symbol = str(override.get("NEW_TICKER", "")).strip().upper() or default_ticker
+    if pd.Timestamp(start_date).date() >= effective:
+        start_symbol = str(override.get("NEW_TICKER", "")).strip().upper() or start_symbol
+    if pd.Timestamp(end_date).date() < effective:
+        end_symbol = str(override.get("OLD_TICKER", "")).strip().upper() or end_symbol
+    return start_symbol, end_symbol
+
+
 def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_cache=None):
     import re
     import requests, yfinance as yf
@@ -245,26 +261,49 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
                                      "exchCode": "US", "includeUnlistedEquities": True}))
     map_jobs(cusip_jobs, "cusip_fallback")
 
-    # Explicit, source-documented overrides for identifiers OpenFIGI fails to resolve
-    # or maps to a non-trading vendor code. Overrides supply symbols only; prices
-    # are still fetched from Yahoo and must exist on both required dates.
+    # Source-documented symbol overrides can represent an issuer ticker change.
+    # Keep both endpoint symbols: a single ticker for the whole interval is wrong
+    # when the report dates straddle the effective date.
     override_path = Path(__file__).resolve().parents[1] / "data" / "nport_pilot_inputs" / "ticker_overrides.csv"
+    dated_overrides = {}
     if override_path.exists():
         overrides = pd.read_csv(override_path, dtype=str).fillna("")
-        for item in overrides.to_dict("records"):
-            key = item.get("SECURITY_KEY", "")
-            ticker = item.get("TICKER", "").strip().upper()
-            if key in mapping and ticker and not mapping[key]:
-                mapping[key] = ticker
-                mapping_source[key] = "documented_manual_override"
-                mapping_details[key]["manual_override"] = {
-                    "ticker": ticker, "source_url": item.get("SOURCE_URL", ""),
-                    "source_note": item.get("SOURCE_NOTE", "")
-                }
+        required = {"SECURITY_KEY", "OLD_TICKER", "NEW_TICKER", "EFFECTIVE_DATE"}
+        if required.issubset(overrides.columns):
+            for item in overrides.to_dict("records"):
+                key = item.get("SECURITY_KEY", "")
+                if key in mapping and item.get("OLD_TICKER") and item.get("NEW_TICKER") and item.get("EFFECTIVE_DATE"):
+                    if key in dated_overrides:
+                        raise ValueError(f"Duplicate dated ticker override for {key}")
+                    dated_overrides[key] = item
+                    mapping[key] = item["NEW_TICKER"].strip().upper()
+                    mapping_source[key] = "issuer_documented_dated_ticker_override"
+                    mapping_details[key]["dated_ticker_override"] = {
+                        "old_ticker": item["OLD_TICKER"].strip().upper(),
+                        "new_ticker": item["NEW_TICKER"].strip().upper(),
+                        "effective_date": item["EFFECTIVE_DATE"],
+                        "source_url": item.get("SOURCE_URL", ""),
+                        "source_note": item.get("SOURCE_NOTE", ""),
+                    }
+                    # Issuer evidence resolves the symbol-change conflict only.
+                    # Identity and historical vendor-series validation remain open.
+                    if mapping_review_status[key] == "IDENTIFIER_CONFLICT_REVIEW_REQUIRED":
+                        mapping_review_status[key] = "DATED_TICKER_OVERRIDE_UNREVIEWED"
+
+    endpoint_tickers = {}
+    for key, ticker in mapping.items():
+        if key in dated_overrides:
+            endpoint_tickers[key] = resolve_dated_ticker_pair(
+                dated_overrides[key], start_date, end_date, ticker
+            )
+        else:
+            endpoint_tickers[key] = (ticker, ticker)
 
     tickers = sorted(set(
-        t for key, t in mapping.items()
-        if t and key not in mapping_conflicts and "REVIEW_REQUIRED" not in mapping_review_status[key]
+        symbol for key, pair in endpoint_tickers.items()
+        for symbol in pair
+        if symbol and (key not in mapping_conflicts or key in dated_overrides)
+        and ("REVIEW_REQUIRED" not in mapping_review_status[key] or key in dated_overrides)
     ))
     if not tickers:
         return pd.DataFrame([{"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": "" if "REVIEW_REQUIRED" in mapping_review_status[k] else mapping[k],
@@ -352,16 +391,19 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
     for key, ticker in mapping.items():
         value = None
         start_px = end_px = None
-        price_status = "UNMAPPED_TICKER" if not ticker else "MARKET_DATE_UNAVAILABLE"
-        if "REVIEW_REQUIRED" in mapping_review_status[key]:
+        start_ticker, end_ticker = endpoint_tickers.get(key, (ticker, ticker))
+        price_status = "UNMAPPED_TICKER" if not (start_ticker and end_ticker) else "MARKET_DATE_UNAVAILABLE"
+        if "REVIEW_REQUIRED" in mapping_review_status[key] and key not in dated_overrides:
             price_status = mapping_review_status[key]
-        elif ticker and sdate is not None and edate is not None:
+        elif start_ticker and end_ticker and sdate is not None and edate is not None:
             try:
-                p = price_series.get(ticker, pd.Series(dtype=float))
-                # Require actual adjusted-price observations on both endpoint dates.
-                if sdate in p.index and edate in p.index:
-                    start_px, end_px = float(p.loc[sdate]), float(p.loc[edate])
-                    if pd.notna(start_px) and pd.notna(end_px) and start_px > 0:
+                start_series = price_series.get(start_ticker, pd.Series(dtype=float))
+                end_series = price_series.get(end_ticker, pd.Series(dtype=float))
+                # Each endpoint must come from the symbol valid on that date.
+                if sdate in start_series.index and edate in end_series.index:
+                    start_px = float(start_series.loc[sdate])
+                    end_px = float(end_series.loc[edate])
+                    if pd.notna(start_px) and pd.notna(end_px) and start_px > 0 and end_px > 0:
                         value = float(end_px / start_px - 1)
                         price_status = "ENDPOINT_PRICES_AVAILABLE"
                     else:
@@ -371,7 +413,9 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
             except Exception as exc:
                 price_status = f"PRICE_EXTRACTION_ERROR:{type(exc).__name__}"
         out.append({
-            "SECURITY_KEY": key, "RETURN": value, "TICKER_RESOLVED": "" if "REVIEW_REQUIRED" in mapping_review_status[key] else ticker,
+            "SECURITY_KEY": key, "RETURN": value,
+            "TICKER_RESOLVED": "" if ("REVIEW_REQUIRED" in mapping_review_status[key] and key not in dated_overrides) else ticker,
+            "START_TICKER": start_ticker, "END_TICKER": end_ticker,
             "MAPPING_SOURCE": mapping_source[key],
             "MAPPING_VALIDATION_STATUS": mapping_review_status[key],
             "NPORT_TICKER_CONFLICT": str(rows[key].get("TICKER_CONFLICT", "")),
@@ -380,6 +424,7 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
             "PRICE_PROVIDER": "Yahoo Finance (yfinance), auto_adjust=True",
             "PRICE_STATUS": price_status,
             "START_ADJUSTED_CLOSE": start_px, "END_ADJUSTED_CLOSE": end_px,
+            "START_TICKER": start_ticker, "END_TICKER": end_ticker,
             "NPORT_TICKER": str(rows[key].get("TICKER", "") or ""),
             "ISSUER_NAME": str(rows[key].get("ISSUER_NAME", "") or ""),
             "ISIN": str(rows[key].get("ISIN", "") or ""),
