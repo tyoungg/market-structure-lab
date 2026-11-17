@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - research/no-trade-large-cap
+      - validation/nport-step1
     paths:
       - "scripts/run_nport_panel.py"
       - "scripts/run_nport_pilot.py"
@@ -19,7 +20,7 @@ permissions:
 # Prevent overlapping panel runs from pushing from stale checkouts.
 concurrency:
   group: nport-panel-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -68,6 +69,16 @@ jobs:
           PUBLISH_DIR="$RUNNER_TEMP/nport-dashboard-output"
           mkdir -p "$PUBLISH_DIR"
           cp data/nport_panel_output/panel_summary.json "$PUBLISH_DIR/"
+
+          # Never publish outputs calculated from an older commit onto a newer
+          # branch tip. A previous panel run may finish after a newer push.
+          TRIGGER_SHA="${GITHUB_SHA:?GITHUB_SHA is required}"
+          git fetch origin "$TARGET_BRANCH"
+          REMOTE_SHA="$(git rev-parse FETCH_HEAD)"
+          if [[ "$REMOTE_SHA" != "$TRIGGER_SHA" ]]; then
+            echo "Skipping stale panel output: run SHA $TRIGGER_SHA, branch SHA $REMOTE_SHA."
+            exit 0
+          fi
           cp data/nport_panel_output/fund_interval_results.csv "$PUBLISH_DIR/"
           cp data/nport_panel_output/observation_availability.csv "$PUBLISH_DIR/"
           cp data/nport_panel_output/uncovered_positions.csv "$PUBLISH_DIR/"
@@ -83,6 +94,11 @@ jobs:
           # No force-push or merge of competing generated files.
           for attempt in 1 2 3; do
             git fetch origin "$TARGET_BRANCH"
+            REMOTE_SHA="$(git rev-parse FETCH_HEAD)"
+            if [[ "$REMOTE_SHA" != "$TRIGGER_SHA" ]]; then
+              echo "Branch advanced while this run was calculating; refusing to publish stale output."
+              exit 0
+            fi
             git switch --discard-changes --force-create "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
             cp "$PUBLISH_DIR"/* data/nport_dashboard/
             git add data/nport_dashboard/*.json data/nport_dashboard/*.csv

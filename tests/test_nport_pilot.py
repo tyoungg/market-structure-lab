@@ -54,11 +54,20 @@ class NoTradeMathTests(unittest.TestCase):
 
     def test_ticker_overrides_are_source_documented(self):
         path = Path(__file__).resolve().parents[1] / "data" / "nport_pilot_inputs" / "ticker_overrides.csv"
-        overrides = pd.read_csv(path, dtype=str)
-        self.assertEqual(len(overrides), 7)
+        overrides = pd.read_csv(path, dtype=str).fillna("")
+        single_symbol = overrides[overrides.TICKER.str.len().gt(0)]
+        dated_symbol = overrides[overrides.OLD_TICKER.str.len().gt(0)]
+        self.assertEqual(len(single_symbol), 7)
+        self.assertEqual(len(dated_symbol), 2)
+        self.assertEqual(
+            set(dated_symbol.SECURITY_KEY),
+            {"US5717481023", "US0640581007"},
+        )
         self.assertFalse(overrides.SECURITY_KEY.duplicated().any())
         self.assertTrue(overrides.SOURCE_URL.str.startswith("https://").all())
-        self.assertTrue(overrides.TICKER.str.len().gt(0).all())
+        self.assertTrue(single_symbol.TICKER.str.len().gt(0).all())
+        self.assertTrue(dated_symbol.NEW_TICKER.str.len().gt(0).all())
+        self.assertTrue(pd.to_datetime(dated_symbol.EFFECTIVE_DATE, errors="coerce").notna().all())
 
     def test_active_share(self):
         a = pd.DataFrame({"SECURITY_KEY":["A","B"],"EQUITY_WEIGHT":[.6,.4]})
