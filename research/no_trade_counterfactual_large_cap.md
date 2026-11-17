@@ -167,8 +167,19 @@ The SEC's stated October 2019–September 2026 coverage is distributed across se
 The 2026 Q3 Phase 0 audit found that 20.7% of holding IDs have multiple identifier rows. Never sum holdings after a raw one-to-many join to IDENTIFIERS; first construct a holding-level identifier bridge or aggregate identifiers without multiplying positions. See [the Q3 audit](nport_phase0_q3_audit.md) for the detailed counts, candidate holdings test, original-filing validation, and remaining blockers.
 
 
-## Security-return and benchmark data-source decision
+## Security-return and benchmark data-source decision — public-data-only
 
-N-PORT does not contain security-level total returns. A candidate institutional solution is CRSP via WRDS, which provides historical U.S. security identifiers, monthly total returns, corporate actions, and delisting information, plus historical S&P 500 membership. CRSP is subscription data, and its S&P 500 membership history does not itself provide official float-adjusted constituent weights. A tracker fund's N-PORT holdings can be used as a clearly labeled benchmark-weight proxy if official historical weights are unavailable.
+The study is restricted to data that can be obtained publicly without a paid market-data subscription. CRSP/WRDS and other subscription datasets are out of scope.
 
-This is a research-scope decision, not a settled choice: if the study must use only publicly available data, CRSP cannot be assumed. Any foreign holdings outside the U.S. CRSP universe must be mapped to another source or retained as an explicit missing-return exposure. See the Phase 0 audit for references and caveats.
+N-PORT does not contain security-level total returns. The public-data approach is therefore deliberately coverage-bounded:
+
+- **Prototype security returns:** use freely accessible, dividend- and split-adjusted historical prices (initial candidate: Yahoo Finance through yfinance) only after validating the security match and corporate-action behavior for each holding. This is a public-access source, not an open, authoritative survivorship-bias-free database. Do not claim complete delisted-security coverage.
+- **Independent checks:** compare a sample of adjusted-price histories with another freely accessible source where possible. A second source is a validation check, not a substitute for a stable security master.
+- **Delisted and corporate-action cases:** use public SEC filings, issuer merger documents, exchange notices, and other primary disclosures to resolve cash/stock consideration, ticker changes, splits, spin-offs, and final trading dates. If the outcome cannot be established, flag the position and interval; do not silently drop it or carry its last price forward.
+- **Security identity:** retain CUSIP, ISIN, LEI, issuer name, title, and ticker from N-PORT. Ticker is a search key, not the permanent security key. Create a dated, reviewed crosswalk and preserve unresolved matches.
+- **Benchmark:** first use publicly filed N-PORT holdings for an S&P 500 index mutual fund or ETF as a *tracker-holdings proxy* for benchmark weights on matching dates. The Q3 2026 archive includes Schwab S&P 500 Index Fund, which is a useful feasibility candidate. This is not the official S&P 500 index and must be labeled as a fund proxy. Historical constituent lists reconstructed from public sources may support membership checks, but they do not by themselves supply official cap-weighted index weights.
+- **Strict sample:** calculate a no-trade interval only when the beginning holdings can be mapped to validated return series or otherwise resolved through a documented public corporate-action event. Report the share of beginning NAV and equity weight with valid returns. Establish the minimum coverage threshold after the pilot, before scaling, and show sensitivity to excluded positions.
+
+The public-data constraint creates a real limitation: freely accessible price histories may not provide complete, reliable returns for every delisted security and every corporate action. The study must report that limitation and the resulting coverage rather than imply CRSP-grade completeness. If a robust no-trade estimate cannot be supported for a fund-quarter, retain it in the data-quality audit but exclude it from the strict estimate.
+
+See [the public-data implementation plan](public_data_implementation_plan.md) for source hierarchy, validation rules, and the next pilot steps.
