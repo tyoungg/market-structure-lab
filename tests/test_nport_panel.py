@@ -224,6 +224,7 @@ class NportPanelTests(unittest.TestCase):
         workflow = (ROOT / ".github" / "workflows" / "nport-multi-quarter-panel.yml").read_text()
         self.assertIn("cancel-in-progress: true", workflow)
         self.assertIn('TRIGGER_SHA="${GITHUB_SHA:?GITHUB_SHA is required}"', workflow)
+        self.assertIn('"data/nport_pilot_inputs/**"', workflow)
         self.assertIn('if [[ "$REMOTE_SHA" != "$TRIGGER_SHA" ]]', workflow)
 
     def test_ticker_transition_price_histories_must_overlap_and_match(self):

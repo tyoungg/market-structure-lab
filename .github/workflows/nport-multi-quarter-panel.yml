@@ -11,6 +11,7 @@ on:
       - "tests/test_nport_panel.py"
       - "tests/test_nport_dashboard.py"
       - "data/nport_panel/**"
+      - "data/nport_pilot_inputs/**"
       - ".github/workflows/nport-multi-quarter-panel.yml"
   workflow_dispatch:
 
