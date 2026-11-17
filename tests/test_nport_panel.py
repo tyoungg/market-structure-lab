@@ -106,6 +106,46 @@ class NportPanelTests(unittest.TestCase):
         self.assertEqual(panel.pilot.nport_ticker_candidate({"TICKER": "BRK.B"}), "BRK-B")
         self.assertEqual(panel.pilot.nport_ticker_candidate({"TICKER": ""}), "")
 
+    def test_dated_ticker_override_before_effective_date_uses_old_symbol(self):
+        override = {
+            "OLD_TICKER": "MMC", "NEW_TICKER": "MRSH",
+            "EFFECTIVE_DATE": "2026-01-14",
+        }
+        self.assertEqual(
+            panel.pilot.resolve_dated_ticker_pair(override, "2025-09-30", "2025-12-31"),
+            ("MMC", "MMC"),
+        )
+
+    def test_dated_ticker_override_straddling_effective_date_uses_both_symbols(self):
+        override = {
+            "OLD_TICKER": "MMC", "NEW_TICKER": "MRSH",
+            "EFFECTIVE_DATE": "2026-01-14",
+        }
+        self.assertEqual(
+            panel.pilot.resolve_dated_ticker_pair(override, "2025-12-31", "2026-03-31"),
+            ("MMC", "MRSH"),
+        )
+
+    def test_dated_ticker_override_after_effective_date_uses_new_symbol(self):
+        override = {
+            "OLD_TICKER": "BK", "NEW_TICKER": "BNY",
+            "EFFECTIVE_DATE": "2026-05-21",
+        }
+        self.assertEqual(
+            panel.pilot.resolve_dated_ticker_pair(override, "2026-06-30", "2026-09-30"),
+            ("BNY", "BNY"),
+        )
+
+    def test_dated_ticker_change_effective_date_is_inclusive(self):
+        override = {
+            "OLD_TICKER": "BK", "NEW_TICKER": "BNY",
+            "EFFECTIVE_DATE": "2026-05-21",
+        }
+        self.assertEqual(
+            panel.pilot.resolve_dated_ticker_pair(override, "2026-05-20", "2026-05-21"),
+            ("BK", "BNY"),
+        )
+
     def test_strict_no_trade_requires_every_position_return(self):
         start = pd.DataFrame({"SECURITY_KEY": ["A", "B"], "EQUITY_WEIGHT": [0.6, 0.4]})
         complete = pd.DataFrame({"SECURITY_KEY": ["A", "B"], "RETURN": [0.10, -0.10]})
