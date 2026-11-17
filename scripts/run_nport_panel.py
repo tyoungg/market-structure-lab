@@ -12,7 +12,6 @@ import sys
 from pathlib import Path
 
 import pandas as pd
-from huggingface_hub import hf_hub_download
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "scripts") not in sys.path:
@@ -45,6 +44,7 @@ def partition_filename(table: str, year: int, quarter: int) -> str:
 
 
 def get_partition(table: str, year: int, quarter: int, cache_dir: Path) -> Path:
+    from huggingface_hub import hf_hub_download
     path = hf_hub_download(
         repo_id=DATASET_REPO,
         repo_type="dataset",
