@@ -9,6 +9,21 @@ pilot = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pilot)
 
 class NoTradeMathTests(unittest.TestCase):
+    def test_late_notice_is_not_a_portfolio_observation(self):
+        rows = pd.DataFrame({
+            "FUND_KEY":["F1","F1","F1"],
+            "REPORT_DT":pd.to_datetime(["2026-06-30"]*3),
+            "FILING_DT":pd.to_datetime(["2026-08-25","2026-08-27","2026-08-29"]),
+            "SUB_TYPE":["NPORT-P","NPORT-P/A","NT NPORT-P"],
+            "ACCESSION_NUMBER":["a","b","c"],
+        })
+        valid = rows[rows.SUB_TYPE.isin(["NPORT-P","NPORT-P/A"])].copy()
+        valid["SUBTYPE_RANK"] = valid.SUB_TYPE.map({"NPORT-P":1,"NPORT-P/A":2})
+        valid = valid.sort_values(["FUND_KEY","REPORT_DT","FILING_DT","SUBTYPE_RANK","ACCESSION_NUMBER"])
+        chosen = valid.drop_duplicates(["FUND_KEY","REPORT_DT"],keep="last")
+        self.assertEqual(chosen.iloc[0].ACCESSION_NUMBER,"b")
+        self.assertNotIn("c",set(chosen.ACCESSION_NUMBER))
+
     def test_active_share(self):
         a = pd.DataFrame({"SECURITY_KEY":["A","B"],"EQUITY_WEIGHT":[.6,.4]})
         b = pd.DataFrame({"SECURITY_KEY":["A","B"],"EQUITY_WEIGHT":[.5,.5]})
