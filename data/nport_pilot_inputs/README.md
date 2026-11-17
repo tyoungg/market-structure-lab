@@ -28,3 +28,9 @@ For the May 31 starting holdings, the price anchor is the last SPY trading date 
 - Identifier rows were aggregated to one row per holding before joining, avoiding the one-to-many IDENTIFIERS fan-out.
 - The benchmark is IVV's reported holdings, not official S&P 500 index weights.
 - The resulting no-trade calculation is a one-interval, normalized equity-sleeve comparison. It does not claim to model fund flows, cash, derivatives, FX, delistings, mergers, or corporate actions comprehensively.
+
+## Ticker overrides
+
+`ticker_overrides.csv` documents seven manual ticker mappings used only when OpenFIGI does not produce one unambiguous, usable U.S. common-stock ticker. Each mapping includes a public SEC or issuer source URL. This is an identifier bridge, not a price override: Yahoo must still provide adjusted closes on both required market dates. If it does not, the position remains uncovered and the strict no-trade estimate is withheld.
+
+The override list includes BXDC, CDP, DLR, XOM, NHP, JNJ and RHP. These were independently checked against SEC filings or issuer investor-relations pages. For example, BXDC began NYSE trading on May 14, 2026; NHP's Class A shares began Nasdaq trading on April 22, 2026; COPT identifies CDP as its NYSE symbol; and SEC N-PORT/10-Q filings identify the other symbols.
