@@ -60,6 +60,23 @@ class NportPanelTests(unittest.TestCase):
         self.assertAlmostEqual(weights.EQUITY_WEIGHT.sum(), 1.0)
         self.assertEqual(set(weights.SECURITY_KEY), {"A", "B"})
 
+    def test_shared_security_ticker_conflict_is_not_silently_collapsed(self):
+        a = pd.DataFrame([{
+            "SECURITY_KEY": "US0000000001", "ISIN": "US0000000001",
+            "ISSUER_CUSIP": "000000001", "TICKER": "ABC",
+            "ISSUER_NAME": "ABC Corp", "IDENTITY_STATUS": "ISIN",
+        }])
+        b = pd.DataFrame([{
+            "SECURITY_KEY": "US0000000001", "ISIN": "US0000000001",
+            "ISSUER_CUSIP": "000000001", "TICKER": "ABC.A",
+            "ISSUER_NAME": "ABC Corporation", "IDENTITY_STATUS": "ISIN",
+        }])
+        got = panel.aggregate_starting_security_candidates([a, b]).iloc[0]
+        self.assertEqual(got.TICKER, "")
+        self.assertTrue(got.TICKER_CONFLICT)
+        self.assertEqual(got.SOURCE_FUND_COUNT, 2)
+        self.assertIn("ABC", got.TICKER_CANDIDATES)
+
     def test_actual_fund_report_dates_pair_consecutively_and_match_benchmark_end(self):
         portfolios = {
             ("FUND_A", "2025-10-31"): pd.DataFrame(),
