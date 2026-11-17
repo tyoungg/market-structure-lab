@@ -45,7 +45,7 @@ N-PORT-reported tickers are now used as explicit candidates instead of being ign
 
 **Important distinction:** the current crosswalk is candidate/unreviewed. A ticker plus two endpoint prices is not proof that the price series represents the exact security/share class held by the fund. The pipeline therefore labels complete-price-coverage calculations as provisional until security identity, share class, venue, FX and corporate-action treatment are reviewed. Raw adjusted endpoint prices and dates are retained to make that review possible.
 
-The generated `security_crosswalk.csv` is a review queue and should not be hand-edited as the durable approval record; a separate, versioned review manifest will be introduced before any mappings are promoted to approved status.
+The generated `security_crosswalk.csv` is a review queue and should not be hand-edited as the durable approval record. The durable review files are [`security_crosswalk_review_ledger.csv`](security_crosswalk_review_ledger.csv) and [`SECURITY_REVIEW_PROTOCOL.md`](SECURITY_REVIEW_PROTOCOL.md). The ledger is seeded from a published crosswalk snapshot; preserve reviewer decisions when refreshing it. No mapping is approved by default.
 
 ## Counterfactual calculation
 
