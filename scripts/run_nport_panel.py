@@ -184,6 +184,26 @@ def equity_weights(holdings: pd.DataFrame, accession: str) -> tuple[pd.DataFrame
     return grouped, total
 
 
+def aggregate_starting_security_candidates(frames: list[pd.DataFrame]) -> pd.DataFrame:
+    """Combine metadata for shared keys without silently choosing conflicting tickers."""
+    combined = pd.concat(frames, ignore_index=True)
+    rows = []
+    for security_key, group in combined.groupby("SECURITY_KEY", sort=False):
+        record = {"SECURITY_KEY": security_key}
+        for column in ["ISIN", "ISSUER_CUSIP", "TICKER", "ISSUER_NAME", "IDENTITY_STATUS"]:
+            values = sorted({
+                str(value).strip() for value in group.get(column, pd.Series(dtype=str)).fillna("")
+                if str(value).strip()
+            })
+            record[column] = values[0] if len(values) == 1 else ""
+            if column in {"TICKER", "ISSUER_NAME"}:
+                record[f"{column}_CANDIDATES"] = json.dumps(values)
+                record[f"{column}_CONFLICT"] = len(values) > 1
+        record["SOURCE_FUND_COUNT"] = int(group.get("SECURITY_KEY", pd.Series(dtype=str)).nunique())
+        rows.append(record)
+    return pd.DataFrame(rows)
+
+
 def build_interval_schedule(
     portfolios: dict[tuple[str, str], pd.DataFrame],
     fund_ids: set[str],
@@ -327,9 +347,9 @@ def main() -> None:
     coverage_rows = []
     crosswalk_parts = []
     for (start_date, end_date), series_list in sorted(intervals_by_dates.items()):
-        union = pd.concat(
-            [portfolios[(sid, start_date)] for sid in series_list], ignore_index=True
-        ).drop_duplicates("SECURITY_KEY")
+        union = aggregate_starting_security_candidates(
+            [portfolios[(sid, start_date)] for sid in series_list]
+        )
         print(f"Fetching returns for {len(union)} unique starting securities: {start_date} to {end_date}", flush=True)
         returns = pilot.fetch_returns(
             union, start_date, end_date,
