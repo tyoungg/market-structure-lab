@@ -133,6 +133,24 @@ def resolve_dated_ticker_pair(override, start_date, end_date, default_ticker="")
     return start_symbol, end_symbol
 
 
+def dated_override_covers_ticker_candidates(row, override):
+    """True only when every observed ticker candidate is explained by the dated change."""
+    try:
+        candidates = {
+            str(value).strip().upper()
+            for value in json.loads(str(row.get("TICKER_CANDIDATES", "[]")))
+            if str(value).strip()
+        }
+    except (TypeError, ValueError):
+        return False
+    documented = {
+        str(override.get("OLD_TICKER", "")).strip().upper(),
+        str(override.get("NEW_TICKER", "")).strip().upper(),
+    }
+    documented.discard("")
+    return bool(candidates) and candidates.issubset(documented)
+
+
 def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_cache=None):
     import re
     import requests, yfinance as yf
@@ -305,11 +323,7 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
                     }
                     has_cross_fund_conflict = str(rows[key].get("TICKER_CONFLICT", "")).strip().lower() in {"true", "1"}
                     if has_cross_fund_conflict:
-                        try:
-                            candidates = set(json.loads(str(rows[key].get("TICKER_CANDIDATES", "[]"))))
-                        except (TypeError, ValueError):
-                            candidates = set()
-                        if candidates and candidates.issubset(documented_symbols):
+                        if dated_override_covers_ticker_candidates(rows[key], item):
                             mapping_review_status[key] = "DATED_TICKER_OVERRIDE_UNREVIEWED"
                         else:
                             mapping_review_status[key] = "CROSS_FUND_TICKER_CONFLICT_REVIEW_REQUIRED"
