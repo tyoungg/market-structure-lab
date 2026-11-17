@@ -127,7 +127,18 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None):
     rows = {r["SECURITY_KEY"]: r for r in start.to_dict("records")}
     ticker_cache = ticker_cache or {}
     mapping = {key: str(ticker_cache.get(key, "") or "") for key in rows}
+    mapping_source = {key: ("prior_run_cache" if mapping[key] else "") for key in rows}
     mapping_details = {key: ({"ticker_cache": True} if mapping[key] else {}) for key in rows}
+
+    # Use the ticker reported by N-PORT as a documented candidate before
+    # external symbology lookup. A ticker candidate is not, by itself,
+    # proof of a valid historical security match.
+    for key, row in rows.items():
+        nport_ticker = str(row.get("TICKER", "") or "").strip().upper()
+        if not mapping[key] and nport_ticker:
+            mapping[key] = nport_ticker.replace("/", "-").replace(".", "-")
+            mapping_source[key] = "nport_reported_ticker"
+            mapping_details[key]["nport_ticker_candidate"] = nport_ticker
 
     def norm_name(value):
         return re.sub(r"[^A-Z0-9]", "", str(value or "").upper())
@@ -175,8 +186,9 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None):
                     ],
                     "mapping_error": item.get("error", "")
                 }
-                if chosen:
+                if chosen and not mapping[key]:
                     mapping[key] = chosen
+                    mapping_source[key] = source
             time.sleep(2.5)
 
     # First pass: ISIN mapping.
@@ -208,6 +220,7 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None):
             ticker = item.get("TICKER", "").strip().upper()
             if key in mapping and ticker and not mapping[key]:
                 mapping[key] = ticker
+                mapping_source[key] = "documented_manual_override"
                 mapping_details[key]["manual_override"] = {
                     "ticker": ticker, "source_url": item.get("SOURCE_URL", ""),
                     "source_note": item.get("SOURCE_NOTE", "")
@@ -215,7 +228,12 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None):
 
     tickers = sorted(set(t for t in mapping.values() if t))
     if not tickers:
-        return pd.DataFrame([{"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": "",
+        return pd.DataFrame([{"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": mapping[k],
+                              "MAPPING_SOURCE": mapping_source[k],
+                              "NPORT_TICKER": str(rows[k].get("TICKER", "") or ""),
+                              "ISSUER_NAME": str(rows[k].get("ISSUER_NAME", "") or ""),
+                              "ISIN": str(rows[k].get("ISIN", "") or ""),
+                              "ISSUER_CUSIP": str(rows[k].get("ISSUER_CUSIP", "") or ""),
                               "FIGI_CANDIDATES": json.dumps(mapping_details[k], sort_keys=True),
                               "MAPPING_ERROR": ""} for k in rows])
 
@@ -267,6 +285,11 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None):
     if cal.empty:
         return pd.DataFrame([
             {"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": v,
+             "MAPPING_SOURCE": mapping_source[k],
+             "NPORT_TICKER": str(rows[k].get("TICKER", "") or ""),
+             "ISSUER_NAME": str(rows[k].get("ISSUER_NAME", "") or ""),
+             "ISIN": str(rows[k].get("ISIN", "") or ""),
+             "ISSUER_CUSIP": str(rows[k].get("ISSUER_CUSIP", "") or ""),
              "FIGI_CANDIDATES": json.dumps(mapping_details[k], sort_keys=True),
              "MAPPING_ERROR": ""}
             for k, v in mapping.items()
@@ -289,6 +312,11 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None):
                 pass
         out.append({
             "SECURITY_KEY": key, "RETURN": value, "TICKER_RESOLVED": ticker,
+            "MAPPING_SOURCE": mapping_source[key],
+            "NPORT_TICKER": str(rows[key].get("TICKER", "") or ""),
+            "ISSUER_NAME": str(rows[key].get("ISSUER_NAME", "") or ""),
+            "ISIN": str(rows[key].get("ISIN", "") or ""),
+            "ISSUER_CUSIP": str(rows[key].get("ISSUER_CUSIP", "") or ""),
             "START_PRICE_DATE": str(sdate.date()) if sdate is not None else "",
             "END_PRICE_DATE": str(edate.date()) if edate is not None else "",
             "FIGI_CANDIDATES": json.dumps(mapping_details[key], sort_keys=True),
