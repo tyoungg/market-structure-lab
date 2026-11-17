@@ -60,6 +60,35 @@ class NportPanelTests(unittest.TestCase):
         self.assertAlmostEqual(weights.EQUITY_WEIGHT.sum(), 1.0)
         self.assertEqual(set(weights.SECURITY_KEY), {"A", "B"})
 
+    def test_actual_fund_report_dates_pair_consecutively_and_match_benchmark_end(self):
+        portfolios = {
+            ("FUND_A", "2025-10-31"): pd.DataFrame(),
+            ("FUND_A", "2026-01-31"): pd.DataFrame(),
+            ("FUND_A", "2026-04-30"): pd.DataFrame(),
+            ("IVV", "2026-01-31"): pd.DataFrame(),
+            # Deliberately no IVV observation for April 30.
+        }
+        schedule = panel.build_interval_schedule(portfolios, {"FUND_A"}, "IVV")
+        self.assertEqual(len(schedule), 2)
+        self.assertEqual(schedule[0]["START_DATE"], "2025-10-31")
+        self.assertEqual(schedule[0]["END_DATE"], "2026-01-31")
+        self.assertEqual(schedule[0]["STATUS"], "READY")
+        self.assertEqual(schedule[1]["END_DATE"], "2026-04-30")
+        self.assertEqual(schedule[1]["STATUS"], "BENCHMARK_OBSERVATION_MISSING_ON_FUND_END_DATE")
+
+    def test_long_report_date_gap_is_flagged(self):
+        portfolios = {
+            ("FUND_A", "2025-10-31"): pd.DataFrame(),
+            ("FUND_A", "2026-05-31"): pd.DataFrame(),
+            ("IVV", "2026-05-31"): pd.DataFrame(),
+        }
+        schedule = panel.build_interval_schedule(portfolios, {"FUND_A"}, "IVV")
+        self.assertEqual(schedule[0]["STATUS"], "REPORT_DATE_GAP_OVER_150_DAYS")
+
+    def test_nport_ticker_is_available_as_mapping_candidate(self):
+        self.assertEqual(panel.pilot.nport_ticker_candidate({"TICKER": "BRK.B"}), "BRK-B")
+        self.assertEqual(panel.pilot.nport_ticker_candidate({"TICKER": ""}), "")
+
     def test_strict_no_trade_requires_every_position_return(self):
         start = pd.DataFrame({"SECURITY_KEY": ["A", "B"], "EQUITY_WEIGHT": [0.6, 0.4]})
         complete = pd.DataFrame({"SECURITY_KEY": ["A", "B"], "RETURN": [0.10, -0.10]})
