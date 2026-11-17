@@ -1,0 +1,8 @@
+SECURITY_KEY,TICKER,SOURCE_URL,SOURCE_NOTE
+US09264B1070,BXDC,https://www.sec.gov/Archives/edgar/data/2100161/000210016126000007/bxdc-20260630.htm,SEC Form 10-Q identifies BXDC common stock; began NYSE trading 2026-05-14
+US22002T1088,CDP,https://investors.copt.com/company-information,COPT issuer investor relations identifies NYSE ticker CDP
+US2538681030,DLR,https://www.sec.gov/Archives/edgar/data/1924868/000089418926011055/xslFormNPORT-P_X01/primary_doc.xml,SEC N-PORT filing identifies Digital Realty Trust CUSIP and ticker DLR
+US30231G1022,XOM,https://www.sec.gov/Archives/edgar/data/1580353/000094040026034807/primary_doc.xml,SEC N-PORT filing identifies Exxon Mobil ISIN and ticker XOM
+US42226B5012,NHP,https://www.sec.gov/Archives/edgar/data/1561032/000156103226000055/hct-20260630.htm,SEC Form 10-Q identifies NHP Class A common stock; Nasdaq trading began 2026-04-22
+US4781601046,JNJ,https://www.sec.gov/Archives/edgar/data/200406/000020040626000197/jnj-20260927.htm,SEC Form 10-Q identifies JNJ common stock on NYSE
+US78377T1079,RHP,https://www.sec.gov/Archives/edgar/data/1331971/000119312526439478/primary_doc.xml,SEC N-PORT filing identifies Ryman Hospitality Properties ticker RHP
