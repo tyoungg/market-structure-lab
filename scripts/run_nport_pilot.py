@@ -137,6 +137,7 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
     mapping_source = {}
     mapping_details = {}
     mapping_conflicts = {}
+    mapping_review_status = {}
 
     # Prefer the ticker reported for this exact N-PORT observation over a
     # ticker cached from an earlier interval; permanent IDs can outlive ticker
@@ -145,6 +146,9 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
         details = {}
         ticker_conflict = str(row.get("TICKER_CONFLICT", "")).strip().lower() in {"true", "1"}
         nport_ticker = nport_ticker_candidate(row)
+        mapping_review_status[key] = (
+            "CROSS_FUND_TICKER_CONFLICT_REVIEW_REQUIRED" if ticker_conflict else "CANDIDATE_UNREVIEWED"
+        )
         if ticker_conflict:
             details["nport_ticker_candidates"] = row.get("TICKER_CANDIDATES", "")
         elif nport_ticker:
@@ -213,6 +217,7 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
                             "openfigi_candidate": chosen,
                             "source": source,
                         }
+                        mapping_review_status[key] = "IDENTIFIER_CONFLICT_REVIEW_REQUIRED"
                     elif not mapping.get(key):
                         mapping[key] = chosen
                         mapping_source[key] = source
@@ -262,7 +267,9 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
         return pd.DataFrame([{"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": "" if k in mapping_conflicts else mapping[k],
                               "MAPPING_SOURCE": mapping_source[k], "PRICE_PROVIDER": "Yahoo Finance",
                               "PRICE_STATUS": "IDENTIFIER_MAPPING_CONFLICT" if k in mapping_conflicts else ("UNMAPPED_TICKER" if not mapping[k] else "NO_PRICE_REQUESTED"),
-                              "MAPPING_VALIDATION_STATUS": "IDENTIFIER_CONFLICT_REVIEW_REQUIRED" if k in mapping_conflicts else "CANDIDATE_UNREVIEWED",
+                              "MAPPING_VALIDATION_STATUS": mapping_review_status[k],
+                              "NPORT_TICKER_CONFLICT": str(rows[k].get("TICKER_CONFLICT", "")),
+                              "TICKER_CANDIDATES": str(rows[k].get("TICKER_CANDIDATES", "")),
                               "MAPPING_CONFLICT_DETAILS": json.dumps(mapping_conflicts.get(k, {}), sort_keys=True),
                               "NPORT_TICKER": str(rows[k].get("TICKER", "") or ""),
                               "ISSUER_NAME": str(rows[k].get("ISSUER_NAME", "") or ""),
@@ -321,7 +328,9 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
             {"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": "" if k in mapping_conflicts else v,
              "MAPPING_SOURCE": mapping_source[k], "PRICE_PROVIDER": "Yahoo Finance",
              "PRICE_STATUS": "IDENTIFIER_MAPPING_CONFLICT" if k in mapping_conflicts else "MARKET_CALENDAR_UNAVAILABLE",
-             "MAPPING_VALIDATION_STATUS": "IDENTIFIER_CONFLICT_REVIEW_REQUIRED" if k in mapping_conflicts else "CANDIDATE_UNREVIEWED",
+             "MAPPING_VALIDATION_STATUS": mapping_review_status[k],
+             "NPORT_TICKER_CONFLICT": str(rows[k].get("TICKER_CONFLICT", "")),
+             "TICKER_CANDIDATES": str(rows[k].get("TICKER_CANDIDATES", "")),
              "MAPPING_CONFLICT_DETAILS": json.dumps(mapping_conflicts.get(k, {}), sort_keys=True),
              "NPORT_TICKER": str(rows[k].get("TICKER", "") or ""),
              "ISSUER_NAME": str(rows[k].get("ISSUER_NAME", "") or ""),
@@ -361,7 +370,9 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
         out.append({
             "SECURITY_KEY": key, "RETURN": value, "TICKER_RESOLVED": "" if key in mapping_conflicts else ticker,
             "MAPPING_SOURCE": mapping_source[key],
-            "MAPPING_VALIDATION_STATUS": "IDENTIFIER_CONFLICT_REVIEW_REQUIRED" if key in mapping_conflicts else "CANDIDATE_UNREVIEWED",
+            "MAPPING_VALIDATION_STATUS": mapping_review_status[key],
+            "NPORT_TICKER_CONFLICT": str(rows[key].get("TICKER_CONFLICT", "")),
+            "TICKER_CANDIDATES": str(rows[key].get("TICKER_CANDIDATES", "")),
             "MAPPING_CONFLICT_DETAILS": json.dumps(mapping_conflicts.get(key, {}), sort_keys=True),
             "PRICE_PROVIDER": "Yahoo Finance (yfinance), auto_adjust=True",
             "PRICE_STATUS": price_status,
