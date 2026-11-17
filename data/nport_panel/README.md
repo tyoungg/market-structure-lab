@@ -1,50 +1,73 @@
 # Multi-fund N-PORT panel pilot
 
-## Sample
+## Relationship to The Rational Coward
 
-The initial balanced panel contains 11 active U.S. large-cap mutual-fund series, selected from the SEC 2026 Q3 N-PORT release. The screening rule is at least $500 million in net assets at the June 30, 2026 observation, a U.S.-registered mutual-fund series (not an ETF or variable-insurance portfolio), and public prospectus/strategy evidence for an active large-cap equity mandate. The exact series IDs, styles, AUM screen, and evidence URLs are in `sample_funds.csv`.
+This panel supports the addendum's **no-trade drift counterfactual** workstream. It tests whether observed active-fund holdings moved closer to or farther from a same-date S&P 500 tracker proxy than mechanical return drift alone would imply.
 
-This is a purposive feasibility cohort, not a representative sample. Selecting funds that exist and exceed the AUM threshold in 2026 introduces survivorship and size-selection bias. It excludes entrants and funds liquidated/merged before the selection date. The next expansion should construct the universe point-in-time and retain terminated series.
+It does not establish the addendum's broader thesis, identify manager intent, or replace the historical active-only Active Share and provider-bridge work. The cohort is a purposive feasibility sample, not a representative universe. The addendum's sensitivity findings remain binding guardrails: the historical asset-weighted Active Share slope changes from approximately -0.43 pp/year at a 5% floor to approximately -0.03 pp/year at a 20% floor, and the earlier 83% reallocation claim must not be described as an active-only result.
 
-## Time window
+## Sample and selection limitation
 
-Four quarter-end report dates:
+The initial manifest contains 11 active U.S. large-cap mutual-fund series, selected from the SEC 2026 Q3 N-PORT release. The screen requires at least $500 million in net assets at the June 30, 2026 observation, a U.S.-registered mutual-fund series, and public prospectus/strategy evidence for an active large-cap equity mandate. Series IDs, styles, assets and evidence URLs are in `sample_funds.csv`.
 
-- 2025-09-30
-- 2025-12-31
-- 2026-03-31
-- 2026-06-30
+This is a purposive, size-selected and survivorship-biased cohort. It excludes funds that disappeared before the latest release and entrants that did not meet the 2026 size screen. It cannot support population-level claims about active managers.
 
-These produce three consecutive quarterly intervals. The SEC archive partitions used are 2025 Q4 through 2026 Q3, based on source filing quarter rather than report date.
+## Time window and report-date selection
 
-## Data source
+The source partitions are 2025 Q4 through 2026 Q3, based on the SEC data-set partition, not a hard-coded report date.
 
-The runner reads the public-domain SEC Form N-PORT structured data from the unofficial `trader298/sec-nport` Hugging Face Parquet mirror. It is a transformation of the SEC quarterly archives; the SEC remains authoritative. The pipeline resolves original and amended filings across all four source partitions and excludes late-filing notices (`NT NPORT-P`). The latest valid `NPORT-P` or `NPORT-P/A` filing wins for each series/report date.
+The runner now:
+- reads all valid report dates for the selected series in those partitions;
+- selects the latest valid `NPORT-P` or `NPORT-P/A` filing for each series/report-date pair;
+- excludes `NT NPORT-P` late-filing notices;
+- constructs intervals between each fund's own consecutive observed report dates;
+- requires an IVV holdings observation on the exact same ending report date;
+- flags gaps over 150 days and missing same-date benchmark observations instead of silently substituting calendar quarter ends.
 
-A June 2026 cross-check compares the Hugging Face-derived AB Large Cap Value / IVV Active Share against the already-audited extraction from the original SEC 2026 Q3 ZIP. The job fails if the Active Share difference exceeds 1e-6.
+The default report-date window is 2025-07-01 through 2026-09-30. The window deliberately starts before September 2025 so the runner does not discard earlier report dates contained in the 2025 Q4 source partition. The observed dates and selected accession metadata are published in `observation_availability.csv` and `filing_resolution.csv`.
 
-## Calculation
+## Data source and holdings extraction
 
-For each fund and interval:
+The runner reads public-domain SEC Form N-PORT structured data from the unofficial `trader298/sec-nport` Hugging Face Parquet mirror. The SEC remains authoritative. The June 2026 AB Large Cap Value / IVV extraction is cross-checked against the previously audited original SEC ZIP pilot; the job fails if the Active Share difference exceeds 1e-6.
 
-1. Select the beginning and ending N-PORT common-equity (`ASSET_CAT=EC`) holdings.
-2. Aggregate the one-to-many IDENTIFIERS bridge to one row per holding before joining.
-3. Normalize each common-equity sleeve to 100% and preserve the as-filed NAV percentage separately.
-4. Map each starting holding to a U.S.-traded symbol with OpenFIGI (ISIN first, CUSIP fallback; documented manual overrides where already validated).
-5. Retrieve Yahoo Finance auto-adjusted daily closes. Use the last SPY trading date on or before each N-PORT report date; never carry a stale price forward.
-6. Compute the no-trade drifted weights and compare the no-trade and actual ending portfolios with the same-date IVV N-PORT holdings proxy.
-7. Withhold the strict no-trade estimate if any starting equity position lacks a return. Coverage is reported by beginning equity weight and by position.
+The one-to-many N-PORT `IDENTIFIERS` bridge is aggregated to one row per holding before joining. Common-equity (`ASSET_CAT=EC`) positions are normalized within the equity sleeve, while as-filed NAV percentages remain separate.
 
-The main outcome is actual ending Active Share minus no-trade ending Active Share. A negative value means actual trading moved the fund's equity sleeve closer to the IVV holdings proxy than market-return drift alone; positive means farther away.
+## Security crosswalk and return evidence
+
+For each starting security, the pipeline preserves:
+- permanent identifier candidates (ISIN/CUSIP), N-PORT-reported ticker and issuer name;
+- any ticker candidate chosen from N-PORT, OpenFIGI or a documented override;
+- mapping source and OpenFIGI candidate details;
+- endpoint adjusted prices, dates and Yahoo Finance price status;
+- conflicting ticker/name candidates when the same security key appears in more than one starting portfolio.
+
+N-PORT-reported tickers are now used as explicit candidates instead of being ignored. When multiple funds report conflicting tickers for the same security key, the shared cross-fund candidate builder does not silently choose one. OpenFIGI is a candidate generator, not an authoritative security master.
+
+**Important distinction:** the current crosswalk is candidate/unreviewed. A ticker plus two endpoint prices is not proof that the price series represents the exact security/share class held by the fund. The pipeline therefore labels complete-price-coverage calculations as provisional until security identity, share class, venue, FX and corporate-action treatment are reviewed. Raw adjusted endpoint prices and dates are retained to make that review possible.
+
+The generated `security_crosswalk.csv` is a review queue and should not be hand-edited as the durable approval record; a separate, versioned review manifest will be introduced before any mappings are promoted to approved status.
+
+## Counterfactual calculation
+
+For each interval:
+1. Advance every starting common-equity holding by its adjusted-price return:
+   `w_nt = w_start * (1 + return)`, normalized within the modeled equity sleeve.
+2. Compare actual ending Active Share and no-trade ending Active Share with the same-date IVV N-PORT holdings proxy.
+3. Report actual ending Active Share minus no-trade ending Active Share.
+4. Withhold the price-coverage estimate if any starting equity position lacks an endpoint return.
+
+Negative differences mean actual trading moved the equity sleeve closer to the IVV tracker proxy than return drift alone; positive differences mean farther away.
 
 ## Important limitations
 
-- The benchmark is IVV's N-PORT holdings, not official S&P 500 weights.
-- The model covers only the common-equity sleeve; cash, derivatives, shorts, and other asset classes are excluded.
+- IVV is a tracker-fund proxy, not official S&P 500 constituent weights.
+- Only the common-equity sleeve is modeled; cash, derivatives, shorts and other asset classes are excluded.
 - Fund flows are not allocated to individual securities; the equity-sleeve counterfactual assumes proportional treatment of flows.
 - Yahoo adjusted prices and OpenFIGI are public feasibility sources, not an institutional-grade security master.
-- Foreign listings, ADRs, FX, mergers, delistings, ticker changes, and corporate actions require position-level review. Incomplete return coverage blocks the strict estimate.
-- Results are descriptive, not causal, and the 11-fund sample is not representative.
+- Foreign listings, ADRs, FX, mergers, delistings, ticker changes and corporate actions require position-level review.
+- Current mappings are candidate/unreviewed. Complete endpoint-price coverage is not equivalent to validated security identity.
+- Results are descriptive, not causal.
+- The 11-fund cohort is not representative and should not be pooled with Notre Dame or CRSP historical series without a separate provider bridge.
 
 ## Run
 
@@ -52,8 +75,9 @@ The main outcome is actual ending Active Share minus no-trade ending Active Shar
 python scripts/run_nport_panel.py \
   --funds data/nport_panel/sample_funds.csv \
   --partitions 2025Q4 2026Q1 2026Q2 2026Q3 \
-  --dates 2025-09-30 2025-12-31 2026-03-31 2026-06-30 \
+  --start-date 2025-07-01 \
+  --end-date 2026-09-30 \
   --output-dir data/nport_panel_output
 ```
 
-The workflow uploads the panel outputs as a GitHub Actions artifact. No paid data source is used.
+The GitHub Actions workflow publishes compact dashboard files and a 30-day full-output artifact. No paid data source is used.
