@@ -17,12 +17,9 @@ class NoTradeMathTests(unittest.TestCase):
             "SUB_TYPE":["NPORT-P","NPORT-P/A","NT NPORT-P"],
             "ACCESSION_NUMBER":["a","b","c"],
         })
-        valid = rows[rows.SUB_TYPE.isin(["NPORT-P","NPORT-P/A"])].copy()
-        valid["SUBTYPE_RANK"] = valid.SUB_TYPE.map({"NPORT-P":1,"NPORT-P/A":2})
-        valid = valid.sort_values(["FUND_KEY","REPORT_DT","FILING_DT","SUBTYPE_RANK","ACCESSION_NUMBER"])
-        chosen = valid.drop_duplicates(["FUND_KEY","REPORT_DT"],keep="last")
+        valid, chosen = pilot.select_latest_valid_filings(rows)
         self.assertEqual(chosen.iloc[0].ACCESSION_NUMBER,"b")
-        self.assertNotIn("c",set(chosen.ACCESSION_NUMBER))
+        self.assertNotIn("c",set(valid.ACCESSION_NUMBER))
 
     def test_active_share(self):
         a = pd.DataFrame({"SECURITY_KEY":["A","B"],"EQUITY_WEIGHT":[.6,.4]})
