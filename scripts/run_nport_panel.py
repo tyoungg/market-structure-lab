@@ -199,7 +199,7 @@ def aggregate_starting_security_candidates(frames: list[pd.DataFrame]) -> pd.Dat
             if column in {"TICKER", "ISSUER_NAME"}:
                 record[f"{column}_CANDIDATES"] = json.dumps(values)
                 record[f"{column}_CONFLICT"] = len(values) > 1
-        record["SOURCE_FUND_COUNT"] = int(group.get("SECURITY_KEY", pd.Series(dtype=str)).nunique())
+        record["SOURCE_FUND_COUNT"] = int(len(group))
         rows.append(record)
     return pd.DataFrame(rows)
 
