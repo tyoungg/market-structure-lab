@@ -72,3 +72,18 @@ The inspection script uses Python's standard library and pandas, which is alread
 ## Scope of this script
 
 This is an ingestion/inspection utility only. It deliberately does not classify funds, resolve amendments, select funds based on current survival, classify equity instruments, map security identifiers across time, download security returns, or calculate no-trade portfolios or Active Share. Those steps require explicit methods and separate tests.
+
+
+## 2026 Q3 archive audit — important implementation corrections
+
+A full inspection of the uploaded 2026 Q3 archive is documented in [nport_phase0_q3_audit.md](nport_phase0_q3_audit.md).
+
+Two important corrections for future processing:
+
+1. **Quarterly archive assembly:** the SEC's 2019 Q4–2026 Q3 coverage is spread across separate quarterly releases. The 2026 Q3 ZIP alone contains 14,066 submission records and only 13 report dates (2024-04-30 through 2026-07-31), concentrated in May–July 2026. Do not treat one quarterly ZIP as the full historical panel. Combine the quarterly archives before building the 2019–2026 time series.
+2. **Identifier join fan-out:** the Q3 archive has 6,996,305 identifier rows for 5,627,083 unique holding IDs. About 20.7% of holdings have multiple identifier rows. A direct join from holdings to identifiers multiplies positions. Aggregate or bridge identifiers at the holding level before calculating weights; preserve multiple identifiers rather than dropping them.
+
+Additional identity checks:
+- 737 submissions lack SERIES_ID; 713 of these have SERIES_LEI, and 24 have neither. SERIES_LEI is not unique enough to use alone. Use SERIES_ID where available and a flagged composite fallback (registrant CIK + series LEI + series name) otherwise.
+- The archive has 128 amendments. Resolve amendments across the combined archive history, not within one quarter only.
+- A sample Fidelity Blue Chip Growth Fund filing was matched to the original SEC filing, including series ID, NAV, Apple CUSIP/ISIN, shares, value, and NAV percentage.
