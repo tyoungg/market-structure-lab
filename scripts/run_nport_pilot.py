@@ -299,19 +299,22 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
                     }
                     # Issuer evidence resolves the symbol-change conflict only.
                     # Identity and historical vendor-series validation remain open.
-                    if mapping_review_status[key] == "IDENTIFIER_CONFLICT_REVIEW_REQUIRED":
-                        mapping_review_status[key] = "DATED_TICKER_OVERRIDE_UNREVIEWED"
-                    elif mapping_review_status[key] == "CROSS_FUND_TICKER_CONFLICT_REVIEW_REQUIRED":
+                    documented_symbols = {
+                        item["OLD_TICKER"].strip().upper(),
+                        item["NEW_TICKER"].strip().upper(),
+                    }
+                    has_cross_fund_conflict = str(rows[key].get("TICKER_CONFLICT", "")).strip().lower() in {"true", "1"}
+                    if has_cross_fund_conflict:
                         try:
                             candidates = set(json.loads(str(rows[key].get("TICKER_CANDIDATES", "[]"))))
                         except (TypeError, ValueError):
                             candidates = set()
-                        documented_symbols = {
-                            item["OLD_TICKER"].strip().upper(),
-                            item["NEW_TICKER"].strip().upper(),
-                        }
                         if candidates and candidates.issubset(documented_symbols):
                             mapping_review_status[key] = "DATED_TICKER_OVERRIDE_UNREVIEWED"
+                        else:
+                            mapping_review_status[key] = "CROSS_FUND_TICKER_CONFLICT_REVIEW_REQUIRED"
+                    elif mapping_review_status[key] == "IDENTIFIER_CONFLICT_REVIEW_REQUIRED":
+                        mapping_review_status[key] = "DATED_TICKER_OVERRIDE_UNREVIEWED"
 
     endpoint_tickers = {}
     for key, ticker in mapping.items():
