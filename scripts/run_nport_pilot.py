@@ -262,7 +262,10 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
                     "source_note": item.get("SOURCE_NOTE", "")
                 }
 
-    tickers = sorted(set(t for key, t in mapping.items() if t and key not in mapping_conflicts))
+    tickers = sorted(set(
+        t for key, t in mapping.items()
+        if t and key not in mapping_conflicts and "REVIEW_REQUIRED" not in mapping_review_status[key]
+    ))
     if not tickers:
         return pd.DataFrame([{"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": "" if k in mapping_conflicts else mapping[k],
                               "MAPPING_SOURCE": mapping_source[k], "PRICE_PROVIDER": "Yahoo Finance",
@@ -350,8 +353,8 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
         value = None
         start_px = end_px = None
         price_status = "UNMAPPED_TICKER" if not ticker else "MARKET_DATE_UNAVAILABLE"
-        if key in mapping_conflicts:
-            price_status = "IDENTIFIER_MAPPING_CONFLICT"
+        if "REVIEW_REQUIRED" in mapping_review_status[key]:
+            price_status = mapping_review_status[key]
         elif ticker and sdate is not None and edate is not None:
             try:
                 p = price_series.get(ticker, pd.Series(dtype=float))
