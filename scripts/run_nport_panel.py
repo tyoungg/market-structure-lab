@@ -184,6 +184,34 @@ def equity_weights(holdings: pd.DataFrame, accession: str) -> tuple[pd.DataFrame
     return grouped, total
 
 
+def build_interval_schedule(
+    portfolios: dict[tuple[str, str], pd.DataFrame],
+    fund_ids: set[str],
+    benchmark_series: str,
+    max_gap_days: int = 150,
+) -> list[dict]:
+    """Pair consecutive observed fund report dates; require benchmark at end date."""
+    rows = []
+    for series_id in sorted(fund_ids):
+        observed = sorted(date for (sid, date) in portfolios if sid == series_id)
+        for start_date, end_date in zip(observed[:-1], observed[1:]):
+            gap_days = (pd.Timestamp(end_date) - pd.Timestamp(start_date)).days
+            if gap_days > max_gap_days:
+                status = "REPORT_DATE_GAP_OVER_150_DAYS"
+            elif (benchmark_series, end_date) not in portfolios:
+                status = "BENCHMARK_OBSERVATION_MISSING_ON_FUND_END_DATE"
+            else:
+                status = "READY"
+            rows.append({
+                "SERIES_ID": series_id,
+                "START_DATE": start_date,
+                "END_DATE": end_date,
+                "INTERVAL_DAYS": gap_days,
+                "STATUS": status,
+            })
+    return rows
+
+
 def strict_no_trade(start: pd.DataFrame, returns: pd.DataFrame) -> tuple[pd.DataFrame | None, float, list[str]]:
     x = start[["SECURITY_KEY", "EQUITY_WEIGHT"]].merge(
         returns[["SECURITY_KEY", "RETURN"]], on="SECURITY_KEY", how="left", validate="one_to_one"
@@ -280,21 +308,19 @@ def main() -> None:
     # A benchmark holding observation is required on the fund's ending report date.
     intervals_by_dates: dict[tuple[str, str], list[str]] = {}
     result_rows = []
-    for series_id in sorted(fund_ids):
-        observed = sorted(date for (sid, date) in portfolios if sid == series_id)
-        for start_date, end_date in zip(observed[:-1], observed[1:]):
-            gap_days = (pd.Timestamp(end_date) - pd.Timestamp(start_date)).days
-            base = {
-                "SERIES_ID": series_id, "FUND_NAME": fund_names.get(series_id, series_id),
-                "STYLE": funds.loc[funds.SERIES_ID == series_id, "STYLE"].iloc[0],
-                "START_DATE": start_date, "END_DATE": end_date, "INTERVAL_DAYS": gap_days,
-            }
-            if gap_days > 150:
-                result_rows.append({**base, "STATUS": "REPORT_DATE_GAP_OVER_150_DAYS"})
-            elif (args.benchmark_series, end_date) not in portfolios:
-                result_rows.append({**base, "STATUS": "BENCHMARK_OBSERVATION_MISSING_ON_FUND_END_DATE"})
-            else:
-                intervals_by_dates.setdefault((start_date, end_date), []).append(series_id)
+    schedule = build_interval_schedule(portfolios, fund_ids, args.benchmark_series)
+    for item in schedule:
+        series_id = item["SERIES_ID"]
+        base = {
+            "SERIES_ID": series_id, "FUND_NAME": fund_names.get(series_id, series_id),
+            "STYLE": funds.loc[funds.SERIES_ID == series_id, "STYLE"].iloc[0],
+            "START_DATE": item["START_DATE"], "END_DATE": item["END_DATE"],
+            "INTERVAL_DAYS": item["INTERVAL_DAYS"],
+        }
+        if item["STATUS"] == "READY":
+            intervals_by_dates.setdefault((item["START_DATE"], item["END_DATE"]), []).append(series_id)
+        else:
+            result_rows.append({**base, "STATUS": item["STATUS"]})
 
     ticker_cache: dict[str, str] = {}
     coverage_rows = []
