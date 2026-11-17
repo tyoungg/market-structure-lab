@@ -151,6 +151,39 @@ def dated_override_covers_ticker_candidates(row, override):
     return bool(candidates) and candidates.issubset(documented)
 
 
+def compare_ticker_price_series(old_series, new_series, effective_date,
+                                window_days=10, min_overlap=3, tolerance=0.005):
+    """Check that old/new vendor histories agree on overlapping adjusted-price dates."""
+    def normalized(series):
+        values = pd.Series(series).copy()
+        index = pd.DatetimeIndex(pd.to_datetime(values.index))
+        if index.tz is not None:
+            index = index.tz_localize(None)
+        values.index = index.normalize()
+        values = pd.to_numeric(values, errors="coerce")
+        return values[~values.index.duplicated(keep="last")]
+
+    old = normalized(old_series)
+    new = normalized(new_series)
+    effective = pd.Timestamp(effective_date).normalize()
+    lower, upper = effective - pd.Timedelta(days=window_days), effective + pd.Timedelta(days=window_days)
+    common = old.index.intersection(new.index)
+    common = common[(common >= lower) & (common <= upper)]
+    if len(common) < min_overlap:
+        return {"status": "INSUFFICIENT_OVERLAP", "overlap_days": int(len(common)),
+                "max_abs_price_diff_pct": None}
+    old_values, new_values = old.loc[common], new.loc[common]
+    valid = old_values.notna() & new_values.notna() & old_values.gt(0) & new_values.gt(0)
+    old_values, new_values = old_values[valid], new_values[valid]
+    if len(old_values) < min_overlap:
+        return {"status": "INSUFFICIENT_OVERLAP", "overlap_days": int(len(old_values)),
+                "max_abs_price_diff_pct": None}
+    max_diff = float(((old_values / new_values) - 1).abs().max() * 100.0)
+    status = "MATCH" if max_diff <= tolerance * 100.0 else "MISMATCH"
+    return {"status": status, "overlap_days": int(len(old_values)),
+            "max_abs_price_diff_pct": max_diff}
+
+
 def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_cache=None):
     import re
     import requests, yfinance as yf
@@ -427,14 +460,28 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
     ed = cal.index[cal.index.date <= pd.Timestamp(end_date).date()]
     sdate = sd[-1] if len(sd) else None
     edate = ed[-1] if len(ed) else None
+    transition_checks = {}
+    for key, override in dated_overrides.items():
+        effective = pd.Timestamp(override["EFFECTIVE_DATE"])
+        if pd.Timestamp(start_date) < effective <= pd.Timestamp(end_date):
+            transition_checks[key] = compare_ticker_price_series(
+                price_series.get(override["OLD_TICKER"].strip().upper(), pd.Series(dtype=float)),
+                price_series.get(override["NEW_TICKER"].strip().upper(), pd.Series(dtype=float)),
+                effective,
+            )
     out = []
     for key, ticker in mapping.items():
         value = None
         start_px = end_px = None
         start_ticker, end_ticker = endpoint_tickers.get(key, (ticker, ticker))
         price_status = "UNMAPPED_TICKER" if not (start_ticker and end_ticker) else "MARKET_DATE_UNAVAILABLE"
+        transition_check = transition_checks.get(key, {
+            "status": "NOT_APPLICABLE", "overlap_days": None, "max_abs_price_diff_pct": None
+        })
         if "REVIEW_REQUIRED" in mapping_review_status[key]:
             price_status = mapping_review_status[key]
+        elif transition_check["status"] not in {"MATCH", "NOT_APPLICABLE"}:
+            price_status = "TICKER_TRANSITION_PRICE_CHECK_" + transition_check["status"]
         elif start_ticker and end_ticker and sdate is not None and edate is not None:
             try:
                 start_series = price_series.get(start_ticker, pd.Series(dtype=float))
@@ -456,6 +503,9 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
             "SECURITY_KEY": key, "RETURN": value,
             "TICKER_RESOLVED": "" if "REVIEW_REQUIRED" in mapping_review_status[key] else ticker,
             "START_TICKER": start_ticker, "END_TICKER": end_ticker,
+            "TICKER_TRANSITION_CHECK_STATUS": transition_check["status"],
+            "TICKER_TRANSITION_OVERLAP_DAYS": transition_check["overlap_days"],
+            "TICKER_TRANSITION_MAX_ABS_PRICE_DIFF_PCT": transition_check["max_abs_price_diff_pct"],
             "MAPPING_SOURCE": mapping_source[key],
             "MAPPING_VALIDATION_STATUS": mapping_review_status[key],
             "NPORT_TICKER_CONFLICT": str(rows[key].get("TICKER_CONFLICT", "")),
