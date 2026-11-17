@@ -8,6 +8,7 @@ on:
       - "scripts/run_nport_panel.py"
       - "scripts/run_nport_pilot.py"
       - "tests/test_nport_panel.py"
+      - "tests/test_nport_dashboard.py"
       - "data/nport_panel/**"
       - ".github/workflows/nport-multi-quarter-panel.yml"
   workflow_dispatch:
