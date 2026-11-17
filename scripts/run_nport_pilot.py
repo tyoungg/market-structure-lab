@@ -117,7 +117,7 @@ def nport_ticker_candidate(row):
     return value.replace("/", "-").replace(".", "-") if value else ""
 
 
-def fetch_returns(start, start_date, end_date, ticker_cache=None):
+def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_cache=None):
     import re
     import requests, yfinance as yf
     from requests.adapters import HTTPAdapter
@@ -133,7 +133,8 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None):
     rows = {r["SECURITY_KEY"]: r for r in start.to_dict("records")}
     ticker_cache = ticker_cache or {}
     mapping = {key: str(ticker_cache.get(key, "") or "") for key in rows}
-    mapping_source = {key: ("prior_run_cache" if mapping[key] else "") for key in rows}
+    ticker_source_cache = ticker_source_cache or {}
+    mapping_source = {key: (ticker_source_cache.get(key, "prior_run_cache") if mapping[key] else "") for key in rows}
     mapping_details = {key: ({"ticker_cache": True} if mapping[key] else {}) for key in rows}
 
     # Use the ticker reported by N-PORT as a documented candidate before
@@ -235,7 +236,8 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None):
     tickers = sorted(set(t for t in mapping.values() if t))
     if not tickers:
         return pd.DataFrame([{"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": mapping[k],
-                              "MAPPING_SOURCE": mapping_source[k],
+                              "MAPPING_SOURCE": mapping_source[k], "PRICE_PROVIDER": "Yahoo Finance",
+                              "PRICE_STATUS": "UNMAPPED_TICKER" if not mapping[k] else "NO_PRICE_REQUESTED",
                               "NPORT_TICKER": str(rows[k].get("TICKER", "") or ""),
                               "ISSUER_NAME": str(rows[k].get("ISSUER_NAME", "") or ""),
                               "ISIN": str(rows[k].get("ISIN", "") or ""),
@@ -291,7 +293,8 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None):
     if cal.empty:
         return pd.DataFrame([
             {"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": v,
-             "MAPPING_SOURCE": mapping_source[k],
+             "MAPPING_SOURCE": mapping_source[k], "PRICE_PROVIDER": "Yahoo Finance",
+             "PRICE_STATUS": "MARKET_CALENDAR_UNAVAILABLE",
              "NPORT_TICKER": str(rows[k].get("TICKER", "") or ""),
              "ISSUER_NAME": str(rows[k].get("ISSUER_NAME", "") or ""),
              "ISIN": str(rows[k].get("ISIN", "") or ""),
@@ -308,17 +311,30 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None):
     out = []
     for key, ticker in mapping.items():
         value = None
+        start_px = end_px = None
+        price_status = "UNMAPPED_TICKER" if not ticker else "MARKET_DATE_UNAVAILABLE"
         if ticker and sdate is not None and edate is not None:
             try:
                 p = price_series.get(ticker, pd.Series(dtype=float))
-                # Require actual observations on both required market dates.
+                # Require actual adjusted-price observations on both endpoint dates.
                 if sdate in p.index and edate in p.index:
-                    value = float(p.loc[edate] / p.loc[sdate] - 1)
-            except Exception:
-                pass
+                    start_px, end_px = float(p.loc[sdate]), float(p.loc[edate])
+                    if pd.notna(start_px) and pd.notna(end_px) and start_px > 0:
+                        value = float(end_px / start_px - 1)
+                        price_status = "ENDPOINT_PRICES_AVAILABLE"
+                    else:
+                        price_status = "INVALID_ENDPOINT_PRICE"
+                else:
+                    price_status = "MISSING_ENDPOINT_PRICE"
+            except Exception as exc:
+                price_status = f"PRICE_EXTRACTION_ERROR:{type(exc).__name__}"
         out.append({
             "SECURITY_KEY": key, "RETURN": value, "TICKER_RESOLVED": ticker,
             "MAPPING_SOURCE": mapping_source[key],
+            "MAPPING_VALIDATION_STATUS": "CANDIDATE_UNREVIEWED",
+            "PRICE_PROVIDER": "Yahoo Finance (yfinance), auto_adjust=True",
+            "PRICE_STATUS": price_status,
+            "START_ADJUSTED_CLOSE": start_px, "END_ADJUSTED_CLOSE": end_px,
             "NPORT_TICKER": str(rows[key].get("TICKER", "") or ""),
             "ISSUER_NAME": str(rows[key].get("ISSUER_NAME", "") or ""),
             "ISIN": str(rows[key].get("ISIN", "") or ""),
