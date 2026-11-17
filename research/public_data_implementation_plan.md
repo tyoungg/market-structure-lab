@@ -42,7 +42,7 @@ A free price feed is a feasibility source, not an automatic ground truth.
 6. If the return cannot be established, mark the position as unresolved. Never silently delete it, assign zero return, or carry forward its last price.
 7. Report coverage as a percentage of beginning NAV and common-equity weight, not merely a percentage of rows.
 
-Yahoo Finance/yfinance is a candidate for the pilot because adjusted historical prices are freely accessible, but it is not an official SEC data source, its terms and availability can change, and its delisted-security history must be empirically tested. A successful download is not proof of a valid historical match.
+OpenFIGI offers a free public mapping API with a lower unauthenticated rate limit; the pilot maps N-PORT ISINs (or CUSIPs when needed) to U.S.-listed instruments and then retrieves adjusted historical prices through Yahoo Finance/yfinance. OpenFIGI provides symbology, not prices. Yahoo is not an official SEC data source, its terms and availability can change, and its delisted-security history must be empirically tested. A successful download is not proof of a valid historical match. The pipeline requires the security to have prices on the common market observation dates; it will not carry stale prices forward.
 
 ## 4. Strict-sample rule
 
@@ -57,6 +57,8 @@ For each fund-quarter:
 This means the first empirical result may cover fewer fund-quarters than the raw N-PORT panel. That is preferable to false precision.
 
 ## 5. Pilot sequence
+
+A first extraction pilot has been completed for AB Large Cap Value Fund (series `S000010411`) from 2026-05-31 to 2026-06-30, with iShares Core S&P 500 ETF (series `S000004310`) as the same-date tracker proxy. The June 30 equity-sleeve Active Share is 77.18%; the no-trade result is not yet calculated because security-level return matching has not been run. See [the pilot audit](nport_pilot_may_june_2026.md) and `scripts/run_nport_pilot.py`.
 
 1. Assemble all SEC quarterly archives from 2019 Q4 through the latest complete release. The uploaded 2026 Q3 ZIP is one quarterly release, not the full historical panel.
 2. Resolve amendments and duplicate submissions across the combined archives, at the fund-series/report-date grain.
@@ -78,4 +80,6 @@ This means the first empirical result may cover fewer fund-quarters than the raw
 - SEC Form N-PORT datasets and quarterly archive downloads: https://www.sec.gov/data-research/sec-markets-data/form-n-port-data-sets
 - SEC Form N-PORT readme and table definitions: https://www.sec.gov/files/nport_readme.pdf
 - SEC EDGAR company and filing search: https://www.sec.gov/edgar/search/
+- OpenFIGI API documentation: https://www.openfigi.com/api/documentation
+- yfinance price-history documentation: https://ranaroussi.github.io/yfinance/reference/yfinance.price_history.html
 - Public historical S&P 500 membership reconstruction example (community-maintained, not official): https://github.com/lawcal/sp500-components-history
