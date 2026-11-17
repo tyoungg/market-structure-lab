@@ -87,3 +87,16 @@ Additional identity checks:
 - 737 submissions lack SERIES_ID; 713 of these have SERIES_LEI, and 24 have neither. SERIES_LEI is not unique enough to use alone. Use SERIES_ID where available and a flagged composite fallback (registrant CIK + series LEI + series name) otherwise.
 - The archive has 128 amendments. Resolve amendments across the combined archive history, not within one quarter only.
 - A sample Fidelity Blue Chip Growth Fund filing was matched to the original SEC filing, including series ID, NAV, Apple CUSIP/ISIN, shares, value, and NAV percentage.
+
+
+## Security-return source research
+
+CRSP via WRDS is the strongest institutional candidate identified so far for security-level monthly total returns, historical security identifiers, corporate actions, and delisting treatment. CRSP also provides historical S&P 500 membership through WRDS. However, CRSP is subscription data, and index membership is not the same as official float-adjusted index weights. UF Libraries lists CRSP stock data and the survivor-bias-free U.S. mutual-fund database via WRDS; project access has not been confirmed.
+
+References:
+- https://www.crsp.org/research/crsp-us-stock-databases/
+- https://www.crsp.org/crsp_pdf/crsp-us-stock-indexes-databases-data-descriptions-guide-crspaccess/
+- https://wrds-www.wharton.upenn.edu/pages/classroom/the-sp-500/
+- https://businesslibrary.uflib.ufl.edu/az.php
+
+This creates a scope decision for later: CRSP is the better research-quality return source if institutional access is available and subscription data is acceptable. If the project must remain fully public-data-only, the return source and delisting treatment need a separate feasibility test.
