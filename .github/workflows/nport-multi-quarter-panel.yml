@@ -50,7 +50,7 @@ jobs:
           python scripts/run_nport_panel.py \
             --funds data/nport_panel/sample_funds.csv \
             --partitions 2025Q4 2026Q1 2026Q2 2026Q3 \
-            --start-date 2025-10-01 \
+            --start-date 2025-07-01 \
             --end-date 2026-09-30 \
             --output-dir data/nport_panel_output
       - name: Publish compact dashboard outputs to research branch
