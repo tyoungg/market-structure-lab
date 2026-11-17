@@ -18,6 +18,15 @@ def read_table(zf, name):
     with zf.open(name + ".tsv") as f:
         return pd.read_csv(f, sep="\t", dtype=str, low_memory=False).fillna("")
 
+def select_latest_valid_filings(x):
+    """Exclude late-filing notices; latest valid NPORT-P/A or NPORT-P wins."""
+    valid = x[x.SUB_TYPE.isin(["NPORT-P","NPORT-P/A"])].copy()
+    valid["SUBTYPE_RANK"] = valid.SUB_TYPE.map({"NPORT-P":1,"NPORT-P/A":2})
+    valid = valid.sort_values(["FUND_KEY","REPORT_DT","FILING_DT","SUBTYPE_RANK","ACCESSION_NUMBER"])
+    valid["GROUP_FILINGS"] = valid.groupby(["FUND_KEY","REPORT_DT"]).ACCESSION_NUMBER.transform("count")
+    resolved = valid.drop_duplicates(["FUND_KEY","REPORT_DT"],keep="last").copy()
+    return valid, resolved
+
 def resolve_filings(zf):
     sub, info, reg = (read_table(zf,n) for n in ["SUBMISSION","FUND_REPORTED_INFO","REGISTRANT"])
     x = sub.merge(info,on="ACCESSION_NUMBER",validate="one_to_one")
@@ -26,14 +35,9 @@ def resolve_filings(zf):
     x["FILING_DT"] = pd.to_datetime(x.FILING_DATE,format="%d-%b-%Y",errors="coerce")
     x["FUND_KEY"] = x.SERIES_ID.where(x.SERIES_ID.ne(""),
         "FALLBACK|"+x.CIK+"|"+x.SERIES_LEI+"|"+x.SERIES_NAME)
-    # NT NPORT-P is a notice of late filing, not a portfolio observation.
-    valid = x[x.SUB_TYPE.isin(["NPORT-P","NPORT-P/A"])].copy()
-    valid["SUBTYPE_RANK"] = valid.SUB_TYPE.map({"NPORT-P":1,"NPORT-P/A":2})
-    valid = valid.sort_values(["FUND_KEY","REPORT_DT","FILING_DT","SUBTYPE_RANK","ACCESSION_NUMBER"])
-    valid["GROUP_FILINGS"] = valid.groupby(["FUND_KEY","REPORT_DT"]).ACCESSION_NUMBER.transform("count")
+    valid, resolved = select_latest_valid_filings(x)
     counts = valid[["ACCESSION_NUMBER","GROUP_FILINGS"]]
     x = x.merge(counts,on="ACCESSION_NUMBER",how="left",validate="one_to_one")
-    resolved = valid.drop_duplicates(["FUND_KEY","REPORT_DT"],keep="last").copy()
     return x, resolved
 
 def extract_holdings(zf, accessions):
