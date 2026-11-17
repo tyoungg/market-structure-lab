@@ -39,6 +39,19 @@ class NoTradeMathTests(unittest.TestCase):
         got = pilot.extract_close_series(prices, "AAPL")
         self.assertEqual(got.tolist(), [100.0, 101.0])
 
+    def test_committed_ab_ivv_inputs_reconcile(self):
+        root = Path(__file__).resolve().parents[1] / "data" / "nport_pilot_inputs"
+        may = pd.read_csv(root / "ab_may_2026_equity.csv")
+        june = pd.read_csv(root / "ab_june_2026_equity.csv")
+        ivv = pd.read_csv(root / "ivv_june_2026_compact_equity.csv")
+        self.assertEqual(len(may), 62)
+        self.assertEqual(len(june), 60)
+        self.assertEqual(len(ivv), 50)
+        for frame in (may, june, ivv):
+            self.assertAlmostEqual(float(frame.EQUITY_WEIGHT.sum()), 1.0, places=6)
+            self.assertFalse(frame.SECURITY_KEY.duplicated().any())
+        self.assertAlmostEqual(pilot.active_share(june, ivv), 0.7717531503065802, places=6)
+
     def test_active_share(self):
         a = pd.DataFrame({"SECURITY_KEY":["A","B"],"EQUITY_WEIGHT":[.6,.4]})
         b = pd.DataFrame({"SECURITY_KEY":["A","B"],"EQUITY_WEIGHT":[.5,.5]})
