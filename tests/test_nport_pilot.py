@@ -52,6 +52,14 @@ class NoTradeMathTests(unittest.TestCase):
             self.assertFalse(frame.SECURITY_KEY.duplicated().any())
         self.assertAlmostEqual(pilot.active_share(june, ivv), 0.7717531503065802, places=6)
 
+    def test_ticker_overrides_are_source_documented(self):
+        path = Path(__file__).resolve().parents[1] / "data" / "nport_pilot_inputs" / "ticker_overrides.csv"
+        overrides = pd.read_csv(path, dtype=str)
+        self.assertEqual(len(overrides), 7)
+        self.assertFalse(overrides.SECURITY_KEY.duplicated().any())
+        self.assertTrue(overrides.SOURCE_URL.str.startswith("https://").all())
+        self.assertTrue(overrides.TICKER.str.len().gt(0).all())
+
     def test_active_share(self):
         a = pd.DataFrame({"SECURITY_KEY":["A","B"],"EQUITY_WEIGHT":[.6,.4]})
         b = pd.DataFrame({"SECURITY_KEY":["A","B"],"EQUITY_WEIGHT":[.5,.5]})
