@@ -215,6 +215,7 @@ class NportPanelTests(unittest.TestCase):
              patch("time.sleep"), \
              patch.dict(sys.modules, {"yfinance": SimpleNamespace(download=lambda *args, **kwargs: prices)}):
             result = panel.pilot.fetch_returns(start, "2025-12-31", "2026-03-31")
+            before_change = panel.pilot.fetch_returns(start, "2025-09-30", "2025-12-31").iloc[0]
 
         row = result.iloc[0]
         self.assertEqual(row.START_TICKER, "MMC")
@@ -224,7 +225,6 @@ class NportPanelTests(unittest.TestCase):
         self.assertEqual(row.PRICE_STATUS, "ENDPOINT_PRICES_AVAILABLE")
         self.assertAlmostEqual(float(row.RETURN), 0.10, places=6)
 
-        before_change = panel.pilot.fetch_returns(start, "2025-09-30", "2025-12-31").iloc[0]
         self.assertEqual(before_change.START_TICKER, "MMC")
         self.assertEqual(before_change.END_TICKER, "MMC")
         self.assertEqual(before_change.TICKER_RESOLVED, "MMC")
