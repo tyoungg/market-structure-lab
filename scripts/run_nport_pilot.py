@@ -132,20 +132,33 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
 
     rows = {r["SECURITY_KEY"]: r for r in start.to_dict("records")}
     ticker_cache = ticker_cache or {}
-    mapping = {key: str(ticker_cache.get(key, "") or "") for key in rows}
     ticker_source_cache = ticker_source_cache or {}
-    mapping_source = {key: (ticker_source_cache.get(key, "prior_run_cache") if mapping[key] else "") for key in rows}
-    mapping_details = {key: ({"ticker_cache": True} if mapping[key] else {}) for key in rows}
+    mapping = {}
+    mapping_source = {}
+    mapping_details = {}
+    mapping_conflicts = {}
 
-    # Use the ticker reported by N-PORT as a documented candidate before
-    # external symbology lookup. A ticker candidate is not, by itself,
-    # proof of a valid historical security match.
+    # Prefer the ticker reported for this exact N-PORT observation over a
+    # ticker cached from an earlier interval; permanent IDs can outlive ticker
+    # changes. Conflicting cross-fund ticker candidates are never auto-used.
     for key, row in rows.items():
+        details = {}
+        ticker_conflict = str(row.get("TICKER_CONFLICT", "")).strip().lower() in {"true", "1"}
         nport_ticker = nport_ticker_candidate(row)
-        if not mapping[key] and nport_ticker:
+        if ticker_conflict:
+            details["nport_ticker_candidates"] = row.get("TICKER_CANDIDATES", "")
+        elif nport_ticker:
             mapping[key] = nport_ticker
             mapping_source[key] = "nport_reported_ticker"
-            mapping_details[key]["nport_ticker_candidate"] = nport_ticker
+            details["nport_ticker_candidate"] = nport_ticker
+        elif ticker_cache.get(key):
+            mapping[key] = str(ticker_cache[key])
+            mapping_source[key] = ticker_source_cache.get(key, "prior_run_cache")
+            details["ticker_cache"] = True
+        else:
+            mapping[key] = ""
+            mapping_source[key] = ""
+        mapping_details[key] = details
 
     def norm_name(value):
         return re.sub(r"[^A-Z0-9]", "", str(value or "").upper())
@@ -193,16 +206,27 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
                     ],
                     "mapping_error": item.get("error", "")
                 }
-                if chosen and not mapping[key]:
-                    mapping[key] = chosen
-                    mapping_source[key] = source
+                if chosen:
+                    if mapping.get(key) and mapping[key] != chosen:
+                        mapping_conflicts[key] = {
+                            "existing_candidate": mapping[key],
+                            "openfigi_candidate": chosen,
+                            "source": source,
+                        }
+                    elif not mapping.get(key):
+                        mapping[key] = chosen
+                        mapping_source[key] = source
+                    else:
+                        mapping_details[key]["identifier_corroboration"] = {
+                            "source": source, "ticker": chosen
+                        }
             time.sleep(2.5)
 
     # First pass: ISIN mapping.
     isin_jobs = []
     for key, row in rows.items():
         isin = str(row.get("ISIN", "")).strip()
-        if isin and not mapping[key]:
+        if isin:
             isin_jobs.append((key, {"idType": "ID_ISIN", "idValue": isin,
                                     "exchCode": "US", "includeUnlistedEquities": True}))
     map_jobs(isin_jobs, "isin")
@@ -233,11 +257,13 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
                     "source_note": item.get("SOURCE_NOTE", "")
                 }
 
-    tickers = sorted(set(t for t in mapping.values() if t))
+    tickers = sorted(set(t for key, t in mapping.items() if t and key not in mapping_conflicts))
     if not tickers:
         return pd.DataFrame([{"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": mapping[k],
                               "MAPPING_SOURCE": mapping_source[k], "PRICE_PROVIDER": "Yahoo Finance",
-                              "PRICE_STATUS": "UNMAPPED_TICKER" if not mapping[k] else "NO_PRICE_REQUESTED",
+                              "PRICE_STATUS": "IDENTIFIER_MAPPING_CONFLICT" if k in mapping_conflicts else ("UNMAPPED_TICKER" if not mapping[k] else "NO_PRICE_REQUESTED"),
+                              "MAPPING_VALIDATION_STATUS": "IDENTIFIER_CONFLICT_REVIEW_REQUIRED" if k in mapping_conflicts else "CANDIDATE_UNREVIEWED",
+                              "MAPPING_CONFLICT_DETAILS": json.dumps(mapping_conflicts.get(k, {}), sort_keys=True),
                               "NPORT_TICKER": str(rows[k].get("TICKER", "") or ""),
                               "ISSUER_NAME": str(rows[k].get("ISSUER_NAME", "") or ""),
                               "ISIN": str(rows[k].get("ISIN", "") or ""),
@@ -294,7 +320,9 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
         return pd.DataFrame([
             {"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": v,
              "MAPPING_SOURCE": mapping_source[k], "PRICE_PROVIDER": "Yahoo Finance",
-             "PRICE_STATUS": "MARKET_CALENDAR_UNAVAILABLE",
+             "PRICE_STATUS": "IDENTIFIER_MAPPING_CONFLICT" if k in mapping_conflicts else "MARKET_CALENDAR_UNAVAILABLE",
+             "MAPPING_VALIDATION_STATUS": "IDENTIFIER_CONFLICT_REVIEW_REQUIRED" if k in mapping_conflicts else "CANDIDATE_UNREVIEWED",
+             "MAPPING_CONFLICT_DETAILS": json.dumps(mapping_conflicts.get(k, {}), sort_keys=True),
              "NPORT_TICKER": str(rows[k].get("TICKER", "") or ""),
              "ISSUER_NAME": str(rows[k].get("ISSUER_NAME", "") or ""),
              "ISIN": str(rows[k].get("ISIN", "") or ""),
@@ -313,7 +341,9 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
         value = None
         start_px = end_px = None
         price_status = "UNMAPPED_TICKER" if not ticker else "MARKET_DATE_UNAVAILABLE"
-        if ticker and sdate is not None and edate is not None:
+        if key in mapping_conflicts:
+            price_status = "IDENTIFIER_MAPPING_CONFLICT"
+        elif ticker and sdate is not None and edate is not None:
             try:
                 p = price_series.get(ticker, pd.Series(dtype=float))
                 # Require actual adjusted-price observations on both endpoint dates.
@@ -331,7 +361,8 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
         out.append({
             "SECURITY_KEY": key, "RETURN": value, "TICKER_RESOLVED": ticker,
             "MAPPING_SOURCE": mapping_source[key],
-            "MAPPING_VALIDATION_STATUS": "CANDIDATE_UNREVIEWED",
+            "MAPPING_VALIDATION_STATUS": "IDENTIFIER_CONFLICT_REVIEW_REQUIRED" if key in mapping_conflicts else "CANDIDATE_UNREVIEWED",
+            "MAPPING_CONFLICT_DETAILS": json.dumps(mapping_conflicts.get(key, {}), sort_keys=True),
             "PRICE_PROVIDER": "Yahoo Finance (yfinance), auto_adjust=True",
             "PRICE_STATUS": price_status,
             "START_ADJUSTED_CLOSE": start_px, "END_ADJUSTED_CLOSE": end_px,
