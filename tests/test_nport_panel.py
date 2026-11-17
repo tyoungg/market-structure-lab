@@ -4,6 +4,8 @@ import sys
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import pandas as pd
 
@@ -168,13 +170,14 @@ class NportPanelTests(unittest.TestCase):
 
     def test_fetch_returns_uses_old_and_new_symbols_at_interval_endpoints(self):
         dates = pd.to_datetime([
-            "2025-12-31", "2026-01-12", "2026-01-13",
+            "2025-09-30", "2025-12-31", "2026-01-12", "2026-01-13",
             "2026-01-14", "2026-01-15", "2026-03-31",
         ])
         columns = pd.MultiIndex.from_tuples([
             ("MMC", "Close"), ("MRSH", "Close"), ("SPY", "Close")
         ])
         prices = pd.DataFrame([
+            [90.0, 90.0, 180.0],
             [100.0, 100.0, 200.0],
             [101.0, 101.0, 201.0],
             [102.0, 102.0, 202.0],
@@ -216,9 +219,16 @@ class NportPanelTests(unittest.TestCase):
         row = result.iloc[0]
         self.assertEqual(row.START_TICKER, "MMC")
         self.assertEqual(row.END_TICKER, "MRSH")
+        self.assertEqual(row.TICKER_RESOLVED, "MRSH")
         self.assertEqual(row.TICKER_TRANSITION_CHECK_STATUS, "MATCH")
         self.assertEqual(row.PRICE_STATUS, "ENDPOINT_PRICES_AVAILABLE")
         self.assertAlmostEqual(float(row.RETURN), 0.10, places=6)
+
+        before_change = panel.pilot.fetch_returns(start, "2025-09-30", "2025-12-31").iloc[0]
+        self.assertEqual(before_change.START_TICKER, "MMC")
+        self.assertEqual(before_change.END_TICKER, "MMC")
+        self.assertEqual(before_change.TICKER_RESOLVED, "MMC")
+        self.assertEqual(before_change.TICKER_TRANSITION_CHECK_STATUS, "NOT_APPLICABLE")
 
     def test_workflow_cancels_superseded_runs_and_blocks_stale_publish(self):
         workflow = (ROOT / ".github" / "workflows" / "nport-multi-quarter-panel.yml").read_text()

@@ -393,7 +393,9 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
         and "REVIEW_REQUIRED" not in mapping_review_status[key]
     ))
     if not tickers:
-        return pd.DataFrame([{"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": "" if "REVIEW_REQUIRED" in mapping_review_status[k] else mapping[k],
+        return pd.DataFrame([{"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": "" if "REVIEW_REQUIRED" in mapping_review_status[k] else endpoint_tickers[k][1],
+                              "START_TICKER": endpoint_tickers[k][0], "END_TICKER": endpoint_tickers[k][1],
+                              "TICKER_TRANSITION_CHECK_STATUS": "NOT_CHECKED_NO_PRICE_REQUEST",
                               "MAPPING_SOURCE": mapping_source[k], "PRICE_PROVIDER": "Yahoo Finance",
                               "PRICE_STATUS": mapping_review_status[k] if "REVIEW_REQUIRED" in mapping_review_status[k] else ("UNMAPPED_TICKER" if not mapping[k] else "NO_PRICE_REQUESTED"),
                               "MAPPING_VALIDATION_STATUS": mapping_review_status[k],
@@ -454,7 +456,9 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
 
     if cal.empty:
         return pd.DataFrame([
-            {"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": "" if "REVIEW_REQUIRED" in mapping_review_status[k] else v,
+            {"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": "" if "REVIEW_REQUIRED" in mapping_review_status[k] else endpoint_tickers[k][1],
+             "START_TICKER": endpoint_tickers[k][0], "END_TICKER": endpoint_tickers[k][1],
+             "TICKER_TRANSITION_CHECK_STATUS": "NOT_CHECKED_MARKET_CALENDAR_UNAVAILABLE",
              "MAPPING_SOURCE": mapping_source[k], "PRICE_PROVIDER": "Yahoo Finance",
              "PRICE_STATUS": mapping_review_status[k] if "REVIEW_REQUIRED" in mapping_review_status[k] else "MARKET_CALENDAR_UNAVAILABLE",
              "MAPPING_VALIDATION_STATUS": mapping_review_status[k],
@@ -515,7 +519,7 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
                 price_status = f"PRICE_EXTRACTION_ERROR:{type(exc).__name__}"
         out.append({
             "SECURITY_KEY": key, "RETURN": value,
-            "TICKER_RESOLVED": "" if "REVIEW_REQUIRED" in mapping_review_status[key] else ticker,
+            "TICKER_RESOLVED": "" if "REVIEW_REQUIRED" in mapping_review_status[key] else end_ticker,
             "START_TICKER": start_ticker, "END_TICKER": end_ticker,
             "TICKER_TRANSITION_CHECK_STATUS": transition_check["status"],
             "TICKER_TRANSITION_OVERLAP_DAYS": transition_check["overlap_days"],
