@@ -50,8 +50,11 @@ def main():
     returns = fetch_returns(start, a.start_date, a.end_date)
     returns.to_csv(a.output_dir / "security_returns.csv", index=False)
 
+    return_columns = ["SECURITY_KEY", "RETURN", "TICKER_RESOLVED"] + [
+        col for col in ("FIGI_CANDIDATES", "MAPPING_ERROR") if col in returns.columns
+    ]
     diagnostic = start.merge(
-        returns[["SECURITY_KEY", "RETURN", "TICKER_RESOLVED"]],
+        returns[return_columns],
         on="SECURITY_KEY", how="left", validate="one_to_one"
     )
     diagnostic["COVERAGE_STATUS"] = "RETURN_AVAILABLE"
@@ -75,6 +78,11 @@ def main():
         "positions_with_valid_adjusted_return": int(diagnostic.RETURN.notna().sum()),
         "return_coverage_start_equity_weight": float(coverage),
         "uncovered_start_equity_weight": float(1.0 - coverage),
+        "uncovered_start_positions": diagnostic.loc[
+            diagnostic.RETURN.isna(),
+            ["SECURITY_KEY", "ISSUER_NAME", "EQUITY_WEIGHT", "TICKER_RESOLVED",
+             "COVERAGE_STATUS"] + [col for col in ("FIGI_CANDIDATES", "MAPPING_ERROR") if col in diagnostic.columns]
+        ].to_dict(orient="records"),
         "actual_end_active_share_vs_ivv_proxy": float(actual_as),
         "strict_no_trade_estimate_calculated": bool(no_trade is not None),
         "no_trade_active_share_vs_ivv_proxy": None,
