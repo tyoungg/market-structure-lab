@@ -428,6 +428,9 @@ def main() -> None:
         )
 
     calculated = results[results["STATUS"] == "CALCULATED"].copy() if not results.empty else pd.DataFrame()
+    observed_interval_statuses = {"CALCULATED", "WITHHELD_INCOMPLETE_RETURN_COVERAGE"}
+    observed_interval_count = int(results["STATUS"].isin(observed_interval_statuses).sum()) if not results.empty else 0
+    date_or_benchmark_gap_count = int((~results["STATUS"].isin(observed_interval_statuses)).sum()) if not results.empty else 0
     aggregate = {
         "source_dataset": DATASET_REPO,
         "source_note": "Unofficial Hugging Face Parquet mirror of SEC public-domain Form N-PORT structured data; SEC remains authoritative.",
@@ -437,13 +440,14 @@ def main() -> None:
         "source_partitions": args.partitions,
         "benchmark_series": args.benchmark_series,
         "benchmark_name": "iShares Core S&P 500 ETF (IVV) N-PORT holdings proxy",
-        "expected_fund_intervals": int(len(results)), "observed_fund_intervals": int(len(results)),
+        "expected_fund_intervals": int(len(schedule)),
+        "observed_fund_intervals": observed_interval_count,
         "strict_no_trade_intervals_calculated": int(len(calculated)),
         "identity_reviewed_intervals": 0,
         "return_coverage_definition": "All beginning equity positions have endpoint prices for a candidate ticker; security identity mappings have not yet received manual approval.",
 
         "intervals_withheld_for_incomplete_coverage": int((results.STATUS == "WITHHELD_INCOMPLETE_RETURN_COVERAGE").sum()) if not results.empty else 0,
-        "missing_fund_or_benchmark_observations": int(results.STATUS.astype(str).str.contains("MISSING|GAP", regex=True).sum()) if not results.empty else 0,
+        "missing_fund_or_benchmark_observations": date_or_benchmark_gap_count,
         "mean_return_coverage": float(results.RETURN_COVERAGE_START_EQUITY_WEIGHT.mean()) if not results.empty and "RETURN_COVERAGE_START_EQUITY_WEIGHT" in results else None,
         "mean_actual_minus_no_trade_active_share": float(calculated.ACTUAL_MINUS_NO_TRADE_ACTIVE_SHARE.mean()) if not calculated.empty else None,
         "median_actual_minus_no_trade_active_share": float(calculated.ACTUAL_MINUS_NO_TRADE_ACTIVE_SHARE.median()) if not calculated.empty else None,
