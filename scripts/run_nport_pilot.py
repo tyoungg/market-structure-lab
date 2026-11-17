@@ -259,7 +259,7 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
 
     tickers = sorted(set(t for key, t in mapping.items() if t and key not in mapping_conflicts))
     if not tickers:
-        return pd.DataFrame([{"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": mapping[k],
+        return pd.DataFrame([{"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": "" if k in mapping_conflicts else mapping[k],
                               "MAPPING_SOURCE": mapping_source[k], "PRICE_PROVIDER": "Yahoo Finance",
                               "PRICE_STATUS": "IDENTIFIER_MAPPING_CONFLICT" if k in mapping_conflicts else ("UNMAPPED_TICKER" if not mapping[k] else "NO_PRICE_REQUESTED"),
                               "MAPPING_VALIDATION_STATUS": "IDENTIFIER_CONFLICT_REVIEW_REQUIRED" if k in mapping_conflicts else "CANDIDATE_UNREVIEWED",
@@ -318,7 +318,7 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
 
     if cal.empty:
         return pd.DataFrame([
-            {"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": v,
+            {"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": "" if k in mapping_conflicts else v,
              "MAPPING_SOURCE": mapping_source[k], "PRICE_PROVIDER": "Yahoo Finance",
              "PRICE_STATUS": "IDENTIFIER_MAPPING_CONFLICT" if k in mapping_conflicts else "MARKET_CALENDAR_UNAVAILABLE",
              "MAPPING_VALIDATION_STATUS": "IDENTIFIER_CONFLICT_REVIEW_REQUIRED" if k in mapping_conflicts else "CANDIDATE_UNREVIEWED",
@@ -359,7 +359,7 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
             except Exception as exc:
                 price_status = f"PRICE_EXTRACTION_ERROR:{type(exc).__name__}"
         out.append({
-            "SECURITY_KEY": key, "RETURN": value, "TICKER_RESOLVED": ticker,
+            "SECURITY_KEY": key, "RETURN": value, "TICKER_RESOLVED": "" if key in mapping_conflicts else ticker,
             "MAPPING_SOURCE": mapping_source[key],
             "MAPPING_VALIDATION_STATUS": "IDENTIFIER_CONFLICT_REVIEW_REQUIRED" if key in mapping_conflicts else "CANDIDATE_UNREVIEWED",
             "MAPPING_CONFLICT_DETAILS": json.dumps(mapping_conflicts.get(key, {}), sort_keys=True),
