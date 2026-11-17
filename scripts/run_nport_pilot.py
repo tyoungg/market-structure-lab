@@ -283,6 +283,7 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None):
             try:
                 p = price_series.get(ticker, pd.Series(dtype=float))
                 # Require actual observations on both required market dates.
+                if sdate in p.index and edate in p.index:
                     value = float(p.loc[edate] / p.loc[sdate] - 1)
             except Exception:
                 pass
