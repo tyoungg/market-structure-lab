@@ -22,6 +22,9 @@ def load_dashboard_data(data_dir: str | Path | None = None) -> dict:
     if files["summary"].exists():
         data["summary"] = json.loads(files["summary"].read_text(encoding="utf-8"))
     for key in ("results", "availability", "uncovered", "filings", "funds"):
-        data[key] = pd.read_csv(files[key]) if files[key].exists() else pd.DataFrame()
+        source = files[key]
+        if key == "funds" and not source.exists():
+            source = ROOT / "data" / "nport_panel" / "sample_funds.csv"
+        data[key] = pd.read_csv(source) if source.exists() else pd.DataFrame()
     data["available"] = bool(data.get("summary")) and not data["results"].empty
     return data
