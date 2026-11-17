@@ -268,6 +268,18 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
     dated_overrides = {}
     if override_path.exists():
         overrides = pd.read_csv(override_path, dtype=str).fillna("")
+        # Backward-compatible single-symbol overrides remain supported.
+        if "TICKER" in overrides.columns:
+            for item in overrides.to_dict("records"):
+                key = item.get("SECURITY_KEY", "")
+                ticker = item.get("TICKER", "").strip().upper()
+                if key in mapping and ticker and not mapping[key]:
+                    mapping[key] = ticker
+                    mapping_source[key] = "documented_manual_override"
+                    mapping_details[key]["manual_override"] = {
+                        "ticker": ticker, "source_url": item.get("SOURCE_URL", ""),
+                        "source_note": item.get("SOURCE_NOTE", "")
+                    }
         required = {"SECURITY_KEY", "OLD_TICKER", "NEW_TICKER", "EFFECTIVE_DATE"}
         if required.issubset(overrides.columns):
             for item in overrides.to_dict("records"):
