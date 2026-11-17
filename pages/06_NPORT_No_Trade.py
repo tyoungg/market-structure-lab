@@ -43,9 +43,9 @@ if not data["available"]:
         st.dataframe(funds[["FUND_NAME", "STYLE", "CLASSIFICATION_STATUS", "JUNE_2026_NET_ASSETS_USD"]], use_container_width=True, hide_index=True)
     st.markdown(
         """
-        **Panel design:** 11 funds screened using June 2026 assets and public prospectus evidence; four report dates
-        (September 2025 through June 2026), creating up to 33 fund-quarter intervals. This is a purposive,
-        survivorship- and size-biased feasibility cohort—not a representative universe.
+        **Panel design:** 11 funds screened using June 2026 assets and public prospectus evidence. The pipeline now uses
+        each fund's actual observed N-PORT report dates and pairs consecutive observations, requiring IVV holdings on
+        the same ending date. This is a purposive, survivorship- and size-biased feasibility cohort—not a representative universe.
         """
     )
     st.stop()
