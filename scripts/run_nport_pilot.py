@@ -269,7 +269,7 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
     if not tickers:
         return pd.DataFrame([{"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": "" if k in mapping_conflicts else mapping[k],
                               "MAPPING_SOURCE": mapping_source[k], "PRICE_PROVIDER": "Yahoo Finance",
-                              "PRICE_STATUS": "IDENTIFIER_MAPPING_CONFLICT" if k in mapping_conflicts else ("UNMAPPED_TICKER" if not mapping[k] else "NO_PRICE_REQUESTED"),
+                              "PRICE_STATUS": mapping_review_status[k] if "REVIEW_REQUIRED" in mapping_review_status[k] else ("UNMAPPED_TICKER" if not mapping[k] else "NO_PRICE_REQUESTED"),
                               "MAPPING_VALIDATION_STATUS": mapping_review_status[k],
                               "NPORT_TICKER_CONFLICT": str(rows[k].get("TICKER_CONFLICT", "")),
                               "TICKER_CANDIDATES": str(rows[k].get("TICKER_CANDIDATES", "")),
@@ -330,7 +330,7 @@ def fetch_returns(start, start_date, end_date, ticker_cache=None, ticker_source_
         return pd.DataFrame([
             {"SECURITY_KEY": k, "RETURN": None, "TICKER_RESOLVED": "" if k in mapping_conflicts else v,
              "MAPPING_SOURCE": mapping_source[k], "PRICE_PROVIDER": "Yahoo Finance",
-             "PRICE_STATUS": "IDENTIFIER_MAPPING_CONFLICT" if k in mapping_conflicts else "MARKET_CALENDAR_UNAVAILABLE",
+             "PRICE_STATUS": mapping_review_status[k] if "REVIEW_REQUIRED" in mapping_review_status[k] else "MARKET_CALENDAR_UNAVAILABLE",
              "MAPPING_VALIDATION_STATUS": mapping_review_status[k],
              "NPORT_TICKER_CONFLICT": str(rows[k].get("TICKER_CONFLICT", "")),
              "TICKER_CANDIDATES": str(rows[k].get("TICKER_CANDIDATES", "")),
