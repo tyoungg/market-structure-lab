@@ -46,7 +46,7 @@ A U.S.-traded ADR is not automatically interchangeable with the ordinary foreign
 
 Start with rows marked `HIGH`, then `MEDIUM`, then `ROUTINE`. High priority includes identifier conflicts and invalid-price cases. Medium includes unmapped and missing-price cases. A row may have more than one review flag.
 
-The current crosswalk snapshot contained 11 identifier-conflict records, 64 unmapped-ticker records, six missing endpoint-price records, and one invalid endpoint-price record. Those are interval-level records; this ledger deduplicates by security key, so row counts will differ.
+Run #46 (validation snapshot commit `47468ae015d10cc70232e5a4b8fd07cbe8773a2e`) contains 7 identifier-conflict records, 64 unmapped-ticker records, 9 missing endpoint-price records, 3 invalid endpoint-price records, and 1 ticker-transition record with insufficient overlap. These are crosswalk interval-level records; this ledger deduplicates by security key, so row counts will differ. The ledger was refreshed on 2026-11-18; all 473 distinct security keys match the current crosswalk, and no new or obsolete ledger keys were found.
 
 ## Promotion rule
 
