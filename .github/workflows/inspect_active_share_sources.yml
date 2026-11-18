@@ -40,6 +40,11 @@ jobs:
           gdown --folder "https://drive.google.com/drive/folders/1_ym3XbUBR4n0yDrtYwAGq5gKL3hAWmui" \
             -O /tmp/active-share-source/crsp
 
+      - name: Preserve source files for reproducible analysis
+        run: |
+          mkdir -p source_downloads
+          cp -a /tmp/active-share-source/. source_downloads/
+
       - name: Validate archives and inventory downloads
         run: |
           python - <<'PY'
@@ -104,6 +109,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: active-share-source-inventory
-          path: source_download_inventory.json
-          if-no-files-found: warn
+          path: |
+            source_download_inventory.json
+            source_downloads/**
+          if-no-files-found: error
           retention-days: 7
