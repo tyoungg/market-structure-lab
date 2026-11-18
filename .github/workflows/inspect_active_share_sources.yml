@@ -6,6 +6,7 @@ on:
       - RUSSEL_SP
     paths:
       - ".github/workflows/inspect_active_share_sources.yml"
+      - "scripts/build_active_share_baseline.py"
   workflow_dispatch:
 
 permissions:
@@ -26,8 +27,10 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install download utility
-        run: python -m pip install --upgrade gdown
+      - name: Install analysis and download dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pandas gdown
 
       - name: Download Thomson Reuters archive
         run: |
@@ -55,34 +58,24 @@ jobs:
 
           root = Path("/tmp/active-share-source")
           report = {"files": [], "archives": [], "errors": []}
-
           files = sorted(p for p in root.rglob("*") if p.is_file())
           if not files:
               report["errors"].append("No files were downloaded.")
-
           for path in files:
               digest = hashlib.sha256()
               with path.open("rb") as stream:
                   for chunk in iter(lambda: stream.read(1024 * 1024), b""):
                       digest.update(chunk)
-
-              item = {
-                  "path": str(path.relative_to(root)),
-                  "bytes": path.stat().st_size,
-                  "sha256": digest.hexdigest(),
-              }
-
+              item = {"path": str(path.relative_to(root)), "bytes": path.stat().st_size,
+                      "sha256": digest.hexdigest()}
               with path.open("rb") as stream:
                   signature = stream.read(16)
-
               if path.suffix.lower() == ".zip":
                   try:
                       with zipfile.ZipFile(path) as archive:
                           bad_member = archive.testzip()
-                          item["zip_members"] = [
-                              {"name": x.filename, "bytes": x.file_size}
-                              for x in archive.infolist()
-                          ]
+                          item["zip_members"] = [{"name": x.filename, "bytes": x.file_size}
+                                                 for x in archive.infolist()]
                           item["zip_test"] = "passed" if bad_member is None else f"failed: {bad_member}"
                           if bad_member is not None:
                               report["errors"].append(f"Corrupt ZIP member in {path}: {bad_member}")
@@ -93,24 +86,52 @@ jobs:
               elif signature.lstrip().lower().startswith((b"<!doctype", b"<html")):
                   item["warning"] = "Looks like HTML rather than a data file."
                   report["errors"].append(f"HTML response downloaded instead of data: {path}")
-
               report["files"].append(item)
-
-          out = Path("source_download_inventory.json")
-          out.write_text(json.dumps(report, indent=2), encoding="utf-8")
+          Path("source_download_inventory.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
           print(json.dumps(report, indent=2))
-
           if report["errors"]:
               raise SystemExit("Source download inspection failed; see report.")
           PY
 
-      - name: Upload diagnostic inventory
-        if: always()
+      - name: Extract Thomson Reuters CSV
+        run: |
+          mkdir -p /tmp/active-share-source/extracted
+          python - <<'PY'
+          import zipfile
+          from pathlib import Path
+          archive = Path("/tmp/active-share-source/tr/tr_active_share.zip")
+          with zipfile.ZipFile(archive) as z:
+              members = [n for n in z.namelist() if n.lower().endswith(".csv")]
+              if len(members) != 1:
+                  raise SystemExit(f"Expected one TR CSV, found: {members}")
+              z.extract(members[0], "/tmp/active-share-source/extracted")
+          PY
+
+      - name: Build source-separated descriptive baseline
+        run: |
+          TR_CSV=$(find /tmp/active-share-source/extracted -type f -name "*.csv" -print -quit)
+          CRSP_CSV=$(find /tmp/active-share-source/crsp -type f -name "*.csv" -print -quit)
+          test -n "$TR_CSV"
+          test -n "$CRSP_CSV"
+          python scripts/build_active_share_baseline.py \
+            --tr "$TR_CSV" \
+            --crsp "$CRSP_CSV" \
+            --out baseline_outputs
+
+      - name: Upload reproducible source data artifact
         uses: actions/upload-artifact@v4
         with:
-          name: active-share-source-inventory
+          name: active-share-source-data
           path: |
             source_download_inventory.json
             source_downloads/**
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 14
+
+      - name: Upload baseline audit outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: active-share-baseline-outputs
+          path: baseline_outputs/**
+          if-no-files-found: error
+          retention-days: 30
