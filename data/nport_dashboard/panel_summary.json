@@ -35,10 +35,10 @@
   "intervals_withheld_for_incomplete_coverage": 21,
   "missing_fund_or_benchmark_observations": 5,
   "mean_return_coverage": 0.9704618775424578,
-  "mean_actual_minus_no_trade_active_share": -0.0035561162453961945,
-  "median_actual_minus_no_trade_active_share": -0.005931698878804514,
+  "mean_actual_minus_no_trade_active_share": -0.0035561160859471294,
+  "median_actual_minus_no_trade_active_share": -0.00593169887880457,
   "fraction_negative_actual_minus_no_trade": 0.625,
-  "asset_weighted_actual_minus_no_trade_active_share": -0.004152802127291499,
+  "asset_weighted_actual_minus_no_trade_active_share": -0.00415280176418794,
   "interpretation": "Negative means actual ending equity sleeve is closer to the IVV holdings proxy than return-drift-only no-trade weights. Descriptive, not causal.",
   "limitations": [
     "The cohort is selected from funds present in the latest 2026 Q3 public release and with large-cap labels/strategy evidence; it is not survivorship-bias-free or representative of the full active-fund universe.",
