@@ -93,3 +93,33 @@ Published research describes matching SEC series IDs to WFICN through fund ticke
 No fund is classified as active or passive from Active Share thresholds, benchmark proximity, ticker/name guesswork, or a non-contemporaneous identity match. A successful match must include source, date, identifier, method, confidence, and reviewable evidence. Unresolved cases remain unclassified.
 
 **Conclusion:** SEC public data is suitable for building a modern fund-identification and classification evidence base, but the current Notre Dame Active Share extracts lack the bridge key needed to join it directly. The next gate is discovery and validation of a free WFICN/name/ticker bridge—not a full N-PORT download.
+
+
+## 7. Newly identified public bridge candidate: Petajisto (1980–2009)
+
+A potentially important public source was identified after the initial schema audit:
+
+- Data page: https://www.petajisto.net/data.html
+- Data file: https://www.petajisto.net/data/activeshare.csv
+- Documentation: https://www.petajisto.net/data/activeshare.pdf
+- Coverage: 1980–2009
+- The documentation lists `wficn`, `fundno`, `crsp_fundno`, `ticker`, `fund_name`, `indexfund`, and `enhanced_index`.
+
+This is unusually promising because it may bridge:
+1. Notre Dame TR `fundno` and/or `wficn` to a public fund name and ticker for the overlapping 1980–2009 period.
+2. The public ticker to the SEC series/class/ticker records, allowing a dated SEC filing search and contemporaneous classification evidence.
+
+**Status: candidate only; not yet validated.** The actual downloadable data file still needs to be retrieved in the research workflow and inspected. Required tests:
+- Normalize Petajisto `rdate` and Notre Dame `ym` to the same reporting month.
+- Join independently on `fundno + period` and `wficn + period`.
+- Quantify matched observations, unique funds, duplicate keys, one-to-many conflicts, and periods with missing WFICN recovered by an unambiguous fundno-period match.
+- Where both identifiers are present, compare the WFICN assigned by each independent join. Disagreements must be quarantined, not guessed.
+- Review ticker/name changes, share-class aggregation, mergers, and reused TR fund numbers.
+- Preserve the Petajisto `indexfund` and `enhanced_index` flags as contemporaneous evidence. An unflagged observation is **not** automatically classified as active.
+- Confirm the file's data-use requirements and cite both the Petajisto data page and Petajisto (2013), as the provider explicitly requires.
+
+This candidate does not solve 2010–2023 by itself. The public file ends in 2009, while the Notre Dame TR panel continues through 2019 and the CRSP extension covers 2020–2023. No forward extrapolation of identifiers or classification flags is permitted.
+
+### Revised next step
+
+Run the Petajisto date-specific crosswalk pilot before concluding that C.1 is blocked. If it validates, use it to build a public ticker/name bridge for 1980–2009, then connect those contemporaneous identifiers to SEC series/class records and filings where possible. Keep the 2010–2023 sample as a separate unresolved linkage task until an equally defensible public bridge is demonstrated.
