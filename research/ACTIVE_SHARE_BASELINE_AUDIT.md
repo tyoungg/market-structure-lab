@@ -71,7 +71,7 @@ This output is a reproducible all-record descriptive baseline, not the central e
 
 1. **No active-only classification yet.** Passive index funds, enhanced index funds, active funds, and other strategies are not separated. High Active Share does not itself establish active status, and benchmark proximity is not a valid classifier.
 2. **No provider bridge yet.** TR ends in December 2019; CRSP begins in March 2020. Their levels and composition should be analyzed separately until identifiers, coverage, and methodology are reconciled.
-3. **Fund-month weighting matters.** Each fund-quarter is an observation. The asset-weighted mean weights each fund-quarter by that quarter's total assets; it is not an annual cross-section or a fund-level time-series average. The output should not be described as a count of unique funds for the entire year: the `observations` field is fund-quarter rows, while `unique_funds` is the within-year distinct identifier count.
+3. **Fund-quarter weighting matters.** Each fund-quarter is an observation. The asset-weighted mean weights each fund-quarter by that quarter's total assets; it is not an annual cross-section or a fund-level time-series average. The output should not be described as a count of unique funds for the entire year: the `observations` field is fund-quarter rows, while `unique_funds` is the within-year distinct identifier count.
 4. **Composition is unresolved.** Entry, exit, mergers, identifier changes, and changes in fund type may affect the annual distributions.
 5. **This is not causal evidence.** The baseline alone cannot attribute changes to indexing, flows, performance, distribution, or trading behavior.
 
