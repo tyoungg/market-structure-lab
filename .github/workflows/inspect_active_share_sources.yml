@@ -32,13 +32,13 @@ jobs:
       - name: Download Thomson Reuters archive
         run: |
           mkdir -p /tmp/active-share-source/tr /tmp/active-share-source/crsp
-          gdown --fuzzy "https://drive.google.com/file/d/1fbdBoASGj-h2XAng-3FVmZzeJI6gcHx1/view" \
-            --output /tmp/active-share-source/tr/tr_active_share.zip
+          gdown "1fbdBoASGj-h2XAng-3FVmZzeJI6gcHx1" \
+            -O /tmp/active-share-source/tr/tr_active_share.zip
 
       - name: Download CRSP source folder
         run: |
           gdown --folder "https://drive.google.com/drive/folders/1_ym3XbUBR4n0yDrtYwAGq5gKL3hAWmui" \
-            --output /tmp/active-share-source/crsp --remaining-ok
+            -O /tmp/active-share-source/crsp --remaining-ok
 
       - name: Validate archives and inventory downloads
         run: |
