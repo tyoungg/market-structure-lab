@@ -1,31 +1,18 @@
 import streamlit as st
 
-st.set_page_config(
-    page_title="Market Structure Lab",
-    page_icon="📈",
-    layout="wide"
-)
-
+st.set_page_config(page_title="Market Structure Lab", page_icon="📈", layout="wide")
 st.title("🏛️ Market Structure Lab")
+st.markdown("""## Research tracks
 
-st.markdown("""
-Welcome to the **Market Structure Lab**. This application is designed to analyze the impact of index inclusions and exclusions on stock performance.
+This branch contains a separate research track for **The Rational Coward** hypothesis, alongside the original index-inclusion/Green Score tools.
 
-### Core Research Questions
-- Do stocks added to major indexes outperform comparable non-added companies?
-- Is there a "Green Score" premium associated with index inclusion?
-- How does market structure influence individual stock behavior?
+### The Rational Coward
+A falsifiable research program examining benchmark-linked capital, Active Share, manager incentives, entrants, and price discovery. The research dashboard is being built around verified source data; results are not displayed until the raw inputs are audited.
 
-### Navigation
-Use the sidebar to navigate through different analysis tools:
-1. **Event Study**: Analyze individual stock performance around index changes.
-2. **Twin Analysis**: Compare a stock against a counterfactual portfolio of similar "twin" stocks.
-3. **Aggregate Study**: View research results across hundreds of historical events.
-4. **Green Score**: Deep dive into the Green Score distribution and rankings.
-5. **Data Manager**: Update price history and fundamental data.
+**Primary empirical comparisons:** S&P 500 and Russell 1000. The no-trade drift counterfactual is a central test.
 
----
-*Based on the thesis that market structure and passive flows create systematic performance deviations.*
+### Original Market Structure tools
+Use the existing pages below for event studies, twin analysis, aggregate inclusion analysis, Green Score, and data management.
 """)
-
-st.sidebar.success("Select a page above.")
+st.sidebar.info("Use the page navigation to access the research dashboard and legacy tools.")
+st.markdown("### Data integrity principles\n- Provider periods are not pooled until the TR–CRSP bridge is validated.\n- Active Share alone does not classify a fund as active or passive.\n- No-trade drift results require holdings, returns, index weights, and corporate actions.\n- Descriptive associations are not causal claims.")
