@@ -10,7 +10,7 @@ st.caption("Descriptive baseline only. Provider periods remain separate until th
 files = available_files()
 if not files:
     st.warning("Raw Active Share datasets are not currently available in the expected local folder.")
-    st.markdown("**Expected folder:** `data/public_active_share/")
+    st.markdown("**Expected folder:** `data/public_active_share/`
     st.markdown("Place the original Notre Dame TR and CRSP files here. This page will read CSV or Parquet files and show an audit before any analysis.")
     st.stop()
 choice = st.selectbox("Dataset file", files, format_func=lambda p: p.name)
