@@ -1,0 +1,104 @@
+name: Inspect Active Share source downloads
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-sources:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out research branch
+        uses: actions/checkout@v4
+        with:
+          ref: RUSSEL_SP
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install download utility
+        run: python -m pip install --upgrade gdown
+
+      - name: Download Thomson Reuters archive
+        run: |
+          mkdir -p /tmp/active-share-source/tr /tmp/active-share-source/crsp
+          gdown --fuzzy "https://drive.google.com/file/d/1fbdBoASGj-h2XAng-3FVmZzeJI6gcHx1/view" \
+            --output /tmp/active-share-source/tr/tr_active_share.zip
+
+      - name: Download CRSP source folder
+        run: |
+          gdown --folder "https://drive.google.com/drive/folders/1_ym3XbUBR4n0yDrtYwAGq5gKL3hAWmui" \
+            --output /tmp/active-share-source/crsp --remaining-ok
+
+      - name: Validate archives and inventory downloads
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import zipfile
+          from pathlib import Path
+
+          root = Path("/tmp/active-share-source")
+          report = {"files": [], "archives": [], "errors": []}
+
+          files = sorted(p for p in root.rglob("*") if p.is_file())
+          if not files:
+              report["errors"].append("No files were downloaded.")
+
+          for path in files:
+              digest = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                      digest.update(chunk)
+
+              item = {
+                  "path": str(path.relative_to(root)),
+                  "bytes": path.stat().st_size,
+                  "sha256": digest.hexdigest(),
+              }
+
+              with path.open("rb") as stream:
+                  signature = stream.read(8)
+
+              if path.suffix.lower() == ".zip":
+                  try:
+                      with zipfile.ZipFile(path) as archive:
+                          bad_member = archive.testzip()
+                          item["zip_members"] = [
+                              {"name": x.filename, "bytes": x.file_size}
+                              for x in archive.infolist()
+                          ]
+                          item["zip_test"] = "passed" if bad_member is None else f"failed: {bad_member}"
+                          if bad_member is not None:
+                              report["errors"].append(f"Corrupt ZIP member in {path}: {bad_member}")
+                  except Exception as exc:
+                      item["zip_test"] = f"failed: {exc}"
+                      report["errors"].append(f"Invalid ZIP archive: {path}")
+                  report["archives"].append(item)
+              elif signature.startswith(b"<!DOCTYP") or signature.startswith(b"<html"):
+                  item["warning"] = "Looks like HTML rather than a data file."
+                  report["errors"].append(f"HTML response downloaded instead of data: {path}")
+
+              report["files"].append(item)
+
+          out = Path("source_download_inventory.json")
+          out.write_text(json.dumps(report, indent=2), encoding="utf-8")
+          print(json.dumps(report, indent=2))
+
+          if report["errors"]:
+              raise SystemExit("Source download inspection failed; see report.")
+          PY
+
+      - name: Upload diagnostic inventory
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: active-share-source-inventory
+          path: source_download_inventory.json
+          if-no-files-found: warn
+          retention-days: 7
