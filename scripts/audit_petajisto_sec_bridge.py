@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Reproducible public Petajisto-to-SEC series/class and filing-evidence audit."""
-import argparse, difflib, hashlib, json, re, time
+import argparse, difflib, hashlib, json, os, re, time
 from pathlib import Path
 import pandas as pd
 import requests
 
-SEC_UA = "The Rational Coward Research Project (tyoungg/market-structure-lab; public research)"
+SEC_UA = "The Rational Coward Research Project (tyoungg/market-structure-lab; contact " + os.environ.get("SEC_CONTACT_EMAIL", "") + ")"
 FORMS = {"485APOS","485BPOS","485BXT","N-1A","497","497K","497J","N-CSR","N-CSRS"}
 PRIORITY = {"485BPOS":0,"485APOS":1,"497K":2,"497":3,"N-1A":4,"497J":5,"N-CSR":6,"N-CSRS":7,"485BXT":8}
 
@@ -143,7 +143,7 @@ def match_registry(eligible,sec):
         identity["series_match_status"]="no_strict_candidate"
         identity["strict_series_count"]=0; identity["strict_class_count"]=0; identity["share_class_ambiguous"]=False
         return identity,cand_df,cand_df
-    cand_df["strict_candidate"]=(cand_df.ticker_match & (cand_df.name_similarity>=0.45)) | (cand_df.name_similarity>=0.90)
+    cand_df["strict_candidate"]=(cand_df.ticker_match & (cand_df.name_similarity>=0.65)) | (cand_df.name_similarity>=0.90)
     strict=cand_df[cand_df.strict_candidate].copy()
     stats=[]
     for (fundno,year),g in strict.groupby(["fundno_key","year"]):
@@ -182,6 +182,8 @@ def diagnostics(sec,eligible):
     return tick,pn,sn
 
 def session():
+    if not os.environ.get("SEC_CONTACT_EMAIL"):
+        raise RuntimeError("SEC_CONTACT_EMAIL environment variable is required for the SEC User-Agent")
     s=requests.Session()
     s.headers.update({"User-Agent":SEC_UA,"Accept-Encoding":"gzip, deflate"})
     return s
@@ -239,7 +241,7 @@ def fetch_evidence(identity,out,max_per_year):
             if df.empty: continue
             df["filingDate"]=pd.to_datetime(df.get("filingDate"),errors="coerce")
             df["form"]=df.get("form","").astype(str)
-            df=df[df.form.isin(FORMS)&df.filingDate.dt.year.between(2006,2009)].copy()
+            df=df[df.form.isin(FORMS)&df.filingDate.dt.year.between(1994,2009)].copy()
             if df.empty: continue
             df["priority"]=df.form.map(PRIORITY).fillna(99)
             selected=[]
