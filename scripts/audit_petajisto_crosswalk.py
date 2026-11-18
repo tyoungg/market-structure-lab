@@ -68,11 +68,54 @@ def main():
     ambiguous=pd.MultiIndex.from_frame(byfund[["fundno_key","period"]]).isin(fc[fc].index)
     safe=byfund.loc[byfund._merge.eq("both") & ~ambiguous].copy()
     recovered=safe.wficn_key.isna() & safe.wficn_key_pet.notna()
+
+    # Report match rates with the Petajisto file as the denominator and restrict
+    # the TR denominator to the exact period actually covered by Petajisto.
+    p_fund_keys=p.dropna(subset=["fundno_key","period"])[["fundno_key","period"]].drop_duplicates()
+    p_wficn_keys=p.dropna(subset=["wficn_key","period"])[["wficn_key","period"]].drop_duplicates()
+    tr_fund_keys=tr.dropna(subset=["fundno_key","period"])[["fundno_key","period"]].drop_duplicates()
+    tr_wficn_keys=tr.dropna(subset=["wficn_key","period"])[["wficn_key","period"]].drop_duplicates()
+    pet_fund_link=p_fund_keys.merge(tr_fund_keys,on=["fundno_key","period"],how="left",indicator=True)
+    pet_wficn_link=p_wficn_keys.merge(tr_wficn_keys,on=["wficn_key","period"],how="left",indicator=True)
+    p_start,p_end=p.period.min(),p.period.max()
+    tr_window=tr.loc[tr.period.between(p_start,p_end)].copy()
+    tr_window_link=tr_window.merge(p_fund_keys,on=["fundno_key","period"],how="left",indicator=True)
+    safe_both=safe.loc[safe.wficn_key.notna()]
+    safe_agree=safe_both.wficn_key.eq(safe_both.wficn_key_pet)
+    annual= p_fund_keys.assign(year=p_fund_keys.period.str[:4])
+    annual_link=annual.merge(tr_fund_keys.assign(matched=1),on=["fundno_key","period"],how="left")
+    annual_link["matched"]=annual_link["matched"].fillna(0).astype(int)
+    annual_report=(annual_link.groupby("year").agg(
+        petajisto_fundno_period_keys=("fundno_key","size"),
+        matched_fundno_period_keys=("matched","sum"),
+        petajisto_funds=("fundno_key","nunique")
+    ).reset_index())
+    annual_report["fundno_period_match_pct"]=(100*annual_report.matched_fundno_period_keys/
+                                                annual_report.petajisto_fundno_period_keys).round(2)
+    annual_funds=(annual_link.loc[annual_link.matched.eq(1)].groupby("year").fundno_key.nunique())
+    annual_report["matched_funds"]=annual_report.year.map(annual_funds).fillna(0).astype(int)
+    annual_report["fund_coverage_pct"]=(100*annual_report.matched_funds/
+                                         annual_report.petajisto_funds).round(2)
+    annual_report.to_csv(a.out/"petajisto_annual_match_rates.csv",index=False)
     metrics={
       "TR_rows":int(len(tr)),"TR_unique_fundno":int(tr.fundno_key.nunique()),
       "TR_unique_wficn":int(tr.wficn_key.nunique()),"TR_missing_wficn_rows":int(tr.wficn_key.isna().sum()),
       "Petajisto_rows":int(len(p)),"Petajisto_unique_fundno":int(p.fundno_key.nunique()),
       "Petajisto_unique_wficn":int(p.wficn_key.nunique()),
+      "Petajisto_unique_fundno_period_keys":int(len(p_fund_keys)),
+      "Petajisto_unique_wficn_period_keys":int(len(p_wficn_keys)),
+      "Petajisto_fundno_period_keys_matched_to_TR":int(pet_fund_link._merge.eq("both").sum()),
+      "Petajisto_fundno_period_key_match_pct":round(float(pet_fund_link._merge.eq("both").mean()*100),2),
+      "Petajisto_distinct_funds_matched_to_TR":int(pet_fund_link.loc[pet_fund_link._merge.eq("both"),"fundno_key"].nunique()),
+      "Petajisto_distinct_fund_coverage_pct":round(float(pet_fund_link.loc[pet_fund_link._merge.eq("both"),"fundno_key"].nunique()/p.fundno_key.nunique()*100),2),
+      "Petajisto_wficn_period_keys_matched_to_TR":int(pet_wficn_link._merge.eq("both").sum()),
+      "Petajisto_wficn_period_key_match_pct":round(float(pet_wficn_link._merge.eq("both").mean()*100),2),
+      "TR_rows_in_Petajisto_observed_date_window":int(len(tr_window)),
+      "TR_rows_in_window_matched_by_fundno_period":int(tr_window_link._merge.eq("both").sum()),
+      "TR_window_fundno_period_match_pct":round(float(tr_window_link._merge.eq("both").mean()*100),2),
+      "TR_window_start":str(p_start),
+      "TR_window_end":str(p_end),
+      "Petajisto_fundno_period_duplicate_rows":int(p.duplicated(["fundno_key","period"]).sum()),
       "Petajisto_date_min":str(pd.to_datetime(p.rdate,errors="coerce").min()),
       "Petajisto_date_max":str(pd.to_datetime(p.rdate,errors="coerce").max()),
       "Petajisto_columns":list(p.columns),
@@ -87,6 +130,9 @@ def main():
       "dual_match_rows_with_source_wficn":int(len(both)),
       "dual_match_wficn_agreement":int(agree.sum()),
       "dual_match_wficn_disagreement":int((~agree).sum()),
+      "unambiguous_dual_match_rows_with_source_wficn":int(len(safe_both)),
+      "unambiguous_dual_match_wficn_agreement":int(safe_agree.sum()),
+      "unambiguous_dual_match_wficn_disagreement":int((~safe_agree).sum()),
       "missing_TR_wficn_recovered_by_unique_fundno_period":int(recovered.sum()),
       "Petajisto_indexfund_flag_present":"indexfund" in p.columns,
       "Petajisto_enhanced_index_flag_present":"enhanced_index" in p.columns,
