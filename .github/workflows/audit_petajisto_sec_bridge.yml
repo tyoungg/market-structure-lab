@@ -16,6 +16,8 @@ jobs:
   sec-public-bridge:
     runs-on: ubuntu-latest
     timeout-minutes: 180
+    env:
+      SEC_CONTACT_EMAIL: ${{ secrets.SEC_CONTACT_EMAIL }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,8 +42,9 @@ jobs:
           test -s /tmp/active-share/petajisto_activeshare.csv
       - name: Download SEC 2010 series and class snapshot
         run: |
+          test -n "$SEC_CONTACT_EMAIL" || { echo "Add SEC_CONTACT_EMAIL as a repository Actions secret; SEC requires a declared contact in the User-Agent."; exit 1; }
           curl --fail --location --retry 3 --retry-delay 3 \
-            -A "The Rational Coward Research Project (tyoungg/market-structure-lab; public research)" \
+            -A "The Rational Coward Research Project ${SEC_CONTACT_EMAIL}" \
             "https://www.sec.gov/files/investment/data/other/investment-company-series-and-class-information/investmentcompanyseriesclass2010.csv" \
             -o /tmp/active-share/sec_series_class_2010.csv
           test -s /tmp/active-share/sec_series_class_2010.csv
@@ -53,7 +56,7 @@ jobs:
             --petajisto /tmp/active-share/petajisto_activeshare.csv \
             --sec-series-class /tmp/active-share/sec_series_class_2010.csv \
             --out sec_bridge_outputs \
-            --max-filings-per-cik-year 2
+            --max-filings-per-cik-year 1
       - name: Upload derived audit outputs only
         uses: actions/upload-artifact@v4
         with:
