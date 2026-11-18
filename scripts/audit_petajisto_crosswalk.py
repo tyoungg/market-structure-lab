@@ -41,7 +41,7 @@ def main():
             return fields[:14]+[",".join(fields[14:])]
         malformed_rows.append({"parsed_fields":len(fields),"overflow":[]})
         return fields
-    p=pd.read_csv(a.petajisto,dtype="string",low_memory=False,
+    p=pd.read_csv(a.petajisto,dtype="string",
                   engine="python",on_bad_lines=repair_petajisto_row)
     p.columns=[str(c).strip().lower() for c in p.columns]
     if not {"fundno","wficn","rdate","ticker","fund_name"}.issubset(p.columns):
