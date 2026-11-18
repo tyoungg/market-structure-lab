@@ -123,3 +123,21 @@ This candidate does not solve 2010–2023 by itself. The public file ends in 200
 ### Revised next step
 
 Run the Petajisto date-specific crosswalk pilot before concluding that C.1 is blocked. If it validates, use it to build a public ticker/name bridge for 1980–2009, then connect those contemporaneous identifiers to SEC series/class records and filings where possible. Keep the 2010–2023 sample as a separate unresolved linkage task until an equally defensible public bridge is demonstrated.
+
+
+## 8. Petajisto-to-TR pilot result (supersedes the earlier "candidate only" status)
+
+The public Petajisto crosswalk was downloaded and tested in GitHub Actions against the public Notre Dame TR source. The pilot completed successfully.
+
+- Workflow: https://github.com/tyoungg/market-structure-lab/actions/runs/44400738484
+- Code commit: `e83c3a6f7416eff0b7fa93bd59b6fc29a1e337b4`
+- Derived artifact ID: `14472329378`
+- Full report: [PETAJISTO_MATCH_RATE_REPORT.md](PETAJISTO_MATCH_RATE_REPORT.md)
+
+The Petajisto extract contains 81,158 fund-quarter records from 1980-03-31 through 2009-09-30. Exact `fundno + reporting month` linkage finds 64,225 unambiguous matches among 81,091 distinct Petajisto fundno-period keys: 79.20% when the 67 ambiguous keys remain unresolved in the denominator. At the distinct-fund level, 2,783 of 2,949 Petajisto fund numbers match TR at least once (94.37%).
+
+An independent WFICN-period join matches 63,638 of 81,158 keys (78.41%). Of 64,225 unambiguous fundno-period matches, 63,428 have WFICN agreement, 388 have WFICN disagreement, and 409 have missing TR WFICN. The 388 conflicts must be quarantined. The 409 missing values can be retained as recovered identifiers only with explicit provenance.
+
+The CSV parser repaired 16,388 rows containing unquoted commas in the final `fund_name` field. These names require spot-checking before SEC name matching. Identifier columns precede the affected field, but this does not remove the need for name-quality review.
+
+**Revised feasibility conclusion:** the public Petajisto file is a viable, high-coverage historical bridge from Petajisto identifiers to the Notre Dame TR panel for 1980–2009, but it is not complete and is not yet an SEC bridge. The next test is a time-aware match from non-conflicting Petajisto ticker/name records to SEC series/class records and contemporaneous EDGAR filings. No 2010–2023 extension is inferred from this result.
