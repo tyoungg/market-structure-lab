@@ -29,8 +29,10 @@ def column(df, candidates, required=True):
 def parse_date(s):
     # ND ym values are usually YYYYmM or numeric YYYYMM.
     raw = s.astype(str).str.strip().str.replace(".0", "", regex=False)
-    raw = raw.str.replace("m", "", regex=False).str.replace("M", "", regex=False)
-    parsed = pd.to_datetime(raw, format="%Y%m", errors="coerce")
+    # Handle strings such as 1979m6 explicitly (zero-pad month) and YYYYMM.
+    ym = raw.str.extract(r"^(\\d{4})[mM]?(\\d{1,2})$")
+    normalized = ym[0] + ym[1].str.zfill(2)
+    parsed = pd.to_datetime(normalized, format="%Y%m", errors="coerce")
     if parsed.isna().any():
         fallback = pd.to_datetime(s, errors="coerce")
         parsed = parsed.fillna(fallback)
