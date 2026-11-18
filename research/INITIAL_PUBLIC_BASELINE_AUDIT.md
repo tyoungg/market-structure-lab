@@ -47,7 +47,3 @@ The all-fund medians are high, while asset-weighted Active Share is materially l
 3. Investigate universe composition and identify duplicate share classes / identifier continuity.
 4. Apply C.1 classification evidence before calculating active-only results.
 5. Do not interpret the TR/CRSP transition as a continuous trend until a provider bridge is evaluated.
-
-## Reproducibility
-
-`annual_active_share_descriptive.csv` accompanies this report and contains yearly descriptive statistics for both source periods and both benchmarks.
