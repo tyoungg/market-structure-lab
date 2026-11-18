@@ -31,7 +31,18 @@ def main():
         if len(csvs)!=1: raise ValueError(f"TR ZIP must contain one CSV, found {csvs}")
         with z.open(csvs[0]) as f:
             tr=pd.read_csv(f,dtype={"fundno":"string","wficn":"string"},low_memory=False)
-    p=pd.read_csv(a.petajisto,dtype="string",low_memory=False)
+    malformed_rows=[]
+    def repair_petajisto_row(fields):
+        # The published ASCII file contains occasional unquoted commas in the
+        # final fund_name field. Preserve the row by joining overflow fields
+        # back into that final field, and report every repair in the audit.
+        if len(fields)>15:
+            malformed_rows.append({"parsed_fields":len(fields),"overflow":fields[14:]})
+            return fields[:14]+[",".join(fields[14:])]
+        malformed_rows.append({"parsed_fields":len(fields),"overflow":[]})
+        return fields
+    p=pd.read_csv(a.petajisto,dtype="string",low_memory=False,
+                  engine="python",on_bad_lines=repair_petajisto_row)
     p.columns=[str(c).strip().lower() for c in p.columns]
     if not {"fundno","wficn","rdate","ticker","fund_name"}.issubset(p.columns):
         raise ValueError(f"Unexpected Petajisto columns: {list(p.columns)}")
@@ -65,6 +76,8 @@ def main():
       "Petajisto_date_min":str(pd.to_datetime(p.rdate,errors="coerce").min()),
       "Petajisto_date_max":str(pd.to_datetime(p.rdate,errors="coerce").max()),
       "Petajisto_columns":list(p.columns),
+      "Petajisto_malformed_rows_repaired":len([x for x in malformed_rows if x["parsed_fields"]>15]),
+      "Petajisto_malformed_row_examples":malformed_rows[:5],
       "Petajisto_fundno_period_conflict_keys":int(fc.sum()),
       "Petajisto_wficn_period_conflict_keys":int(wc.sum()),
       "TR_fundno_period_matches":int(byfund._merge.eq("both").sum()),
