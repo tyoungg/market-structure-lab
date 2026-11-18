@@ -1,106 +1,138 @@
 #!/usr/bin/env python3
-"""Reproducible, source-separated Active Share baseline audit.
+"""Reproducible descriptive Active Share baseline; TR and CRSP remain separate.
 
-Usage:
-  python scripts/build_active_share_baseline.py --tr path/to/TR.csv --crsp path/to/CRSP.csv --out data/processed
-
-Raw inputs are never modified. Outputs are generated independently by provider.
+Raw source files are read-only and are never copied into the repository.
 """
 from __future__ import annotations
+
 import argparse
+import hashlib
 from pathlib import Path
+import re
 import pandas as pd
 
-BENCHMARKS = {"S&P 500": ["as_S5", "as_s5", "S5", "as_sp500"],
-               "Russell 1000": ["as_R1", "as_r1", "R1", "as_russell1000"]}
-DATE_CANDIDATES = ["ym", "date", "year_month", "month"]
-FUND_CANDIDATES = ["fundno", "crsp_portno", "wficn", "fund_id"]
-ASSET_CANDIDATES = ["total_assets", "assets", "tna", "fund_assets"]
+BENCHMARKS = {
+    "S&P 500": "as_s5",
+    "Russell 1000": "as_r1",
+}
+ID_COLUMNS = {"TR": "fundno", "CRSP": "crsp_portno"}
 
-def column(df, candidates, required=True):
-    lookup = {str(c).strip().lower(): c for c in df.columns}
-    for c in candidates:
-        if c.lower() in lookup:
-            return lookup[c.lower()]
-    if required:
-        raise ValueError(f"Required column not found. Tried {candidates}; available={list(df.columns)}")
-    return None
 
-def parse_date(s):
-    # ND ym values are usually YYYYmM or numeric YYYYMM.
-    raw = s.astype(str).str.strip().str.replace(".0", "", regex=False)
-    # Handle strings such as 1979m6 explicitly (zero-pad month) and YYYYMM.
-    ym = raw.str.extract(r"^(\\d{4})[mM]?(\\d{1,2})$")
-    normalized = ym[0] + ym[1].str.zfill(2)
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def parse_ym(values: pd.Series) -> pd.Series:
+    raw = values.astype("string").str.strip().str.replace(r"\.0$", "", regex=True)
+    parts = raw.str.extract(r"^(\d{4})[mM]?(\d{1,2})$")
+    month = pd.to_numeric(parts[1], errors="coerce")
+    valid = month.between(1, 12)
+    normalized = parts[0] + month.where(valid).astype("Int64").astype("string").str.zfill(2)
     parsed = pd.to_datetime(normalized, format="%Y%m", errors="coerce")
-    if parsed.isna().any():
-        fallback = pd.to_datetime(s, errors="coerce")
-        parsed = parsed.fillna(fallback)
-    if parsed.isna().all():
-        raise ValueError("Could not parse date column; inspect ym values and update date parser.")
+    # Do not silently reinterpret malformed values using a permissive parser.
     return parsed
 
-def read_source(path, provider):
-    path = Path(path)
-    df = pd.read_csv(path) if path.suffix.lower() == ".csv" else pd.read_stata(path) if path.suffix.lower() == ".dta" else pd.read_parquet(path)
-    date_col = column(df, DATE_CANDIDATES)
-    fund_col = column(df, FUND_CANDIDATES)
-    assets_col = column(df, ASSET_CANDIDATES, required=False)
-    df["_date"] = parse_date(df[date_col])
-    df["_year"] = df["_date"].dt.year
-    df["_fund"] = df[fund_col].astype(str)
-    if assets_col:
-        df["_assets"] = pd.to_numeric(df[assets_col], errors="coerce")
-    else:
-        df["_assets"] = float("nan")
-    for label, candidates in BENCHMARKS.items():
-        c = column(df, candidates, required=False)
-        if c:
-            df[label] = pd.to_numeric(df[c], errors="coerce")
-            # Active Share is conventionally percentage-valued; preserve original units.
-    df["_provider"] = provider
-    return df
 
-def summarize(df, provider):
-    rows=[]
-    for year, group in df.groupby("_year", dropna=True):
-        for benchmark in BENCHMARKS:
-            if benchmark not in group:
-                continue
-            x = group[benchmark].dropna()
+def read_csv(path: Path) -> pd.DataFrame:
+    return pd.read_csv(path, low_memory=False)
+
+
+def audit_provider(provider: str, path: Path, out: Path) -> tuple[dict, pd.DataFrame]:
+    df = read_csv(path)
+    id_col = ID_COLUMNS[provider]
+    required = [id_col, "ym", "total_assets", *BENCHMARKS.values()]
+    missing_columns = [c for c in required if c not in df.columns]
+    if missing_columns:
+        raise ValueError(f"{provider}: required columns missing: {missing_columns}")
+
+    dates = parse_ym(df["ym"])
+    assets = pd.to_numeric(df["total_assets"], errors="coerce")
+    benchmark_data = {label: pd.to_numeric(df[col], errors="coerce")
+                      for label, col in BENCHMARKS.items()}
+    date_fail = int(dates.isna().sum())
+    if date_fail:
+        examples = df.loc[dates.isna(), "ym"].astype(str).head(10).tolist()
+        raise ValueError(f"{provider}: {date_fail} unparseable ym values; examples={examples}")
+
+    # Tiny negative values at approximately machine precision are retained in source,
+    # but flagged separately from economically meaningful out-of-range values.
+    benchmark_checks = {}
+    for label, values in benchmark_data.items():
+        benchmark_checks[label] = {
+            "missing": int(values.isna().sum()),
+            "min": float(values.min()),
+            "max": float(values.max()),
+            "outside_0_1_tolerance": int(((values < -1e-6) | (values > 1 + 1e-6)).sum()),
+            "tiny_rounding_deviations": int(((values < 0) | (values > 1)) .sum()),
+        }
+
+    key_dupes = int(df.duplicated([id_col, "ym"]).sum())
+    if key_dupes:
+        raise ValueError(f"{provider}: {key_dupes} duplicate {id_col}/ym keys")
+
+    annual_rows = []
+    year = dates.dt.year
+    for yr in sorted(year.unique()):
+        mask = year.eq(yr)
+        for label, values in benchmark_data.items():
+            x = values.loc[mask]
+            valid = x.notna()
+            x = x.loc[valid]
             if x.empty:
                 continue
-            assets = group.loc[x.index, "_assets"]
-            w = assets.where(assets.gt(0))
-            weighted = (x*w).sum()/w.sum() if w.notna().any() and w.sum()>0 else float("nan")
-            rows.append({"provider":provider,"year":int(year),"benchmark":benchmark,
-                "observations":int(x.count()),"unique_funds":int(group.loc[x.index,"_fund"].nunique()),
-                "mean":x.mean(),"median":x.median(),"p10":x.quantile(.10),"p25":x.quantile(.25),
-                "p75":x.quantile(.75),"p90":x.quantile(.90),"asset_weighted_mean":weighted,
-                "assets_available_for_weighting":int(w.notna().sum())})
-    return pd.DataFrame(rows)
+            w = assets.loc[x.index].where(assets.loc[x.index].gt(0))
+            weighted_mean = float((x * w).sum() / w.sum()) if w.notna().any() and w.sum() > 0 else None
+            annual_rows.append({
+                "provider": provider, "year": int(yr), "benchmark": label,
+                "observations": int(x.count()),
+                "unique_funds": int(df.loc[x.index, id_col].nunique()),
+                "mean": float(x.mean()), "median": float(x.median()),
+                "p10": float(x.quantile(.10)), "p25": float(x.quantile(.25)),
+                "p75": float(x.quantile(.75)), "p90": float(x.quantile(.90)),
+                "asset_weighted_mean": weighted_mean,
+                "assets_available_for_weighting": int(w.notna().sum()),
+            })
 
-def main():
-    ap=argparse.ArgumentParser()
-    ap.add_argument("--tr", required=True, help="TR CSV/DTA/Parquet file")
-    ap.add_argument("--crsp", required=True, help="CRSP CSV/DTA/Parquet file")
-    ap.add_argument("--out", default="data/processed")
-    args=ap.parse_args()
-    out=Path(args.out); out.mkdir(parents=True,exist_ok=True)
-    audits=[]; summaries=[]
-    for provider, path in [("TR",args.tr),("CRSP",args.crsp)]:
-        df=read_source(path,provider)
-        audit={"provider":provider,"input_file":Path(path).name,"rows":len(df),"columns":len(df.columns),
-            "duplicate_rows":int(df.duplicated().sum()),"missing_cells":int(df.isna().sum().sum()),
-            "date_min":df["_date"].min(),"date_max":df["_date"].max(),"fund_id_column":column(df,FUND_CANDIDATES),
-            "date_column":column(df,DATE_CANDIDATES),"assets_column":column(df,ASSET_CANDIDATES,False),
-            "benchmark_columns_present":";".join([b for b in BENCHMARKS if b in df])}
+    audit = {
+        "provider": provider, "source_file": path.name, "source_bytes": path.stat().st_size,
+        "source_sha256": sha256_file(path), "rows": int(len(df)), "columns": int(len(df.columns)),
+        "column_names": "|".join(df.columns.astype(str)),
+        "date_column": "ym", "date_parse_failures": date_fail,
+        "date_min": dates.min().strftime("%Y-%m-%d"), "date_max": dates.max().strftime("%Y-%m-%d"),
+        "distinct_periods": int(dates.nunique()), "fund_id_column": id_col,
+        "unique_fund_ids": int(df[id_col].nunique()), "missing_fund_ids": int(df[id_col].isna().sum()),
+        "duplicate_fund_period_keys": key_dupes, "duplicate_full_rows": int(df.duplicated().sum()),
+        "missing_wficn": int(df["wficn"].isna().sum()) if "wficn" in df else None,
+        "missing_assets": int(assets.isna().sum()), "nonpositive_assets": int((assets <= 0).sum()),
+        "benchmark_checks_json": pd.Series(benchmark_checks).to_json(),
+    }
+    return audit, pd.DataFrame(annual_rows)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--tr", required=True, type=Path)
+    parser.add_argument("--crsp", required=True, type=Path)
+    parser.add_argument("--out", required=True, type=Path)
+    args = parser.parse_args()
+    args.out.mkdir(parents=True, exist_ok=True)
+
+    audits, summaries = [], []
+    for provider, path in (("TR", args.tr), ("CRSP", args.crsp)):
+        audit, summary = audit_provider(provider, path, args.out)
         audits.append(audit)
-        summaries.append(summarize(df,provider))
-        df.drop(columns=["_date","_year","_fund","_assets","_provider"],errors="ignore").to_csv(out/f"{provider.lower()}_cleaned_source.csv",index=False)
-    pd.DataFrame(audits).to_csv(out/"source_audit.csv",index=False)
-    pd.concat(summaries,ignore_index=True).to_csv(out/"annual_baseline_summary.csv",index=False)
-    print(pd.DataFrame(audits).to_string(index=False))
-    print(f"Wrote source audit and annual summary to {out.resolve()}")
+        summaries.append(summary)
+
+    pd.DataFrame(audits).to_csv(args.out / "source_audit.csv", index=False)
+    pd.concat(summaries, ignore_index=True).to_csv(args.out / "annual_baseline_summary.csv", index=False)
+    print(pd.DataFrame(audits)[["provider", "rows", "date_min", "date_max",
+          "distinct_periods", "unique_fund_ids", "duplicate_fund_period_keys"]].to_string(index=False))
+    print(f"Outputs written to {args.out}")
+
+
 if __name__ == "__main__":
     main()
