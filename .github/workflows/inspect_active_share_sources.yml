@@ -1,6 +1,11 @@
 name: Inspect Active Share source downloads
 
 on:
+  push:
+    branches:
+      - RUSSEL_SP
+    paths:
+      - ".github/workflows/inspect_active_share_sources.yml"
   workflow_dispatch:
 
 permissions:
@@ -63,7 +68,7 @@ jobs:
               }
 
               with path.open("rb") as stream:
-                  signature = stream.read(8)
+                  signature = stream.read(16)
 
               if path.suffix.lower() == ".zip":
                   try:
@@ -78,9 +83,9 @@ jobs:
                               report["errors"].append(f"Corrupt ZIP member in {path}: {bad_member}")
                   except Exception as exc:
                       item["zip_test"] = f"failed: {exc}"
-                      report["errors"].append(f"Invalid ZIP archive: {path}")
+                      report["errors"].append(f"Invalid ZIP archive: {path}: {exc}")
                   report["archives"].append(item)
-              elif signature.startswith(b"<!DOCTYP") or signature.startswith(b"<html"):
+              elif signature.lstrip().lower().startswith((b"<!doctype", b"<html")):
                   item["warning"] = "Looks like HTML rather than a data file."
                   report["errors"].append(f"HTML response downloaded instead of data: {path}")
 
