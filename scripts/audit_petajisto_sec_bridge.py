@@ -118,7 +118,7 @@ def match_registry(eligible,sec):
            period_keys=("period","nunique"),
            link_type=("link_type",lambda x:"recovered_missing_tr_wficn" if (x=="recovered_missing_tr_wficn").any() else "primary_wficn_agreement"))
       .reset_index())
-    identity["ticker_key"]=identity.ticker.map(ticker_norm); identity["name_key"]=identity.fund_name.map(norm)
+    identity["ticker_key"]=identity.ticker.map(ticker_norm); identity["name_key"]=identity.fund_name.map(pet_name_norm)
     ticker_map={k:g.index.tolist() for k,g in sec.groupby("ticker_key") if k}
     token_map={}
     sec_records=sec.to_dict("records")
@@ -241,7 +241,7 @@ def classify(text):
     t=re.sub(r"\s+"," ",text.lower())
     pats={
       "enhanced index":[r"enhanced[\s-]+index(?:ing)?",r"index[\s-]+enhancement"],
-      "index":[r"\bis an index fund\b",r"\bpassively managed\b",
+      "index":[r"\bis an index fund\b",
                r"\bseeks? to track (?:the )?(?:investment results|performance)",
                r"\bfull replication strategy\b",r"replicate the performance of",
                r"correspond generally to the performance of"],
@@ -383,8 +383,10 @@ def main():
         if not ev.empty:
             good=ev[ev.series_id.ne("")]
             def conservative_label(x):
+                # Unclassified filings are missing evidence, not contradictory evidence.
+                # A series is labeled only when all explicit labels agree on one class.
                 labels=set(x)-{"unclassified"}
-                return next(iter(labels)) if len(labels)==1 and "unclassified" not in set(x) else "unclassified"
+                return next(iter(labels)) if len(labels)==1 else "unclassified"
             labels=good.groupby("series_id").classification.apply(conservative_label).rename("filing_evidence_class").reset_index()
             identity=identity.merge(labels,left_on="matched_series_id",right_on="series_id",how="left")
             identity["filing_evidence_class"]=identity.filing_evidence_class.fillna("unclassified")
@@ -393,8 +395,16 @@ def main():
             fund_year["filing_evidence_class"]=fund_year.filing_evidence_class.fillna("unclassified")
             fund_year.to_csv(a.out/"sec_match_by_fund_year.csv",index=False)
             metrics["series_with_filing_evidence"]=int(good.series_id.nunique())
+            metrics["unique_matched_series_in_fund_year_panel"]=int(fund_year.loc[fund_year.series_match_status.eq("unique_series"),"matched_series_id"].nunique())
             metrics["filing_evidence_rows"]=len(good)
             metrics["filing_classification_counts"]=good.groupby("classification").size().to_dict()
+            metrics["series_level_classification_counts"]=labels.filing_evidence_class.value_counts().to_dict()
+            metrics["fund_year_classification_counts"]=fund_year.filing_evidence_class.value_counts().to_dict()
+            # Deterministic review sample: all explicit labels plus 25 unclassified series.
+            review=good[good.classification.ne("unclassified")].copy()
+            remaining=good[good.classification.eq("unclassified")].sort_values(["series_id","filing_date","accession"])
+            review=pd.concat([review,remaining.drop_duplicates("series_id").head(25)],ignore_index=True)
+            review.to_csv(a.out/"sec_filing_manual_review_sample.csv",index=False)
     pd.Series(metrics).to_json(a.out/"sec_bridge_metrics.json",indent=2,force_ascii=False)
     report=["# Petajisto-to-SEC Series/Class Bridge Audit","",
       "Status: reproducible public-data linkage audit; SEC filing labels are conservative evidence classifications.","",
@@ -403,10 +413,15 @@ def main():
       f"- SEC 2010 registry: {len(sec):,} classes, {sec.series_key.nunique():,} series, {sec.cik.nunique():,} CIKs.","",
       "## Matching limitation","The SEC series/class file is a 2010 snapshot. Annual rates use each year's Petajisto ticker/name against that snapshot; they do not prove a ticker or series/class was active in each historical year. Multiple classes within one series are separately flagged.","",
       "## Annual match rates","",annual.to_markdown(index=False),"",
-      "## Filing classification","Only downloaded EDGAR prospectus/registration-statement document text is used. Enhanced-index evidence takes precedence; conflicting active/index signals and absent series-specific evidence remain unclassified. Filing URLs and evidence phrases are in sec_filing_evidence.csv. These machine-assisted labels require review before empirical use.","",
+      "## Filing classification",
+      f"- Filing-evidence rows: {len(ev):,}; distinct series with retrieved evidence: {metrics.get('series_with_filing_evidence',0):,}.",
+      f"- Series-level labels: {metrics.get('series_level_classification_counts',{})}.",
+      f"- Fund-year labels: {metrics.get('fund_year_classification_counts',{})}.",
+      "Only downloaded EDGAR prospectus/registration-statement text is used. A positive label requires a single consistent explicit strategy class across retrieved evidence; unclassified filing rows alone do not veto an otherwise consistent explicit label. Conflicting explicit classes remain unclassified.",
+      "This is a sparse, selected filing sample (at most one filing per CIK-year in this run), not a complete prospectus history. SEC filings are not evidence of a fund's strategy before the filing date. The 2010 registry snapshot does not prove historical series status. All labels require manual review before empirical use. Filing URLs and contexts are in sec_filing_evidence.csv; the deterministic review sample is sec_filing_manual_review_sample.csv.","",
       "## Output inventory","- sec_match_by_fund_period.csv","- sec_match_by_fund_year.csv","- sec_match_candidates.csv","- sec_match_rates_by_year.csv",
       "- sec_ticker_collision_audit.csv","- petajisto_ticker_year_collision_audit.csv","- petajisto_name_collision_audit.csv","- sec_series_name_collision_audit.csv",
-      "- sec_filing_evidence.csv","- sec_bridge_metrics.json"]
+      "- sec_filing_evidence.csv","- sec_filing_manual_review_sample.csv","- sec_bridge_metrics.json"]
     (a.out/"SEC_BRIDGE_AUDIT.md").write_text("\n".join(report)+"\n",encoding="utf-8")
     print(json.dumps(metrics,indent=2,default=str))
 
