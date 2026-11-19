@@ -382,8 +382,8 @@ def main():
       "petajisto_ticker_year_collision_count":len(pet_ticker_year),
       "petajisto_name_collision_count":len(pn),"sec_series_name_collision_count":len(sn),
       "sec_columns":sec_cols,
-      "petajisto_indexfund_flag_counts":eligible.indexfund.value_counts(dropna=False).to_dict(),
-      "petajisto_enhanced_index_flag_counts":eligible.enhanced_index.value_counts(dropna=False).to_dict(),
+      "petajisto_indexfund_flag_counts":{str(k):int(v) for k,v in eligible.indexfund.value_counts(dropna=False).items()},
+      "petajisto_enhanced_index_flag_counts":{str(k):int(v) for k,v in eligible.enhanced_index.value_counts(dropna=False).items()},
       "petajisto_malformed_name_rows_repaired":int(repair_count),
       "sha256":{"sec_registry":sha256(a.sec_series_class),"petajisto":sha256(a.petajisto),"tr_zip":sha256(a.tr_zip)},
       "caveat":"2010 SEC registry snapshot matched to contemporaneous Petajisto names/tickers; not proof of historical SEC status. A unique series can have multiple classes."}
