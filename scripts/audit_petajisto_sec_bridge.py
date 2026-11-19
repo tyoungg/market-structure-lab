@@ -238,15 +238,15 @@ def series_context(text, series_name, radius=1500):
     return [text[a:min(len(text),a+radius)]]
 
 def classify(text):
-    t=re.sub(r"\\s+"," ",text.lower())
+    t=re.sub(r"\s+"," ",text.lower())
     pats={
-      "enhanced index":[r"enhanced[\\s-]+index(?:ing)?",r"index[\\s-]+enhancement"],
-      "index":[r"\\bis an index fund\\b",r"\\bpassively managed\\b",
-               r"\\bseeks? to track (?:the )?(?:investment results|performance)",
-               r"\\bfull replication strategy\\b",r"replicate the performance of",
+      "enhanced index":[r"enhanced[\s-]+index(?:ing)?",r"index[\s-]+enhancement"],
+      "index":[r"\bis an index fund\b",r"\bpassively managed\b",
+               r"\bseeks? to track (?:the )?(?:investment results|performance)",
+               r"\bfull replication strategy\b",r"replicate the performance of",
                r"correspond generally to the performance of"],
-      "active":[r"\\bis actively managed\\b",r"\\bactively manages\\b",
-               r"\\bactive stock selection\\b",r"\\bactive management strategy\\b",
+      "active":[r"\bis actively managed\b",r"\bactively manages\b",
+               r"\bactive stock selection\b",r"\bactive management strategy\b",
                r"does not seek to track",r"is not an index fund"]}
     found={k:[m.group(0) for p in ps for m in re.finditer(p,t)] for k,ps in pats.items()}
     present=[k for k,v in found.items() if v]
