@@ -86,8 +86,12 @@ def load_eligible(tr_zip,pet_csv):
         return fields[:14]+[",".join(fields[14:])] if len(fields)>15 else fields
     p=pd.read_csv(pet_csv,dtype="string",engine="python",on_bad_lines=repair)
     p.columns=[str(c).strip().lower() for c in p.columns]
-    if not {"fundno","wficn","rdate","ticker","fund_name"}.issubset(p.columns):
-        raise ValueError(f"Unexpected Petajisto fields: {list(p.columns)}")
+    required={"fundno","wficn","rdate","ticker","fund_name","indexfund","enhanced_index"}
+    if not required.issubset(p.columns):
+        raise ValueError(f"Unexpected Petajisto fields; required {sorted(required)}, found {list(p.columns)}")
+    # Preserve explicit strategy flags. Zero/blank is not proof of active management.
+    for flag in ["indexfund","enhanced_index"]:
+        p[flag]=pd.to_numeric(p[flag],errors="coerce")
     tr["fundno_key"]=clean(tr.fundno); tr["wficn_key"]=clean(tr.wficn); tr["period"]=period_ym(tr.ym)
     p["fundno_key"]=clean(p.fundno); p["wficn_key"]=clean(p.wficn)
     p["period"]=pd.to_datetime(p.rdate,errors="coerce").dt.to_period("M").astype("string")
@@ -116,7 +120,8 @@ def match_registry(eligible,sec):
       .agg(ticker=("ticker",lambda x:next((v for v in x if pd.notna(v) and str(v).strip()),"")),
            fund_name=("fund_name",lambda x:next((v for v in x if pd.notna(v) and str(v).strip()),"")),
            period_keys=("period","nunique"),
-           link_type=("link_type",lambda x:"recovered_missing_tr_wficn" if (x=="recovered_missing_tr_wficn").any() else "primary_wficn_agreement"))
+           link_type=("link_type",lambda x:"recovered_missing_tr_wficn" if (x=="recovered_missing_tr_wficn").any() else "primary_wficn_agreement"),
+           indexfund=("indexfund","max"), enhanced_index=("enhanced_index","max"))
       .reset_index())
     identity["ticker_key"]=identity.ticker.map(ticker_norm); identity["name_key"]=identity.fund_name.map(pet_name_norm)
     ticker_map={k:g.index.tolist() for k,g in sec.groupby("ticker_key") if k}
@@ -355,6 +360,8 @@ def main():
           "no_candidate_periods":int(g.series_match_status.eq("no_strict_candidate").sum()),
           "series_match_status":status,"matched_series_id":matched[0] if len(matched)==1 and not ambiguous else "",
           "share_class_ambiguous":bool(g.share_class_ambiguous.any()),
+          "indexfund":pd.to_numeric(g.indexfund,errors="coerce").max(),
+          "enhanced_index":pd.to_numeric(g.enhanced_index,errors="coerce").max(),
           "link_type":"recovered_missing_tr_wficn" if g.link_type.eq("recovered_missing_tr_wficn").any() else "primary_wficn_agreement"})
     fund_year=pd.DataFrame(fy)
     fund_year.to_csv(a.out/"sec_match_by_fund_year.csv",index=False)
@@ -374,7 +381,10 @@ def main():
       "sec_ticker_collision_count":int(tick.ticker_collision.sum()),
       "petajisto_ticker_year_collision_count":len(pet_ticker_year),
       "petajisto_name_collision_count":len(pn),"sec_series_name_collision_count":len(sn),
-      "sec_columns":sec_cols,"petajisto_malformed_name_rows_repaired":int(repair_count),
+      "sec_columns":sec_cols,
+      "petajisto_indexfund_flag_counts":eligible.indexfund.value_counts(dropna=False).to_dict(),
+      "petajisto_enhanced_index_flag_counts":eligible.enhanced_index.value_counts(dropna=False).to_dict(),
+      "petajisto_malformed_name_rows_repaired":int(repair_count),
       "sha256":{"sec_registry":sha256(a.sec_series_class),"petajisto":sha256(a.petajisto),"tr_zip":sha256(a.tr_zip)},
       "caveat":"2010 SEC registry snapshot matched to contemporaneous Petajisto names/tickers; not proof of historical SEC status. A unique series can have multiple classes."}
     ev=pd.DataFrame()
@@ -413,6 +423,10 @@ def main():
       f"- SEC 2010 registry: {len(sec):,} classes, {sec.series_key.nunique():,} series, {sec.cik.nunique():,} CIKs.","",
       "## Matching limitation","The SEC series/class file is a 2010 snapshot. Annual rates use each year's Petajisto ticker/name against that snapshot; they do not prove a ticker or series/class was active in each historical year. Multiple classes within one series are separately flagged.","",
       "## Annual match rates","",annual.to_markdown(index=False),"",
+      "## Petajisto strategy flags",
+      f"- indexfund flag counts: {metrics.get('petajisto_indexfund_flag_counts',{})}.",
+      f"- enhanced_index flag counts: {metrics.get('petajisto_enhanced_index_flag_counts',{})}.",
+      "These are source flags, not prospectus-verified classifications. A zero or missing flag is not treated as proof of active management.", "",
       "## Filing classification",
       f"- Filing-evidence rows: {len(ev):,}; distinct series with retrieved evidence: {metrics.get('series_with_filing_evidence',0):,}.",
       f"- Series-level labels: {metrics.get('series_level_classification_counts',{})}.",
