@@ -225,6 +225,22 @@ def docs_from_sgml(full):
         docs.append({"form":typ.group(1).strip() if typ else "","filename":fn.group(1).strip() if fn else "","text":txt})
     return docs
 
+def series_context(text, series_name, radius=3000):
+    # Keep strategy language local to the named series, not the entire registrant filing.
+    if not series_name or len(norm(series_name).replace(" ","")) < 8:
+        return []
+    matches=list(re.finditer(re.escape(str(series_name)),text,flags=re.I))
+    if not matches:
+        return []
+    spans=[]
+    for m in matches:
+        a=max(0,m.start()-radius); b=min(len(text),m.end()+radius)
+        if spans and a<=spans[-1][1]:
+            spans[-1]=(spans[-1][0],max(spans[-1][1],b))
+        else:
+            spans.append((a,b))
+    return [text[a:b] for a,b in spans]
+
 def classify(text):
     t=re.sub(r"\s+"," ",text.lower())
     pats={
@@ -272,12 +288,10 @@ def fetch_evidence(identity,out,max_per_year):
                         if sid not in ids: continue
                         chunks=[]
                         for d in docs:
-                            txt=d["text"]
-                            if len(ids)==1 or norm(sr["matched_series_name"]) in norm(txt):
-                                if any(k in (d["form"]+" "+d["filename"]).lower() for k in ["497","485","n-1a"]):
-                                    chunks.append(d)
+                            if any(k in (d["form"]+" "+d["filename"]).lower() for k in ["497","485","n-1a"]):
+                                chunks.extend(series_context(d["text"],sr["matched_series_name"]))
                         if not chunks: continue
-                        label,found=classify(" ".join(x["text"] for x in chunks))
+                        label,found=classify(" ".join(chunks))
                         phrases=[f"{k}:{v}" for k,vs in found.items() for v in vs[:3]]
                         output.append({"cik":str(cik).zfill(10),"series_id":sid,"series_name":sr["matched_series_name"],
                           "filing_date":str(f["filingDate"].date()),"form":f.get("form"),"accession":acc,
