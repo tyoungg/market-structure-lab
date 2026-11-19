@@ -22,8 +22,16 @@ def period_ym(s):
 def norm(s):
     if pd.isna(s): return ""
     x=str(s).upper().replace("&"," AND ")
-    x=re.sub(r"\b(INVESTOR|INSTITUTIONAL|ADVISOR|ADVISER|SERVICE|SELECT|PREMIER|CLASS|SHARES?|FUND|FUNDS|PORTFOLIO|SERIES)\b"," ",x)
-    return re.sub(r"[^A-Z0-9]","",x)
+    # Preserve meaningful fund-name terms such as SELECT; remove generic legal/class words only.
+    x=re.sub(r"\b(CLASS|SHARES?|FUND|FUNDS|PORTFOLIO|SERIES)\b"," ",x)
+    return " ".join(re.findall(r"[A-Z0-9]+",x))
+
+def pet_name_norm(s):
+    if pd.isna(s): return ""
+    x=str(s).strip()
+    if ":" in x: x=x.rsplit(":",1)[-1]
+    if ";" in x: x=x.split(";",1)[0]
+    return norm(x)
 
 def ticker_norm(s):
     if pd.isna(s): return ""
@@ -100,11 +108,11 @@ def load_eligible(tr_zip,pet_csv):
     m=m.loc[m.link_type.ne("excluded")].copy()
     m["year"]=m.period.str[:4]
     m["ticker_key"]=m.ticker.map(ticker_norm)
-    m["pet_name_key"]=m.fund_name.map(norm)
+    m["pet_name_key"]=m.fund_name.map(pet_name_norm)
     return m,p,tr,len(repairs),sum(repairs),len(conflict_keys)
 
 def match_registry(eligible,sec):
-    identity=(eligible.groupby(["fundno_key","year"],dropna=False)
+    identity=(eligible.groupby(["fundno_key","period","year"],dropna=False)
       .agg(ticker=("ticker",lambda x:next((v for v in x if pd.notna(v) and str(v).strip()),"")),
            fund_name=("fund_name",lambda x:next((v for v in x if pd.notna(v) and str(v).strip()),"")),
            period_keys=("period","nunique"),
@@ -116,7 +124,7 @@ def match_registry(eligible,sec):
     sec_records=sec.to_dict("records")
     for j,s in enumerate(sec_records):
         tokens=set()
-        for v in [s["series_name_key"],s["class_name_key"],s["company_name_key"]]:
+        for v in [s["series_name_key"],s["class_name_key"]]:
             tokens.update(re.findall(r"[A-Z0-9]{3,}",v or ""))
         for tok in tokens: token_map.setdefault(tok,set()).add(j)
     rows=[]
@@ -130,7 +138,7 @@ def match_registry(eligible,sec):
             cand.update(j for j,n in counts.items() if n>=2 or len(qt)==1 and n==1)
         for j in cand:
             s=sec_records[j]
-            vals=[s["series_name_key"],s["class_name_key"],s["company_name_key"]]
+            vals=[s["series_name_key"],s["class_name_key"]]
             score=max((difflib.SequenceMatcher(None,r["name_key"],v).ratio() for v in vals if r["name_key"] and v),default=0)
             tm=bool(r["ticker_key"] and r["ticker_key"]==s["ticker_key"])
             if tm or score>=0.72:
@@ -146,18 +154,18 @@ def match_registry(eligible,sec):
     cand_df["strict_candidate"]=(cand_df.ticker_match & (cand_df.name_similarity>=0.65)) | (cand_df.name_similarity>=0.90)
     strict=cand_df[cand_df.strict_candidate].copy()
     stats=[]
-    for (fundno,year),g in strict.groupby(["fundno_key","year"]):
+    for (fundno,period,year),g in strict.groupby(["fundno_key","period","year"]):
         series=sorted(g.series_id.dropna().unique().tolist())
         classes=sorted(g.class_id.dropna().unique().tolist())
         best=g.sort_values(["ticker_match","name_similarity"],ascending=False)
-        stats.append({"fundno_key":fundno,"year":year,"strict_series_count":len(series),"strict_class_count":len(classes),
+        stats.append({"fundno_key":fundno,"period":period,"year":year,"strict_series_count":len(series),"strict_class_count":len(classes),
           "matched_series_id":series[0] if len(series)==1 else "",
           "matched_cik":best.iloc[0].cik if len(series)==1 else "",
           "matched_series_name":best.iloc[0].series_name if len(series)==1 else "",
           "matched_class_id":classes[0] if len(classes)==1 else "",
           "top_name_similarity":float(best.name_similarity.max()),
           "series_match_status":"unique_series" if len(series)==1 else "multiple_series_ambiguous"})
-    identity=identity.merge(pd.DataFrame(stats),on=["fundno_key","year"],how="left")
+    identity=identity.merge(pd.DataFrame(stats),on=["fundno_key","period","year"],how="left")
     identity["series_match_status"]=identity.series_match_status.fillna("no_strict_candidate")
     identity["strict_series_count"]=identity.strict_series_count.fillna(0).astype(int)
     identity["strict_class_count"]=identity.strict_class_count.fillna(0).astype(int)
@@ -179,7 +187,12 @@ def diagnostics(sec,eligible):
     sn=sec[sec.series_name_key.ne("")].groupby("series_name_key").agg(sec_series=("series_key","nunique"),
       sec_ciks=("cik","nunique"),example_name=("series_name","first")).reset_index()
     sn=sn[(sn.sec_series>1)|(sn.sec_ciks>1)]
-    return tick,pn,sn
+    pet_ticker_year=(eligible[eligible.ticker_key.ne("")].groupby(["year","ticker_key"])
+      .agg(petajisto_funds=("fundno_key","nunique"),period_records=("period","size"),
+           example_name=("fund_name","first")).reset_index())
+    pet_ticker_year=pet_ticker_year[pet_ticker_year.petajisto_funds.gt(1)].sort_values(
+      ["year","petajisto_funds","ticker_key"])
+    return tick,pn,sn,pet_ticker_year
 
 def session():
     if not os.environ.get("SEC_CONTACT_EMAIL"):
@@ -299,31 +312,51 @@ def main():
         raise ValueError(f"Eligible source population changed: primary={primary}, recovered={recovered}")
     sec,sec_cols=load_sec(a.sec_series_class)
     identity,cands,strict=match_registry(eligible,sec)
-    tick,pn,sn=diagnostics(sec,eligible)
-    identity.to_csv(a.out/"sec_match_by_fund_year.csv",index=False)
+    tick,pn,sn,pet_ticker_year=diagnostics(sec,eligible)
+    identity.to_csv(a.out/"sec_match_by_fund_period.csv",index=False)
     cands.to_csv(a.out/"sec_match_candidates.csv",index=False)
     tick.to_csv(a.out/"sec_ticker_collision_audit.csv",index=False)
+    pet_ticker_year.to_csv(a.out/"petajisto_ticker_year_collision_audit.csv",index=False)
     pn.to_csv(a.out/"petajisto_name_collision_audit.csv",index=False)
     sn.to_csv(a.out/"sec_series_name_collision_audit.csv",index=False)
     annual=identity.groupby("year").agg(
-      eligible_fund_years=("fundno_key","size"),unique_petajisto_funds=("fundno_key","nunique"),
+      eligible_fund_periods=("fundno_key","size"),unique_petajisto_funds=("fundno_key","nunique"),
       unique_series_matches=("series_match_status",lambda x:int((x=="unique_series").sum())),
       multiple_series_ambiguous=("series_match_status",lambda x:int((x=="multiple_series_ambiguous").sum())),
       no_strict_candidate=("series_match_status",lambda x:int((x=="no_strict_candidate").sum())),
       share_class_ambiguous=("share_class_ambiguous","sum"),
-      recovery_fund_years=("link_type",lambda x:int((x=="recovered_missing_tr_wficn").sum()))).reset_index()
-    annual["unique_series_match_pct"]=(100*annual.unique_series_matches/annual.eligible_fund_years).round(2)
+      recovery_fund_periods=("link_type",lambda x:int((x=="recovered_missing_tr_wficn").sum()))).reset_index()
+    annual["unique_series_match_pct"]=(100*annual.unique_series_matches/annual.eligible_fund_periods).round(2)
     annual.to_csv(a.out/"sec_match_rates_by_year.csv",index=False)
+    fy=[]
+    for (fundno,year),g in identity.groupby(["fundno_key","year"]):
+        matched=sorted(g.loc[g.series_match_status.eq("unique_series"),"matched_series_id"].dropna().astype(str).unique())
+        ambiguous=bool(g.series_match_status.eq("multiple_series_ambiguous").any()) or len(matched)>1
+        status="multiple_series_ambiguous" if ambiguous else ("unique_series" if len(matched)==1 else "no_strict_candidate")
+        fy.append({"fundno_key":fundno,"year":year,"period_records":len(g),
+          "unique_series_periods":int(g.series_match_status.eq("unique_series").sum()),
+          "ambiguous_periods":int(g.series_match_status.eq("multiple_series_ambiguous").sum()),
+          "no_candidate_periods":int(g.series_match_status.eq("no_strict_candidate").sum()),
+          "series_match_status":status,"matched_series_id":matched[0] if len(matched)==1 and not ambiguous else "",
+          "share_class_ambiguous":bool(g.share_class_ambiguous.any()),
+          "link_type":"recovered_missing_tr_wficn" if g.link_type.eq("recovered_missing_tr_wficn").any() else "primary_wficn_agreement"})
+    fund_year=pd.DataFrame(fy)
+    fund_year.to_csv(a.out/"sec_match_by_fund_year.csv",index=False)
     metrics={"petajisto_period_window":[str(eligible.period.min()),str(eligible.period.max())],
       "eligible_fund_period_records":len(eligible),"primary_wficn_agreement_records":primary,
       "separately_flagged_recoveries":recovered,"excluded_conflict_keys":conflict_count,
       "sec_registry_snapshot":"2010","sec_registry_class_rows":len(sec),"sec_registry_unique_series":int(sec.series_key.nunique()),
       "sec_registry_unique_classes":int(sec.class_key.nunique()),"sec_registry_unique_ciks":int(sec.cik.nunique()),
-      "fund_year_rows":len(identity),"unique_series_fund_years":int((identity.series_match_status=="unique_series").sum()),
-      "multiple_series_ambiguous_fund_years":int((identity.series_match_status=="multiple_series_ambiguous").sum()),
-      "no_strict_candidate_fund_years":int((identity.series_match_status=="no_strict_candidate").sum()),
-      "share_class_ambiguous_fund_years":int(identity.share_class_ambiguous.sum()),
+      "fund_period_rows":len(identity),"unique_series_fund_periods":int((identity.series_match_status=="unique_series").sum()),
+      "multiple_series_ambiguous_fund_periods":int((identity.series_match_status=="multiple_series_ambiguous").sum()),
+      "no_strict_candidate_fund_periods":int((identity.series_match_status=="no_strict_candidate").sum()),
+      "fund_year_rows":len(fund_year),
+      "unique_series_fund_years":int((fund_year.series_match_status=="unique_series").sum()),
+      "multiple_series_ambiguous_fund_years":int((fund_year.series_match_status=="multiple_series_ambiguous").sum()),
+      "no_strict_candidate_fund_years":int((fund_year.series_match_status=="no_strict_candidate").sum()),
+      "share_class_ambiguous_fund_years":int(fund_year.share_class_ambiguous.sum()),
       "sec_ticker_collision_count":int(tick.ticker_collision.sum()),
+      "petajisto_ticker_year_collision_count":len(pet_ticker_year),
       "petajisto_name_collision_count":len(pn),"sec_series_name_collision_count":len(sn),
       "sec_columns":sec_cols,"petajisto_malformed_name_rows_repaired":int(repair_count),
       "sha256":{"sec_registry":sha256(a.sec_series_class),"petajisto":sha256(a.petajisto),"tr_zip":sha256(a.tr_zip)},
@@ -339,7 +372,10 @@ def main():
             labels=good.groupby("series_id").classification.apply(conservative_label).rename("filing_evidence_class").reset_index()
             identity=identity.merge(labels,left_on="matched_series_id",right_on="series_id",how="left")
             identity["filing_evidence_class"]=identity.filing_evidence_class.fillna("unclassified")
-            identity.to_csv(a.out/"sec_match_by_fund_year.csv",index=False)
+            identity.to_csv(a.out/"sec_match_by_fund_period.csv",index=False)
+            fund_year=fund_year.merge(labels,left_on="matched_series_id",right_on="series_id",how="left")
+            fund_year["filing_evidence_class"]=fund_year.filing_evidence_class.fillna("unclassified")
+            fund_year.to_csv(a.out/"sec_match_by_fund_year.csv",index=False)
             metrics["series_with_filing_evidence"]=int(good.series_id.nunique())
             metrics["filing_evidence_rows"]=len(good)
             metrics["filing_classification_counts"]=good.groupby("classification").size().to_dict()
@@ -352,8 +388,8 @@ def main():
       "## Matching limitation","The SEC series/class file is a 2010 snapshot. Annual rates use each year's Petajisto ticker/name against that snapshot; they do not prove a ticker or series/class was active in each historical year. Multiple classes within one series are separately flagged.","",
       "## Annual match rates","",annual.to_markdown(index=False),"",
       "## Filing classification","Only downloaded EDGAR prospectus/registration-statement document text is used. Enhanced-index evidence takes precedence; conflicting active/index signals and absent series-specific evidence remain unclassified. Filing URLs and evidence phrases are in sec_filing_evidence.csv. These machine-assisted labels require review before empirical use.","",
-      "## Output inventory","- sec_match_by_fund_year.csv","- sec_match_candidates.csv","- sec_match_rates_by_year.csv",
-      "- sec_ticker_collision_audit.csv","- petajisto_name_collision_audit.csv","- sec_series_name_collision_audit.csv",
+      "## Output inventory","- sec_match_by_fund_period.csv","- sec_match_by_fund_year.csv","- sec_match_candidates.csv","- sec_match_rates_by_year.csv",
+      "- sec_ticker_collision_audit.csv","- petajisto_ticker_year_collision_audit.csv","- petajisto_name_collision_audit.csv","- sec_series_name_collision_audit.csv",
       "- sec_filing_evidence.csv","- sec_bridge_metrics.json"]
     (a.out/"SEC_BRIDGE_AUDIT.md").write_text("\n".join(report)+"\n",encoding="utf-8")
     print(json.dumps(metrics,indent=2,default=str))
