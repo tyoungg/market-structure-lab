@@ -225,29 +225,29 @@ def docs_from_sgml(full):
         docs.append({"form":typ.group(1).strip() if typ else "","filename":fn.group(1).strip() if fn else "","text":txt})
     return docs
 
-def series_context(text, series_name, radius=3000):
-    # Keep strategy language local to the named series, not the entire registrant filing.
+def series_context(text, series_name, radius=1500):
+    # Use only text immediately following the first exact series-name occurrence.
+    # This intentionally sacrifices recall to avoid borrowing strategy language
+    # from another fund elsewhere in a registrant's combined filing.
     if not series_name or len(norm(series_name).replace(" ","")) < 8:
         return []
-    matches=list(re.finditer(re.escape(str(series_name)),text,flags=re.I))
-    if not matches:
+    m=re.search(re.escape(str(series_name)),text,flags=re.I)
+    if not m:
         return []
-    spans=[]
-    for m in matches:
-        a=max(0,m.start()-radius); b=min(len(text),m.end()+radius)
-        if spans and a<=spans[-1][1]:
-            spans[-1]=(spans[-1][0],max(spans[-1][1],b))
-        else:
-            spans.append((a,b))
-    return [text[a:b] for a,b in spans]
+    a=m.end()
+    return [text[a:min(len(text),a+radius)]]
 
 def classify(text):
-    t=re.sub(r"\s+"," ",text.lower())
+    t=re.sub(r"\\s+"," ",text.lower())
     pats={
-      "enhanced index":[r"enhanced[\s-]+index(?:ing)?",r"index[\s-]+enhancement"],
-      "index":[r"\bindex fund\b",r"\bpassively managed\b",r"seeks? to track (?:the )?(?:investment results|performance)",
-               r"replicate the performance of",r"correspond generally to the performance of"],
-      "active":[r"\bactively managed\b",r"\bactive management\b",r"does not seek to track",r"is not an index fund"]}
+      "enhanced index":[r"enhanced[\\s-]+index(?:ing)?",r"index[\\s-]+enhancement"],
+      "index":[r"\\bis an index fund\\b",r"\\bpassively managed\\b",
+               r"\\bseeks? to track (?:the )?(?:investment results|performance)",
+               r"\\bfull replication strategy\\b",r"replicate the performance of",
+               r"correspond generally to the performance of"],
+      "active":[r"\\bis actively managed\\b",r"\\bactively manages\\b",
+               r"\\bactive stock selection\\b",r"\\bactive management strategy\\b",
+               r"does not seek to track",r"is not an index fund"]}
     found={k:[m.group(0) for p in ps for m in re.finditer(p,t)] for k,ps in pats.items()}
     present=[k for k,v in found.items() if v]
     if "enhanced index" in present: label="enhanced index"
@@ -291,12 +291,14 @@ def fetch_evidence(identity,out,max_per_year):
                             if any(k in (d["form"]+" "+d["filename"]).lower() for k in ["497","485","n-1a"]):
                                 chunks.extend(series_context(d["text"],sr["matched_series_name"]))
                         if not chunks: continue
-                        label,found=classify(" ".join(chunks))
+                        evidence_text=" ".join(chunks)
+                        label,found=classify(evidence_text)
                         phrases=[f"{k}:{v}" for k,vs in found.items() for v in vs[:3]]
                         output.append({"cik":str(cik).zfill(10),"series_id":sid,"series_name":sr["matched_series_name"],
                           "filing_date":str(f["filingDate"].date()),"form":f.get("form"),"accession":acc,
                           "filing_url":url,"document_count":len(chunks),"classification":label,
-                          "evidence_phrases":" | ".join(phrases),"fundnos":sr["fundnos"],"series_ids_in_filing":len(ids)})
+                          "evidence_phrases":" | ".join(phrases),"evidence_context":evidence_text[:1500],
+                          "fundnos":sr["fundnos"],"series_ids_in_filing":len(ids)})
                 except Exception as e:
                     output.append({"cik":str(cik).zfill(10),"series_id":"","series_name":"",
                       "filing_date":str(f.get("filingDate","")),"form":f.get("form"),"accession":acc,
