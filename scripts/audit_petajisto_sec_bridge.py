@@ -250,77 +250,73 @@ def load_submission_history(s,cik):
     return combined
 
 def get_filing(s,cik,accession,form):
-    """Fetch the SEC filing index, primary document, and a bounded SGML header for series IDs."""
-    from html.parser import HTMLParser
-
-    class FilingIndexParser(HTMLParser):
-        def __init__(self):
-            super().__init__()
-            self.rows=[]; self.row=None; self.cell=None; self.href=None
-        def handle_starttag(self,tag,attrs):
-            attrs=dict(attrs)
-            if tag=="tr": self.row=[]
-            elif tag in {"td","th"} and self.row is not None:
-                self.cell={"text":"","href":None}
-            elif tag=="a" and self.cell is not None:
-                self.cell["href"]=attrs.get("href")
-        def handle_data(self,data):
-            if self.cell is not None: self.cell["text"]+=data
-        def handle_endtag(self,tag):
-            if tag in {"td","th"} and self.cell is not None:
-                self.row.append(self.cell); self.cell=None
-            elif tag=="tr" and self.row is not None:
-                self.rows.append(self.row); self.row=None
-
+    """Fetch the SEC primary document using its SGML submission header, not HTML-table layout."""
     acc=accession.replace("-","")
     base=f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{acc}/"
     index_json=get_json(s,base+"index.json")
     items=index_json.get("directory",{}).get("item",[])
-    html_response=s.get(base+"index.html",timeout=(30,90))
-    if html_response.status_code==404:
-        html_response=s.get(base+"index.htm",timeout=(30,90))
-    html_response.raise_for_status()
-    parser=FilingIndexParser(); parser.feed(html_response.text)
-    matches=[]
-    for row in parser.rows:
-        cells=[x["text"].strip() for x in row]
-        links=[x["href"] for x in row if x.get("href")]
-        if any(x.upper()==str(form).upper() for x in cells) and links:
-            matches.append((cells,links[0]))
-    if not matches:
-        raise ValueError(f"Could not identify primary {form} document in {base}index.html")
-    # SEC filing indexes list the primary submission as sequence 1.
-    chosen=next((x for x in matches if x[0] and x[0][0]=="1"),matches[0])
-    filename=chosen[1].rsplit("/",1)[-1]
+
+    # The SEC submission text identifies each document by TYPE, SEQUENCE and
+    # FILENAME. Read only its first MiB: sufficient for the SEC-HEADER and
+    # primary document header, without downloading exhibits or full filings.
+    header_url=base+accession+".txt"
+    response=s.get(header_url,headers={"Range":"bytes=0-1048575"},timeout=(30,90),stream=True)
+    response.raise_for_status()
+    parts=[]; size=0
+    try:
+        for chunk in response.iter_content(chunk_size=65536):
+            if not chunk:
+                continue
+            remaining=1048576-size
+            parts.append(chunk[:remaining])
+            size+=min(len(chunk),remaining)
+            if size>=1048576:
+                break
+    finally:
+        response.close()
+    submission="".join(x.decode("utf-8",errors="replace") for x in parts)
+    if not submission or len(submission)<1000:
+        raise ValueError(f"SEC submission prefix unexpectedly short ({len(submission)} characters): {header_url}")
+    series_ids=sorted(set(re.findall(r"\\bS\\d{9}\\b",submission)))
+    if not series_ids:
+        raise ValueError(f"SEC submission prefix did not expose series IDs: {header_url}")
+
+    # Parse SGML document headers. Do not depend on the SEC index HTML table's
+    # presentation, which varies across legacy filings and caused false failures.
+    blocks=re.split(r"(?i)<DOCUMENT>",submission)[1:]
+    candidates=[]
+    for block in blocks:
+        doc_header=re.split(r"(?i)<TEXT>",block,maxsplit=1)[0][:10000]
+        typ=re.search(r"(?im)^\\s*<TYPE>\\s*([^\\r\\n<]+)",doc_header)
+        seq=re.search(r"(?im)^\\s*<SEQUENCE>\\s*(\\d+)",doc_header)
+        filename=re.search(r"(?im)^\\s*<FILENAME>\\s*([^\\r\\n<]+)",doc_header)
+        if typ and filename and typ.group(1).strip().upper()==str(form).upper():
+            candidates.append((int(seq.group(1)) if seq else 999999,filename.group(1).strip()))
+    if not candidates:
+        seen=[]
+        for block in blocks[:12]:
+            m=re.search(r"(?im)^\\s*<TYPE>\\s*([^\\r\\n<]+)",block[:10000])
+            if m: seen.append(m.group(1).strip())
+        raise ValueError(f"No {form} document header found in submission prefix; observed types={seen}")
+    candidates.sort(key=lambda x:(x[0],x[1]))
+    sequence,filename=candidates[0]
+    filename=filename.rsplit("/",1)[-1]
     if not any(str(x.get("name",""))==filename for x in items):
-        raise ValueError(f"Primary document {filename} is absent from index.json")
+        raise ValueError(f"Primary document {filename} (sequence {sequence}) is absent from index.json")
+
     doc_url=base+filename
-    doc_response=s.get(doc_url,timeout=(30,180)); doc_response.raise_for_status()
+    doc_response=s.get(doc_url,timeout=(30,180))
+    doc_response.raise_for_status()
     raw=doc_response.text
     if not raw or len(raw)<1000:
         raise ValueError(f"SEC primary document unexpectedly short ({len(raw)} characters): {doc_url}")
     import html as html_lib
     clean_html=re.sub(r"(?is)<script.*?</script>|<style.*?</style>"," ",raw)
     plain=html_lib.unescape(re.sub(r"(?s)<[^>]+>"," ",clean_html))
-    plain=re.sub(r"\s+"," ",plain)
-    # Fetch only the first MiB of the full submission to obtain its SEC-HEADER,
-    # including SERIES-ID values, without downloading every exhibit.
-    header_url=base+accession+".txt"
-    header_response=s.get(header_url,headers={"Range":"bytes=0-1048575"},timeout=(30,90),stream=True)
-    header_response.raise_for_status()
-    parts=[]; size=0
-    for chunk in header_response.iter_content(chunk_size=65536):
-        if not chunk: continue
-        remaining=1048576-size
-        parts.append(chunk[:remaining]); size+=min(len(chunk),remaining)
-        if size>=1048576: break
-    header_response.close()
-    header="".join(x.decode("utf-8",errors="replace") for x in parts)
-    if not re.search(r"\bS\d{9}\b",header):
-        raise ValueError(f"SEC submission header did not expose series IDs in bounded range: {header_url}")
+    plain=re.sub(r"\\s+"," ",plain)
     if len(plain)<1000:
         raise ValueError(f"SEC primary document text extraction unexpectedly short: {doc_url}")
-    full=header+"\n<DOCUMENT><TYPE>"+str(form)+"</TYPE><FILENAME>"+filename+"</FILENAME><TEXT>"+plain+"</TEXT></DOCUMENT>"
+    full=submission+"\\n<DOCUMENT><TYPE>"+str(form)+"</TYPE><SEQUENCE>1</SEQUENCE><FILENAME>"+filename+"</FILENAME><TEXT>"+plain+"</TEXT></DOCUMENT>"
     return doc_url,full
 
 def docs_from_sgml(full):
