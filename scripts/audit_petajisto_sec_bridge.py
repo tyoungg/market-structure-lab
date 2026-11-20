@@ -221,6 +221,34 @@ def session():
 def get_json(s,url):
     r=s.get(url,timeout=45); r.raise_for_status(); return r.json()
 
+def load_submission_history(s,cik):
+    """Load recent plus archived SEC submissions covering the study window."""
+    root=f"https://data.sec.gov/submissions/CIK{str(cik).zfill(10)}.json"
+    payload=get_json(s,root)
+    frames=[]
+    recent=pd.DataFrame(payload.get("filings",{}).get("recent",{}))
+    if not recent.empty:
+        frames.append(recent)
+    for item in payload.get("filings",{}).get("files",[]) or []:
+        start=pd.to_datetime(item.get("filingFrom"),errors="coerce")
+        end=pd.to_datetime(item.get("filingTo"),errors="coerce")
+        if pd.isna(start) or pd.isna(end) or end.year < 1994 or start.year > 2009:
+            continue
+        archive=item.get("name")
+        if not archive:
+            continue
+        hist=get_json(s,"https://data.sec.gov/submissions/"+archive)
+        frame=pd.DataFrame(hist)
+        if not frame.empty:
+            frames.append(frame)
+        time.sleep(0.12)
+    if not frames:
+        return pd.DataFrame()
+    combined=pd.concat(frames,ignore_index=True,sort=False)
+    if "accessionNumber" in combined.columns:
+        combined=combined.drop_duplicates("accessionNumber",keep="first")
+    return combined
+
 def get_filing(s,cik,accession):
     acc=accession.replace("-","")
     url=f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{acc}/{accession}.txt"
@@ -316,8 +344,7 @@ def fetch_evidence(identity,out,max_per_year):
     s=session(); output=[]
     for cik in sorted(lookup.matched_cik.astype(str).unique()):
         try:
-            sub=get_json(s,f"https://data.sec.gov/submissions/CIK{str(cik).zfill(10)}.json")
-            df=pd.DataFrame(sub.get("filings",{}).get("recent",{}))
+            df=load_submission_history(s,cik)
             if df.empty: continue
             df["filingDate"]=pd.to_datetime(df.get("filingDate"),errors="coerce")
             df["form"]=df.get("form","").astype(str)
