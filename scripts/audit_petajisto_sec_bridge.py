@@ -277,7 +277,7 @@ def get_filing(s,cik,accession,form):
     submission="".join(x.decode("utf-8",errors="replace") for x in parts)
     if not submission or len(submission)<1000:
         raise ValueError(f"SEC submission prefix unexpectedly short ({len(submission)} characters): {header_url}")
-    series_ids=sorted(set(re.findall(r"\\bS\\d{9}\\b",submission)))
+    series_ids=sorted(set(re.findall(r"\bS\d{9}\b",submission)))
     if not series_ids:
         raise ValueError(f"SEC submission prefix did not expose series IDs: {header_url}")
 
@@ -287,15 +287,15 @@ def get_filing(s,cik,accession,form):
     candidates=[]
     for block in blocks:
         doc_header=re.split(r"(?i)<TEXT>",block,maxsplit=1)[0][:10000]
-        typ=re.search(r"(?im)^\\s*<TYPE>\\s*([^\\r\\n<]+)",doc_header)
-        seq=re.search(r"(?im)^\\s*<SEQUENCE>\\s*(\\d+)",doc_header)
-        filename=re.search(r"(?im)^\\s*<FILENAME>\\s*([^\\r\\n<]+)",doc_header)
+        typ=re.search(r"(?im)^\s*<TYPE>\s*([^\r\n<]+)",doc_header)
+        seq=re.search(r"(?im)^\s*<SEQUENCE>\s*(\d+)",doc_header)
+        filename=re.search(r"(?im)^\s*<FILENAME>\s*([^\r\n<]+)",doc_header)
         if typ and filename and typ.group(1).strip().upper()==str(form).upper():
             candidates.append((int(seq.group(1)) if seq else 999999,filename.group(1).strip()))
     if not candidates:
         seen=[]
         for block in blocks[:12]:
-            m=re.search(r"(?im)^\\s*<TYPE>\\s*([^\\r\\n<]+)",block[:10000])
+            m=re.search(r"(?im)^\s*<TYPE>\s*([^\r\n<]+)",block[:10000])
             if m: seen.append(m.group(1).strip())
         raise ValueError(f"No {form} document header found in submission prefix; observed types={seen}")
     candidates.sort(key=lambda x:(x[0],x[1]))
@@ -313,10 +313,10 @@ def get_filing(s,cik,accession,form):
     import html as html_lib
     clean_html=re.sub(r"(?is)<script.*?</script>|<style.*?</style>"," ",raw)
     plain=html_lib.unescape(re.sub(r"(?s)<[^>]+>"," ",clean_html))
-    plain=re.sub(r"\\s+"," ",plain)
+    plain=re.sub(r"\s+"," ",plain)
     if len(plain)<1000:
         raise ValueError(f"SEC primary document text extraction unexpectedly short: {doc_url}")
-    full=submission+"\\n<DOCUMENT><TYPE>"+str(form)+"</TYPE><SEQUENCE>1</SEQUENCE><FILENAME>"+filename+"</FILENAME><TEXT>"+plain+"</TEXT></DOCUMENT>"
+    full=submission+"\n<DOCUMENT><TYPE>"+str(form)+"</TYPE><SEQUENCE>1</SEQUENCE><FILENAME>"+filename+"</FILENAME><TEXT>"+plain+"</TEXT></DOCUMENT>"
     return doc_url,full
 
 def docs_from_sgml(full):
