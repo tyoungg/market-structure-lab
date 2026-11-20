@@ -230,18 +230,31 @@ def docs_from_sgml(full):
         docs.append({"form":typ.group(1).strip() if typ else "","filename":fn.group(1).strip() if fn else "","text":txt})
     return docs
 
-def series_context(text, series_name, radius=1500):
-    # Use only text immediately following the first exact series-name occurrence.
-    # This intentionally sacrifices recall to avoid borrowing strategy language
-    # from another fund elsewhere in a registrant's combined filing.
+def series_context(text, series_name, radius=5000):
+    # Locate strategy sections associated with this exact series name.
+    # The first name occurrence is often only a table of contents.
     if not series_name or len(norm(series_name).replace(" ","")) < 8:
         return []
-    m=re.search(re.escape(str(series_name)),text,flags=re.I)
-    if not m:
+    name_pat=re.compile(re.escape(str(series_name)),flags=re.I)
+    name_hits=[m.start() for m in name_pat.finditer(text)]
+    if not name_hits:
         return []
-    a=m.end()
-    return [text[a:min(len(text),a+radius)]]
-
+    heading_pat=re.compile(r"(?i)\\b(?:principal\\s+)?investment\\s+strateg(?:y|ies)\\b")
+    end_pat=re.compile(r"(?i)\\b(?:principal\\s+investment\\s+risks?|portfolio\\s+holdings|management\\s+of\\s+the\\s+fund|fund\\s+management|purchase\\s+and\\s+sale\\s+of\\s+fund\\s+shares|additional\\s+information)\\b")
+    chunks=[]
+    for pos in name_hits:
+        h=heading_pat.search(text,pos,min(len(text),pos+radius))
+        if not h:
+            continue
+        next_name=min((x for x in name_hits if x>pos),default=len(text))
+        if h.start()>=next_name:
+            continue
+        e=end_pat.search(text,h.end(),min(len(text),h.end()+radius))
+        stop=e.start() if e else min(len(text),h.end()+radius)
+        chunk=text[h.start():stop].strip()
+        if len(chunk)>100:
+            chunks.append(chunk[:radius])
+    return list(dict.fromkeys(chunks))[:5]
 def classify(text):
     t=re.sub(r"\s+"," ",text.lower())
     pats={
@@ -260,6 +273,24 @@ def classify(text):
     elif "active" in present and "index" not in present: label="active"
     else: label="unclassified"
     return label,found
+
+def combined_strategy_label(row):
+    # Positive Petajisto flags and explicit SEC evidence are independent sources.
+    # Conflicts are left unclassified; zero flags never imply active management.
+    labels=[]; sources=[]
+    if pd.notna(row.get("enhanced_index")) and float(row.get("enhanced_index"))==1:
+        labels.append("enhanced index"); sources.append("Petajisto enhanced_index=1")
+    if pd.notna(row.get("indexfund")) and float(row.get("indexfund"))==1:
+        labels.append("index"); sources.append("Petajisto indexfund=1")
+    sec_label=row.get("filing_evidence_class","unclassified")
+    if sec_label in {"index","enhanced index","active"}:
+        labels.append(sec_label); sources.append("SEC filing evidence")
+    unique=set(labels)
+    if len(unique)==1:
+        return pd.Series({"strategy_class":next(iter(unique)),"strategy_class_source":"; ".join(sorted(set(sources)))})
+    if len(unique)>1:
+        return pd.Series({"strategy_class":"unclassified","strategy_class_source":"conflicting positive sources"})
+    return pd.Series({"strategy_class":"unclassified","strategy_class_source":"no positive classification evidence"})
 
 def fetch_evidence(identity,out,max_per_year):
     targets=identity[identity.series_match_status.eq("unique_series")].copy()
@@ -415,6 +446,16 @@ def main():
             remaining=good[good.classification.eq("unclassified")].sort_values(["series_id","filing_date","accession"])
             review=pd.concat([review,remaining.drop_duplicates("series_id").head(25)],ignore_index=True)
             review.to_csv(a.out/"sec_filing_manual_review_sample.csv",index=False)
+    # Publish conservative four-state strategy classifications.
+    for panel in (identity,fund_year):
+        if "filing_evidence_class" not in panel.columns:
+            panel["filing_evidence_class"]="unclassified"
+        panel[["strategy_class","strategy_class_source"]]=panel.apply(combined_strategy_label,axis=1)
+    identity.to_csv(a.out/"sec_match_by_fund_period.csv",index=False)
+    fund_year.to_csv(a.out/"sec_match_by_fund_year.csv",index=False)
+    metrics["fund_period_strategy_class_counts"]=identity.strategy_class.value_counts(dropna=False).to_dict()
+    metrics["fund_year_strategy_class_counts"]=fund_year.strategy_class.value_counts(dropna=False).to_dict()
+    metrics["fund_year_strategy_class_source_counts"]=fund_year.strategy_class_source.value_counts(dropna=False).to_dict()
     pd.Series(metrics).to_json(a.out/"sec_bridge_metrics.json",indent=2,force_ascii=False)
     report=["# Petajisto-to-SEC Series/Class Bridge Audit","",
       "Status: reproducible public-data linkage audit; SEC filing labels are conservative evidence classifications.","",
