@@ -4,6 +4,8 @@ import argparse, difflib, hashlib, json, os, re, time
 from pathlib import Path
 import pandas as pd
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 SEC_UA = "The Rational Coward Research Project (tyoungg/market-structure-lab; contact " + os.environ.get("SEC_CONTACT_EMAIL", "") + ")"
 FORMS = {"485APOS","485BPOS","485BXT","N-1A","497","497K","497J","N-CSR","N-CSRS"}
@@ -203,7 +205,17 @@ def session():
     if not os.environ.get("SEC_CONTACT_EMAIL"):
         raise RuntimeError("SEC_CONTACT_EMAIL environment variable is required for the SEC User-Agent")
     s=requests.Session()
-    s.headers.update({"User-Agent":SEC_UA,"Accept-Encoding":"gzip, deflate"})
+    retry=Retry(
+      total=7, connect=7, read=7, status=7,
+      backoff_factor=2.0,
+      status_forcelist=[408,429,500,502,503,504],
+      allowed_methods=frozenset(["GET"]),
+      respect_retry_after_header=True,
+      raise_on_status=False)
+    adapter=HTTPAdapter(max_retries=retry,pool_connections=8,pool_maxsize=8)
+    s.mount("https://",adapter)
+    s.mount("http://",adapter)
+    s.headers.update({"User-Agent":SEC_UA,"Accept-Encoding":"gzip, deflate","Connection":"keep-alive"})
     return s
 
 def get_json(s,url):
@@ -212,7 +224,10 @@ def get_json(s,url):
 def get_filing(s,cik,accession):
     acc=accession.replace("-","")
     url=f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{acc}/{accession}.txt"
-    r=s.get(url,timeout=60); r.raise_for_status()
+    r=s.get(url,timeout=(30,180))
+    r.raise_for_status()
+    if not r.text or len(r.text)<1000:
+        raise ValueError(f"SEC filing response unexpectedly short ({len(r.text)} characters): {url}")
     return url,r.text
 
 def docs_from_sgml(full):
@@ -438,6 +453,8 @@ def main():
             metrics["series_with_filing_evidence"]=int(good.series_id.nunique())
             metrics["unique_matched_series_in_fund_year_panel"]=int(fund_year.loc[fund_year.series_match_status.eq("unique_series"),"matched_series_id"].nunique())
             metrics["filing_evidence_rows"]=len(good)
+            metrics["filing_download_error_rows"]=int(ev.evidence_phrases.astype(str).str.startswith("DOWNLOAD_ERROR:").sum())
+            metrics["filing_api_error_rows"]=int(ev.evidence_phrases.astype(str).str.startswith("API_ERROR:").sum())
             metrics["filing_classification_counts"]=good.groupby("classification").size().to_dict()
             metrics["series_level_classification_counts"]=labels.filing_evidence_class.value_counts().to_dict()
             metrics["fund_year_classification_counts"]=fund_year.filing_evidence_class.value_counts().to_dict()
@@ -470,6 +487,7 @@ def main():
       "These are source flags, not prospectus-verified classifications. A zero or missing flag is not treated as proof of active management.", "",
       "## Filing classification",
       f"- Filing-evidence rows: {len(ev):,}; distinct series with retrieved evidence: {metrics.get('series_with_filing_evidence',0):,}.",
+      f"- SEC filing download errors: {metrics.get('filing_download_error_rows',0):,}; submissions API errors: {metrics.get('filing_api_error_rows',0):,}.",
       f"- Series-level labels: {metrics.get('series_level_classification_counts',{})}.",
       f"- Fund-year labels: {metrics.get('fund_year_classification_counts',{})}.",
       "Only downloaded EDGAR prospectus/registration-statement text is used. A positive label requires a single consistent explicit strategy class across retrieved evidence; unclassified filing rows alone do not veto an otherwise consistent explicit label. Conflicting explicit classes remain unclassified.",
