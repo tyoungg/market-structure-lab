@@ -335,7 +335,7 @@ def combined_strategy_label(row):
         return pd.Series({"strategy_class":"unclassified","strategy_class_source":"conflicting positive sources"})
     return pd.Series({"strategy_class":"unclassified","strategy_class_source":"no positive classification evidence"})
 
-def fetch_evidence(identity,out,max_per_year):
+def fetch_evidence(identity,out,max_per_cik):
     targets=identity[identity.series_match_status.eq("unique_series")].copy()
     if targets.empty: return pd.DataFrame()
     lookup=targets.groupby(["matched_cik","matched_series_id","matched_series_name"]).agg(
@@ -351,9 +351,9 @@ def fetch_evidence(identity,out,max_per_year):
             df=df[df.form.isin(FORMS)&df.filingDate.dt.year.between(1994,2009)].copy()
             if df.empty: continue
             df["priority"]=df.form.map(PRIORITY).fillna(99)
-            selected=[]
-            for yr,g in df.groupby(df.filingDate.dt.year):
-                selected.extend(g.sort_values(["priority","filingDate"],ascending=[True,False]).head(max_per_year).to_dict("records"))
+            # Bounded first-pass sample: one latest eligible prospectus/registration
+            # filing per CIK across the full historical window. Expand in later batches.
+            selected=df.sort_values(["priority","filingDate"],ascending=[True,False]).head(max_per_cik).to_dict("records")
             for f in selected:
                 acc=str(f.get("accessionNumber",""))
                 if not acc: continue
@@ -397,7 +397,7 @@ def main():
     ap=argparse.ArgumentParser()
     ap.add_argument("--tr-zip",required=True,type=Path); ap.add_argument("--petajisto",required=True,type=Path)
     ap.add_argument("--sec-series-class",required=True,type=Path); ap.add_argument("--out",required=True,type=Path)
-    ap.add_argument("--skip-filings",action="store_true"); ap.add_argument("--max-filings-per-cik-year",type=int,default=2)
+    ap.add_argument("--skip-filings",action="store_true"); ap.add_argument("--max-filings-per-cik",type=int,default=1)
     a=ap.parse_args(); a.out.mkdir(parents=True,exist_ok=True)
     eligible,p,tr,repair_rows,repair_count,conflict_count=load_eligible(a.tr_zip,a.petajisto)
     primary=int(eligible.link_type.eq("primary_wficn_agreement").sum())
@@ -462,7 +462,7 @@ def main():
       "caveat":"2010 SEC registry snapshot matched to contemporaneous Petajisto names/tickers; not proof of historical SEC status. A unique series can have multiple classes."}
     ev=pd.DataFrame()
     if not a.skip_filings:
-        ev=fetch_evidence(identity,a.out,a.max_filings_per_cik_year)
+        ev=fetch_evidence(identity,a.out,a.max_filings_per_cik)
         if not ev.empty:
             good=ev[ev.series_id.ne("")]
             def conservative_label(x):
