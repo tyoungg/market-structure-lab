@@ -249,14 +249,43 @@ def load_submission_history(s,cik):
         combined=combined.drop_duplicates("accessionNumber",keep="first")
     return combined
 
-def get_filing(s,cik,accession):
+def get_filing(s,cik,accession,form):
+    """Retrieve the filing index and primary prospectus document before falling back to the full submission."""
     acc=accession.replace("-","")
-    url=f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{acc}/{accession}.txt"
-    r=s.get(url,timeout=(30,180))
-    r.raise_for_status()
-    if not r.text or len(r.text)<1000:
-        raise ValueError(f"SEC filing response unexpectedly short ({len(r.text)} characters): {url}")
-    return url,r.text
+    base=f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{acc}/"
+    index_json_url=base+accession+"-index.json"
+    index_html_url=base+accession+"-index.html"
+    idx=get_json(s,index_json_url)
+    items=idx.get("directory",{}).get("item",[])
+    candidates=[x for x in items if str(x.get("type","")).upper()==str(form).upper()]
+    if not candidates:
+        raise ValueError(f"No primary document of form {form} listed in {index_json_url}")
+    candidates=sorted(candidates,key=lambda x:int(x.get("sequence",9999)) if str(x.get("sequence","")).isdigit() else 9999)
+    filename=candidates[0].get("name")
+    if not filename:
+        raise ValueError(f"SEC filing index has no filename for {accession}")
+    index_response=s.get(index_html_url,timeout=(30,90))
+    if index_response.status_code==404:
+        index_html_url=base+accession+"-index.htm"
+        index_response=s.get(index_html_url,timeout=(30,90))
+    index_response.raise_for_status()
+    index_html=index_response.text
+    doc_url=base+filename
+    doc_response=s.get(doc_url,timeout=(30,180))
+    doc_response.raise_for_status()
+    raw=doc_response.text
+    if not raw or len(raw)<1000:
+        raise ValueError(f"SEC primary document unexpectedly short ({len(raw)} characters): {doc_url}")
+    import html as html_lib
+    clean_html=re.sub(r"(?is)<script.*?</script>|<style.*?</style>"," ",raw)
+    plain=html_lib.unescape(re.sub(r"(?s)<[^>]+>"," ",clean_html))
+    plain=re.sub(r"\\s+"," ",plain)
+    # Preserve the filing index metadata (including series identifiers) and wrap
+    # the primary prospectus text in the parser's existing SGML document format.
+    full=index_html+"\\n<DOCUMENT><TYPE>"+str(form)+"</TYPE><FILENAME>"+filename+"</FILENAME><TEXT>"+plain+"</TEXT></DOCUMENT>"
+    if len(plain)<1000:
+        raise ValueError(f"SEC primary document text extraction unexpectedly short: {doc_url}")
+    return doc_url,full
 
 def docs_from_sgml(full):
     docs=[]
@@ -358,7 +387,7 @@ def fetch_evidence(identity,out,max_per_cik):
                 acc=str(f.get("accessionNumber",""))
                 if not acc: continue
                 try:
-                    url,full=get_filing(s,cik,acc)
+                    url,full=get_filing(s,cik,acc,f.get('form'))
                     ids=set(re.findall(r"\bS\d{9}\b",full))
                     docs=docs_from_sgml(full)
                     for sr in lookup[lookup.matched_cik.astype(str).eq(str(cik))].to_dict("records"):
