@@ -250,29 +250,52 @@ def load_submission_history(s,cik):
     return combined
 
 def get_filing(s,cik,accession,form):
-    """Retrieve the filing index and primary prospectus document before falling back to the full submission."""
+    """Fetch the SEC filing index, primary document, and a bounded SGML header for series IDs."""
+    from html.parser import HTMLParser
+
+    class FilingIndexParser(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.rows=[]; self.row=None; self.cell=None; self.href=None
+        def handle_starttag(self,tag,attrs):
+            attrs=dict(attrs)
+            if tag=="tr": self.row=[]
+            elif tag in {"td","th"} and self.row is not None:
+                self.cell={"text":"","href":None}
+            elif tag=="a" and self.cell is not None:
+                self.cell["href"]=attrs.get("href")
+        def handle_data(self,data):
+            if self.cell is not None: self.cell["text"]+=data
+        def handle_endtag(self,tag):
+            if tag in {"td","th"} and self.cell is not None:
+                self.row.append(self.cell); self.cell=None
+            elif tag=="tr" and self.row is not None:
+                self.rows.append(self.row); self.row=None
+
     acc=accession.replace("-","")
     base=f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{acc}/"
-    index_json_url=base+accession+"-index.json"
-    index_html_url=base+accession+"-index.html"
-    idx=get_json(s,index_json_url)
-    items=idx.get("directory",{}).get("item",[])
-    candidates=[x for x in items if str(x.get("type","")).upper()==str(form).upper()]
-    if not candidates:
-        raise ValueError(f"No primary document of form {form} listed in {index_json_url}")
-    candidates=sorted(candidates,key=lambda x:int(x.get("sequence",9999)) if str(x.get("sequence","")).isdigit() else 9999)
-    filename=candidates[0].get("name")
-    if not filename:
-        raise ValueError(f"SEC filing index has no filename for {accession}")
-    index_response=s.get(index_html_url,timeout=(30,90))
-    if index_response.status_code==404:
-        index_html_url=base+accession+"-index.htm"
-        index_response=s.get(index_html_url,timeout=(30,90))
-    index_response.raise_for_status()
-    index_html=index_response.text
+    index_json=get_json(s,base+"index.json")
+    items=index_json.get("directory",{}).get("item",[])
+    html_response=s.get(base+"index.html",timeout=(30,90))
+    if html_response.status_code==404:
+        html_response=s.get(base+"index.htm",timeout=(30,90))
+    html_response.raise_for_status()
+    parser=FilingIndexParser(); parser.feed(html_response.text)
+    matches=[]
+    for row in parser.rows:
+        cells=[x["text"].strip() for x in row]
+        links=[x["href"] for x in row if x.get("href")]
+        if any(x.upper()==str(form).upper() for x in cells) and links:
+            matches.append((cells,links[0]))
+    if not matches:
+        raise ValueError(f"Could not identify primary {form} document in {base}index.html")
+    # SEC filing indexes list the primary submission as sequence 1.
+    chosen=next((x for x in matches if x[0] and x[0][0]=="1"),matches[0])
+    filename=chosen[1].rsplit("/",1)[-1]
+    if not any(str(x.get("name",""))==filename for x in items):
+        raise ValueError(f"Primary document {filename} is absent from index.json")
     doc_url=base+filename
-    doc_response=s.get(doc_url,timeout=(30,180))
-    doc_response.raise_for_status()
+    doc_response=s.get(doc_url,timeout=(30,180)); doc_response.raise_for_status()
     raw=doc_response.text
     if not raw or len(raw)<1000:
         raise ValueError(f"SEC primary document unexpectedly short ({len(raw)} characters): {doc_url}")
@@ -280,11 +303,24 @@ def get_filing(s,cik,accession,form):
     clean_html=re.sub(r"(?is)<script.*?</script>|<style.*?</style>"," ",raw)
     plain=html_lib.unescape(re.sub(r"(?s)<[^>]+>"," ",clean_html))
     plain=re.sub(r"\\s+"," ",plain)
-    # Preserve the filing index metadata (including series identifiers) and wrap
-    # the primary prospectus text in the parser's existing SGML document format.
-    full=index_html+"\\n<DOCUMENT><TYPE>"+str(form)+"</TYPE><FILENAME>"+filename+"</FILENAME><TEXT>"+plain+"</TEXT></DOCUMENT>"
+    # Fetch only the first MiB of the full submission to obtain its SEC-HEADER,
+    # including SERIES-ID values, without downloading every exhibit.
+    header_url=base+accession+".txt"
+    header_response=s.get(header_url,headers={"Range":"bytes=0-1048575"},timeout=(30,90),stream=True)
+    header_response.raise_for_status()
+    parts=[]; size=0
+    for chunk in header_response.iter_content(chunk_size=65536):
+        if not chunk: continue
+        remaining=1048576-size
+        parts.append(chunk[:remaining]); size+=min(len(chunk),remaining)
+        if size>=1048576: break
+    header_response.close()
+    header="".join(x.decode("utf-8",errors="replace") for x in parts)
+    if not re.search(r"\\bS\\d{9}\\b",header):
+        raise ValueError(f"SEC submission header did not expose series IDs in bounded range: {header_url}")
     if len(plain)<1000:
         raise ValueError(f"SEC primary document text extraction unexpectedly short: {doc_url}")
+    full=header+"\\n<DOCUMENT><TYPE>"+str(form)+"</TYPE><FILENAME>"+filename+"</FILENAME><TEXT>"+plain+"</TEXT></DOCUMENT>"
     return doc_url,full
 
 def docs_from_sgml(full):
@@ -364,14 +400,14 @@ def combined_strategy_label(row):
         return pd.Series({"strategy_class":"unclassified","strategy_class_source":"conflicting positive sources"})
     return pd.Series({"strategy_class":"unclassified","strategy_class_source":"no positive classification evidence"})
 
-def fetch_evidence(identity,out,max_per_cik):
+def fetch_evidence(identity,out,max_per_cik,max_ciks):
     targets=identity[identity.series_match_status.eq("unique_series")].copy()
     if targets.empty: return pd.DataFrame()
     lookup=targets.groupby(["matched_cik","matched_series_id","matched_series_name"]).agg(
       fundnos=("fundno_key",lambda x:"|".join(sorted(set(x)))),
       first_year=("year","min"),last_year=("year","max")).reset_index()
     s=session(); output=[]
-    for cik in sorted(lookup.matched_cik.astype(str).unique()):
+    for cik in sorted(lookup.matched_cik.astype(str).unique())[:max_ciks]:
         try:
             df=load_submission_history(s,cik)
             if df.empty: continue
@@ -426,7 +462,7 @@ def main():
     ap=argparse.ArgumentParser()
     ap.add_argument("--tr-zip",required=True,type=Path); ap.add_argument("--petajisto",required=True,type=Path)
     ap.add_argument("--sec-series-class",required=True,type=Path); ap.add_argument("--out",required=True,type=Path)
-    ap.add_argument("--skip-filings",action="store_true"); ap.add_argument("--max-filings-per-cik",type=int,default=1)
+    ap.add_argument("--skip-filings",action="store_true"); ap.add_argument("--max-filings-per-cik",type=int,default=1); ap.add_argument("--max-ciks",type=int,default=10)
     a=ap.parse_args(); a.out.mkdir(parents=True,exist_ok=True)
     eligible,p,tr,repair_rows,repair_count,conflict_count=load_eligible(a.tr_zip,a.petajisto)
     primary=int(eligible.link_type.eq("primary_wficn_agreement").sum())
@@ -491,7 +527,7 @@ def main():
       "caveat":"2010 SEC registry snapshot matched to contemporaneous Petajisto names/tickers; not proof of historical SEC status. A unique series can have multiple classes."}
     ev=pd.DataFrame()
     if not a.skip_filings:
-        ev=fetch_evidence(identity,a.out,a.max_filings_per_cik)
+        ev=fetch_evidence(identity,a.out,a.max_filings_per_cik,a.max_ciks)
         if not ev.empty:
             good=ev[ev.series_id.ne("")]
             def conservative_label(x):
