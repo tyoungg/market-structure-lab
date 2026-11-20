@@ -302,7 +302,7 @@ def get_filing(s,cik,accession,form):
     import html as html_lib
     clean_html=re.sub(r"(?is)<script.*?</script>|<style.*?</style>"," ",raw)
     plain=html_lib.unescape(re.sub(r"(?s)<[^>]+>"," ",clean_html))
-    plain=re.sub(r"\\s+"," ",plain)
+    plain=re.sub(r"\s+"," ",plain)
     # Fetch only the first MiB of the full submission to obtain its SEC-HEADER,
     # including SERIES-ID values, without downloading every exhibit.
     header_url=base+accession+".txt"
@@ -316,11 +316,11 @@ def get_filing(s,cik,accession,form):
         if size>=1048576: break
     header_response.close()
     header="".join(x.decode("utf-8",errors="replace") for x in parts)
-    if not re.search(r"\\bS\\d{9}\\b",header):
+    if not re.search(r"\bS\d{9}\b",header):
         raise ValueError(f"SEC submission header did not expose series IDs in bounded range: {header_url}")
     if len(plain)<1000:
         raise ValueError(f"SEC primary document text extraction unexpectedly short: {doc_url}")
-    full=header+"\\n<DOCUMENT><TYPE>"+str(form)+"</TYPE><FILENAME>"+filename+"</FILENAME><TEXT>"+plain+"</TEXT></DOCUMENT>"
+    full=header+"\n<DOCUMENT><TYPE>"+str(form)+"</TYPE><FILENAME>"+filename+"</FILENAME><TEXT>"+plain+"</TEXT></DOCUMENT>"
     return doc_url,full
 
 def docs_from_sgml(full):
