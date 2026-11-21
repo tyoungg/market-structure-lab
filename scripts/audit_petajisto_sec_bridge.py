@@ -385,7 +385,8 @@ def classify(text):
                r"does not seek to track",r"is not an index fund",
                r"\b(?:team|portfolio managers?|investment managers?|fmr)\s+(?:ranks?|selects?|chooses?|identifies?)\s+(?:the\s+)?(?:individual\s+)?(?:stocks|securities|companies)\b",
                r"\b(?:subjects?|evaluates?|analyzes?)\s+(?:the\s+)?(?:most\s+)?(?:attractively\s+)?(?:ranked\s+)?(?:stocks|securities)\b",
-               r"\b(?:stock|security) selection\b",
+               r"\b(?:actively managed|discretionary|fundamental(?:ly)? based)\s+(?:stock|security) selection\b",
+               r"\b(?:uses?|employs?|follows?)\s+(?:a\s+)?(?:fundamental(?:ly)? based\s+)?(?:stock|security) selection (?:process|approach)\b",
                r"\b(?:fmr|the adviser|the investment team|the portfolio management team)\s+(?:invests|selects|chooses)\b.{0,180}\b(?:believes|considers|determines)\b"]}
     found={k:[m.group(0) for p in ps for m in re.finditer(p,t)] for k,ps in pats.items()}
     present=[k for k,v in found.items() if v]
@@ -637,7 +638,7 @@ def main():
       f"- Series-level labels: {metrics.get('series_level_classification_counts',{})}.",
       f"- Fund-year labels: {metrics.get('fund_year_classification_counts',{})}.",
       "Only downloaded EDGAR prospectus/registration-statement text is used. A positive label requires a single consistent explicit strategy class across retrieved evidence; unclassified filing rows alone do not veto an otherwise consistent explicit label. Conflicting explicit classes remain unclassified.",
-      "This is a sparse, selected filing sample (at most one filing per CIK-year in this run), not a complete prospectus history. SEC filings are not evidence of a fund's strategy before the filing date. The 2010 registry snapshot does not prove historical series status. All labels require manual review before empirical use. Filing URLs and contexts are in sec_filing_evidence.csv; the deterministic review sample is sec_filing_manual_review_sample.csv.","",
+      "This is a sparse, selected filing sample (up to two priority-ranked filings per registrant in this run), not a complete prospectus history. SEC filings are not evidence of a fund's strategy before the filing date. The 2010 registry snapshot does not prove historical series status. All labels require manual review before empirical use. Filing URLs and contexts are in sec_filing_evidence.csv; the deterministic review sample is sec_filing_manual_review_sample.csv.","",
       "## Output inventory","- sec_match_by_fund_period.csv","- sec_match_by_fund_year.csv","- sec_match_candidates.csv","- sec_match_rates_by_year.csv",
       "- sec_ticker_collision_audit.csv","- petajisto_ticker_year_collision_audit.csv","- petajisto_name_collision_audit.csv","- sec_series_name_collision_audit.csv",
       "- sec_filing_evidence.csv","- sec_filing_manual_review_sample.csv","- sec_bridge_metrics.json"]
