@@ -335,28 +335,30 @@ def docs_from_sgml(full):
     return docs
 
 def series_context(text, series_name, radius=5000):
-    # Locate strategy sections associated with this exact series name.
-    # The first name occurrence is often only a table of contents.
-    if not series_name or len(norm(series_name).replace(" ","")) < 8:
+    """Extract strategy text near a series name and a real investment-strategy heading."""
+    if not series_name or len(norm(series_name).replace(" ", "")) < 8:
         return []
-    name_pat=re.compile(re.escape(str(series_name)),flags=re.I)
-    name_hits=[m.start() for m in name_pat.finditer(text)]
-    if not name_hits:
-        return []
-    heading_pat=re.compile(r"(?i)\\b(?:principal\\s+)?investment\\s+strateg(?:y|ies)\\b")
-    end_pat=re.compile(r"(?i)\\b(?:principal\\s+investment\\s+risks?|portfolio\\s+holdings|management\\s+of\\s+the\\s+fund|fund\\s+management|purchase\\s+and\\s+sale\\s+of\\s+fund\\s+shares|additional\\s+information)\\b")
-    chunks=[]
+    name_pat = re.compile(re.escape(str(series_name)), re.IGNORECASE)
+    heading_pat = re.compile(r"\\b(?:principal\\s+)?investment\\s+strateg(?:y|ies)\\b", re.IGNORECASE)
+    end_pat = re.compile(
+        r"\\b(?:principal\\s+investment\\s+risks?|portfolio\\s+holdings|"
+        r"management\\s+of\\s+the\\s+fund|fund\\s+management|"
+        r"purchase\\s+and\\s+sale\\s+of\\s+fund\\s+shares|additional\\s+information)\\b",
+        re.IGNORECASE,
+    )
+    name_hits = [m.start() for m in name_pat.finditer(text)]
+    chunks = []
     for pos in name_hits:
-        h=heading_pat.search(text,pos,min(len(text),pos+radius))
+        h = heading_pat.search(text, pos, min(len(text), pos + radius))
         if not h:
             continue
-        next_name=min((x for x in name_hits if x>pos),default=len(text))
-        if h.start()>=next_name:
+        next_name = next((x for x in name_hits if x > pos), len(text))
+        if h.start() >= next_name:
             continue
-        e=end_pat.search(text,h.end(),min(len(text),h.end()+radius))
-        stop=e.start() if e else min(len(text),h.end()+radius)
-        chunk=text[h.start():stop].strip()
-        if len(chunk)>100:
+        e = end_pat.search(text, h.end(), min(len(text), h.end() + radius))
+        stop = e.start() if e else min(len(text), h.end() + radius)
+        chunk = text[h.start():stop].strip()
+        if len(chunk) > 100:
             chunks.append(chunk[:radius])
     return list(dict.fromkeys(chunks))[:5]
 def classify(text):
@@ -397,39 +399,74 @@ def combined_strategy_label(row):
     return pd.Series({"strategy_class":"unclassified","strategy_class_source":"no positive classification evidence"})
 
 def fetch_evidence(identity,out,max_per_cik,max_ciks):
+    """Retrieve a bounded, auditable sample; never silently skip a CIK or filing."""
     targets=identity[identity.series_match_status.eq("unique_series")].copy()
-    if targets.empty: return pd.DataFrame()
+    columns=["cik","series_id","series_name","filing_date","form","accession","filing_url",
+             "document_count","classification","evidence_phrases","evidence_context","fundnos","series_ids_in_filing"]
+    if targets.empty:
+        pd.DataFrame(columns=columns).to_csv(out/"sec_filing_evidence.csv",index=False)
+        pd.DataFrame([{"cik":"","status":"NO_UNIQUE_SERIES_TARGETS"}]).to_csv(out/"sec_filing_attempts.csv",index=False)
+        return pd.DataFrame(columns=columns)
     lookup=targets.groupby(["matched_cik","matched_series_id","matched_series_name"]).agg(
       fundnos=("fundno_key",lambda x:"|".join(sorted(set(x)))),
       first_year=("year","min"),last_year=("year","max")).reset_index()
-    s=session(); output=[]
-    for cik in sorted(lookup.matched_cik.astype(str).unique())[:max_ciks]:
+    # Prioritize registrants representing the most matched series, rather than
+    # arbitrary low-numbered CIKs that may have no filings in the study window.
+    ranked=(lookup.groupby("matched_cik").size().sort_values(ascending=False))
+    s=session(); output=[]; attempts=[]; qualifying=0; scanned=0
+    for cik in ranked.index.astype(str):
+        if qualifying>=max_ciks or scanned>=max(100,max_ciks*10):
+            break
+        scanned+=1
+        attempt={"cik":str(cik).zfill(10),"status":"","history_rows":0,"eligible_filings":0,
+                 "selected_filings":0,"filings_downloaded":0,"series_evidence_rows":0,"detail":""}
         try:
             df=load_submission_history(s,cik)
-            if df.empty: continue
-            df["filingDate"]=pd.to_datetime(df.get("filingDate"),errors="coerce")
-            df["form"]=df.get("form","").astype(str)
+            attempt["history_rows"]=len(df)
+            if df.empty:
+                attempt["status"]="NO_SUBMISSION_HISTORY"; attempts.append(attempt); continue
+            if "filingDate" not in df or "form" not in df:
+                attempt["status"]="SUBMISSION_SCHEMA_MISSING"; attempt["detail"]=str(list(df.columns))
+                attempts.append(attempt); continue
+            df["filingDate"]=pd.to_datetime(df["filingDate"],errors="coerce")
+            df["form"]=df["form"].astype(str).str.upper()
             df=df[df.form.isin(FORMS)&df.filingDate.dt.year.between(1994,2009)].copy()
-            if df.empty: continue
+            attempt["eligible_filings"]=len(df)
+            if df.empty:
+                attempt["status"]="NO_ELIGIBLE_1994_2009_FILINGS"; attempts.append(attempt); continue
+            qualifying+=1
             df["priority"]=df.form.map(PRIORITY).fillna(99)
-            # Bounded first-pass sample: one latest eligible prospectus/registration
-            # filing per CIK across the full historical window. Expand in later batches.
             selected=df.sort_values(["priority","filingDate"],ascending=[True,False]).head(max_per_cik).to_dict("records")
+            attempt["selected_filings"]=len(selected)
             for f in selected:
                 acc=str(f.get("accessionNumber",""))
-                if not acc: continue
+                if not acc:
+                    output.append({"cik":str(cik).zfill(10),"series_id":"","series_name":"",
+                      "filing_date":str(f.get("filingDate","")),"form":f.get("form"),"accession":"",
+                      "filing_url":"","document_count":0,"classification":"unclassified",
+                      "evidence_phrases":"MISSING_ACCESSION_NUMBER","evidence_context":"","fundnos":"",
+                      "series_ids_in_filing":0})
+                    continue
                 try:
-                    url,full=get_filing(s,cik,acc,f.get('form'))
-                    ids=set(re.findall(r"\bS\d{9}\b",full))
+                    url,full=get_filing(s,cik,acc,f.get("form"))
+                    attempt["filings_downloaded"]+=1
+                    ids=set(re.findall(r"\\bS\\d{9}\\b",full))
                     docs=docs_from_sgml(full)
                     for sr in lookup[lookup.matched_cik.astype(str).eq(str(cik))].to_dict("records"):
                         sid=str(sr["matched_series_id"])
-                        if sid not in ids: continue
+                        if sid not in ids:
+                            continue
                         chunks=[]
                         for d in docs:
                             if any(k in (d["form"]+" "+d["filename"]).lower() for k in ["497","485","n-1a"]):
                                 chunks.extend(series_context(d["text"],sr["matched_series_name"]))
-                        if not chunks: continue
+                        if not chunks:
+                            output.append({"cik":str(cik).zfill(10),"series_id":sid,"series_name":sr["matched_series_name"],
+                              "filing_date":str(f["filingDate"].date()),"form":f.get("form"),"accession":acc,
+                              "filing_url":url,"document_count":0,"classification":"unclassified",
+                              "evidence_phrases":"SERIES_ID_PRESENT_BUT_NO_STRATEGY_CONTEXT",
+                              "evidence_context":"","fundnos":sr["fundnos"],"series_ids_in_filing":len(ids)})
+                            continue
                         evidence_text=" ".join(chunks)
                         label,found=classify(evidence_text)
                         phrases=[f"{k}:{v}" for k,vs in found.items() for v in vs[:3]]
@@ -438,20 +475,24 @@ def fetch_evidence(identity,out,max_per_cik,max_ciks):
                           "filing_url":url,"document_count":len(chunks),"classification":label,
                           "evidence_phrases":" | ".join(phrases),"evidence_context":evidence_text[:1500],
                           "fundnos":sr["fundnos"],"series_ids_in_filing":len(ids)})
+                        attempt["series_evidence_rows"]+=1
                 except Exception as e:
                     output.append({"cik":str(cik).zfill(10),"series_id":"","series_name":"",
                       "filing_date":str(f.get("filingDate","")),"form":f.get("form"),"accession":acc,
                       "filing_url":"","document_count":0,"classification":"unclassified",
-                      "evidence_phrases":f"DOWNLOAD_ERROR:{type(e).__name__}:{e}","fundnos":"","series_ids_in_filing":0})
+                      "evidence_phrases":f"DOWNLOAD_ERROR:{type(e).__name__}:{e}","evidence_context":"",
+                      "fundnos":"","series_ids_in_filing":0})
                 time.sleep(0.15)
+            attempt["status"]="FILINGS_PROCESSED"
         except Exception as e:
-            output.append({"cik":str(cik).zfill(10),"series_id":"","series_name":"","filing_date":"",
-              "form":"SUBMISSIONS_API","accession":"","filing_url":"","document_count":0,
-              "classification":"unclassified","evidence_phrases":f"API_ERROR:{type(e).__name__}:{e}",
-              "fundnos":"","series_ids_in_filing":0})
+            attempt["status"]="SUBMISSIONS_API_ERROR"; attempt["detail"]=f"{type(e).__name__}:{e}"
+        attempts.append(attempt)
         time.sleep(0.15)
-    ev=pd.DataFrame(output)
-    if not ev.empty: ev.to_csv(out/"sec_filing_evidence.csv",index=False)
+    ev=pd.DataFrame(output,columns=columns)
+    ev.to_csv(out/"sec_filing_evidence.csv",index=False)
+    pd.DataFrame(attempts).to_csv(out/"sec_filing_attempts.csv",index=False)
+    if qualifying==0 or sum(x["filings_downloaded"] for x in attempts)==0:
+        raise RuntimeError(f"Filing pilot retrieved no SEC documents. Scanned {scanned} CIKs; attempts saved to sec_filing_attempts.csv")
     return ev
 
 def main():
