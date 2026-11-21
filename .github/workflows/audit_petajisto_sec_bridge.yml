@@ -58,6 +58,7 @@ jobs:
             --out sec_bridge_outputs \
             --max-filings-per-cik 1 --max-ciks 10
       - name: Upload derived audit outputs only
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: petajisto-sec-public-bridge-audit
