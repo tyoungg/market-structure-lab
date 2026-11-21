@@ -30,6 +30,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install pandas requests tabulate gdown
+      - name: Validate Python syntax
+        run: |
+          python -m py_compile scripts/audit_petajisto_sec_bridge.py scripts/audit_sec_historical_filing_coverage.py
       - name: Download public Notre Dame TR data
         run: |
           mkdir -p /tmp/active-share
