@@ -56,7 +56,7 @@ jobs:
             --petajisto /tmp/active-share/petajisto_activeshare.csv \
             --sec-series-class /tmp/active-share/sec_series_class_2010.csv \
             --out sec_bridge_outputs \
-            --max-filings-per-cik 1 --max-ciks 10
+            --max-filings-per-cik 2 --max-ciks 10
       - name: Upload derived audit outputs only
         if: always()
         uses: actions/upload-artifact@v4
