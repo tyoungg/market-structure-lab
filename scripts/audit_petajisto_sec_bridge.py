@@ -513,6 +513,30 @@ def fetch_evidence(identity,out,max_per_cik,max_ciks):
         raise RuntimeError(f"Filing pilot retrieved no SEC documents. Scanned {scanned} CIKs; attempts saved to sec_filing_attempts.csv")
     return ev
 
+def attach_asof_filing_labels(panel,evidence,time_col,freq):
+    """Apply only filing evidence available before the observed calendar period."""
+    out=panel.copy().reset_index(drop=True)
+    out["filing_evidence_class"]="unclassified"
+    if evidence.empty or "matched_series_id" not in out:
+        return out
+    left=out[["matched_series_id",time_col]].copy()
+    left["_row_id"]=range(len(left))
+    left["_obs_period"]=pd.PeriodIndex(left[time_col].astype(str),freq=freq)
+    right=evidence[["series_id","filing_date","classification"]].copy()
+    right["_filing_date"]=pd.to_datetime(right.filing_date,errors="coerce")
+    right=right.dropna(subset=["_filing_date"])
+    right["_filing_period"]=right["_filing_date"].dt.to_period(freq)
+    joined=left.merge(right[["series_id","_filing_period","classification"]],
+                      left_on="matched_series_id",right_on="series_id",how="left")
+    # Strictly earlier period avoids assigning a filing to observations from
+    # the same month/year that may predate the filing itself.
+    prior=joined[joined._filing_period.notna() & (joined._filing_period < joined._obs_period)]
+    explicit=prior[prior.classification.isin(["index","enhanced index","active"])]
+    by_row=explicit.groupby("_row_id").classification.agg(lambda x:
+        next(iter(set(x))) if len(set(x))==1 else "unclassified")
+    out["filing_evidence_class"]=out.index.to_series().map(by_row).fillna("unclassified")
+    return out
+
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument("--tr-zip",required=True,type=Path); ap.add_argument("--petajisto",required=True,type=Path)
@@ -590,12 +614,11 @@ def main():
                 # A series is labeled only when all explicit labels agree on one class.
                 labels=set(x)-{"unclassified"}
                 return next(iter(labels)) if len(labels)==1 else "unclassified"
+            # Keep the all-date series summary separate from time-aligned panel labels.
             labels=good.groupby("series_id").classification.apply(conservative_label).rename("filing_evidence_class").reset_index()
-            identity=identity.merge(labels,left_on="matched_series_id",right_on="series_id",how="left")
-            identity["filing_evidence_class"]=identity.filing_evidence_class.fillna("unclassified")
+            identity=attach_asof_filing_labels(identity,good,"period","M")
+            fund_year=attach_asof_filing_labels(fund_year,good,"year","Y")
             identity.to_csv(a.out/"sec_match_by_fund_period.csv",index=False)
-            fund_year=fund_year.merge(labels,left_on="matched_series_id",right_on="series_id",how="left")
-            fund_year["filing_evidence_class"]=fund_year.filing_evidence_class.fillna("unclassified")
             fund_year.to_csv(a.out/"sec_match_by_fund_year.csv",index=False)
             metrics["series_with_filing_evidence"]=int(good.series_id.nunique())
             metrics["unique_matched_series_in_fund_year_panel"]=int(fund_year.loc[fund_year.series_match_status.eq("unique_series"),"matched_series_id"].nunique())
@@ -637,7 +660,7 @@ def main():
       f"- SEC filing download errors: {metrics.get('filing_download_error_rows',0):,}; submissions API errors: {metrics.get('filing_api_error_rows',0):,}.",
       f"- Series-level labels: {metrics.get('series_level_classification_counts',{})}.",
       f"- Fund-year labels: {metrics.get('fund_year_classification_counts',{})}.",
-      "Only downloaded EDGAR prospectus/registration-statement text is used. A positive label requires a single consistent explicit strategy class across retrieved evidence; unclassified filing rows alone do not veto an otherwise consistent explicit label. Conflicting explicit classes remain unclassified.",
+      "Only downloaded EDGAR prospectus/registration-statement text is used. A filing label is applied only to complete observation periods strictly after its filing month/year; no prospectus evidence is backfilled to earlier observations or the same calendar period. A positive as-of label requires one consistent explicit class in prior retrieved filings; conflicting explicit classes remain unclassified.",
       "This is a sparse, selected filing sample (up to two priority-ranked filings per registrant in this run), not a complete prospectus history. SEC filings are not evidence of a fund's strategy before the filing date. The 2010 registry snapshot does not prove historical series status. All labels require manual review before empirical use. Filing URLs and contexts are in sec_filing_evidence.csv; the deterministic review sample is sec_filing_manual_review_sample.csv.","",
       "## Output inventory","- sec_match_by_fund_period.csv","- sec_match_by_fund_year.csv","- sec_match_candidates.csv","- sec_match_rates_by_year.csv",
       "- sec_ticker_collision_audit.csv","- petajisto_ticker_year_collision_audit.csv","- petajisto_name_collision_audit.csv","- sec_series_name_collision_audit.csv",
