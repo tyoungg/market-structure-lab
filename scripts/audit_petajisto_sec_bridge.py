@@ -339,11 +339,11 @@ def series_context(text, series_name, radius=5000):
     if not series_name or len(norm(series_name).replace(" ", "")) < 8:
         return []
     name_pat = re.compile(re.escape(str(series_name)), re.IGNORECASE)
-    heading_pat = re.compile(r"\\b(?:principal\\s+)?investment\\s+strateg(?:y|ies)\\b", re.IGNORECASE)
+    heading_pat = re.compile(r"\b(?:principal\s+)?investment\s+strateg(?:y|ies)\b", re.IGNORECASE)
     end_pat = re.compile(
-        r"\\b(?:principal\\s+investment\\s+risks?|portfolio\\s+holdings|"
-        r"management\\s+of\\s+the\\s+fund|fund\\s+management|"
-        r"purchase\\s+and\\s+sale\\s+of\\s+fund\\s+shares|additional\\s+information)\\b",
+        r"\b(?:principal\s+investment\s+risks?|portfolio\s+holdings|"
+        r"management\s+of\s+the\s+fund|fund\s+management|"
+        r"purchase\s+and\s+sale\s+of\s+fund\s+shares|additional\s+information)\b",
         re.IGNORECASE,
     )
     name_hits = [m.start() for m in name_pat.finditer(text)]
@@ -450,7 +450,7 @@ def fetch_evidence(identity,out,max_per_cik,max_ciks):
                 try:
                     url,full=get_filing(s,cik,acc,f.get("form"))
                     attempt["filings_downloaded"]+=1
-                    ids=set(re.findall(r"\\bS\\d{9}\\b",full))
+                    ids=set(re.findall(r"\bS\d{9}\b",full))
                     docs=docs_from_sgml(full)
                     for sr in lookup[lookup.matched_cik.astype(str).eq(str(cik))].to_dict("records"):
                         sid=str(sr["matched_series_id"])
