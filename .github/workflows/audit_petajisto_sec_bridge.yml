@@ -7,6 +7,7 @@ on:
     paths:
       - ".github/workflows/audit_petajisto_sec_bridge.yml"
       - "scripts/audit_petajisto_sec_bridge.py"
+      - "scripts/audit_sec_historical_filing_coverage.py"
   workflow_dispatch:
 
 permissions:
@@ -57,6 +58,13 @@ jobs:
             --sec-series-class /tmp/active-share/sec_series_class_2010.csv \
             --out sec_bridge_outputs \
             --max-filings-per-cik 2 --max-ciks 10
+      - name: Audit historical prospectus coverage across matched series
+        run: |
+          python scripts/audit_sec_historical_filing_coverage.py \
+            --fund-period-csv sec_bridge_outputs/sec_match_by_fund_period.csv \
+            --fund-year-csv sec_bridge_outputs/sec_match_by_fund_year.csv \
+            --out sec_bridge_outputs/historical_filing_coverage \
+            --max-filings-per-cik-year 5
       - name: Upload derived audit outputs only
         if: always()
         uses: actions/upload-artifact@v4
@@ -65,4 +73,3 @@ jobs:
           path: sec_bridge_outputs/**
           if-no-files-found: error
           retention-days: 30
-
