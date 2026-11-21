@@ -256,7 +256,8 @@ def main():
     candidate_rows, evidence_rows, api_errors = [], [], []
     total_cap_hits = 0
 
-    for cik, target_rows in series_by_cik.items():
+    for cik_number, (cik, target_rows) in enumerate(series_by_cik.items(), start=1):
+        print(f"[{cik_number}/{len(series_by_cik)}] Scanning CIK {cik}", flush=True)
         try:
             history = load_history(s, cik)
         except Exception as exc:
@@ -264,6 +265,7 @@ def main():
             continue
         filings, cap_hits = choose_filings(history, a.max_filings_per_cik_year)
         total_cap_hits += cap_hits
+        print(f"  selected {len(filings)} prospectus candidates; capped years={cap_hits}", flush=True)
         target_ids = {str(x["matched_series_id"]) for x in target_rows}
         names = {str(x["matched_series_id"]): str(x["series_name"]) for x in target_rows}
         for filing in filings.to_dict("records"):
@@ -355,7 +357,10 @@ def main():
                                   "prior_strategy_evidence_filings": 0, "latest_prior_prospectus_date": "",
                                   "strategy_class_asof": "unclassified"})
             continue
-        if yr <= MIN_YEAR:
+        if not cik or cik == "nan":
+            prior = evidence.iloc[0:0]
+            status = "unique_registry_match_missing_cik_mapping"
+        elif yr <= MIN_YEAR:
             prior = evidence.iloc[0:0]
             status = "pre_edgar_electronic_archive"
         else:
@@ -405,21 +410,29 @@ def main():
         annual[col + "_pct_of_registry_matches"] = (100 * annual[col] / denom).round(2)
     annual.to_csv(a.out / "sec_historical_coverage_by_year.csv", index=False)
 
+    series_cov = series.rename(columns={
+        "matched_cik": "cik", "matched_series_id": "series_id"
+    }).copy()
     if not evidence.empty:
-        series_cov = (evidence.groupby(["cik", "series_id", "series_name"]).agg(
+        evidence_summary = evidence.groupby(["cik", "series_id"]).agg(
             filings_identifying_series=("accession", "nunique"),
             accessible_prospectus_filings=("prospectus_accessible", "sum"),
             strategy_context_filings=("strategy_context_found", "sum"),
             explicit_classifications=("classification", lambda x: int(x.isin(
                 ["active", "index", "enhanced index"]).sum())),
-            first_filing_date=("filing_date", "min"), last_filing_date=("filing_date", "max"),
-            observed_fundnos=("series_id", "size")
-        ).reset_index())
+            first_filing_date=("filing_date", "min"),
+            last_filing_date=("filing_date", "max"),
+        ).reset_index()
+        series_cov = series_cov.merge(evidence_summary, on=["cik", "series_id"], how="left")
     else:
-        series_cov = pd.DataFrame(columns=["cik", "series_id", "series_name",
-                                           "filings_identifying_series", "accessible_prospectus_filings",
-                                           "strategy_context_filings", "explicit_classifications",
-                                           "first_filing_date", "last_filing_date", "observed_fundnos"])
+        for col in ["filings_identifying_series", "accessible_prospectus_filings",
+                    "strategy_context_filings", "explicit_classifications"]:
+            series_cov[col] = 0
+        series_cov["first_filing_date"] = ""
+        series_cov["last_filing_date"] = ""
+    for col in ["filings_identifying_series", "accessible_prospectus_filings",
+                "strategy_context_filings", "explicit_classifications"]:
+        series_cov[col] = series_cov[col].fillna(0).astype(int)
     series_cov.to_csv(a.out / "sec_historical_coverage_by_series.csv", index=False)
 
     metrics = {
