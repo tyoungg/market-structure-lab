@@ -334,8 +334,8 @@ def docs_from_sgml(full):
         docs.append({"form":typ.group(1).strip() if typ else "","filename":fn.group(1).strip() if fn else "","text":txt})
     return docs
 
-def series_context(text, series_name, radius=5000):
-    """Extract strategy text near a series name and a real investment-strategy heading."""
+def series_context(text, series_name, sibling_names=(), radius=5000):
+    """Extract strategy text anchored to this series and bounded by the next series name."""
     if not series_name or len(norm(series_name).replace(" ", "")) < 8:
         return []
     name_pat = re.compile(re.escape(str(series_name)), re.IGNORECASE)
@@ -346,17 +346,25 @@ def series_context(text, series_name, radius=5000):
         r"purchase\s+and\s+sale\s+of\s+fund\s+shares|additional\s+information)\b",
         re.IGNORECASE,
     )
-    name_hits = [m.start() for m in name_pat.finditer(text)]
+    # A combined prospectus often contains many series. Do not let one fund's
+    # strategy section leak into every other series merely because its name
+    # appears earlier in a table of contents.
+    sibling_hits = []
+    for sibling in sibling_names:
+        if not sibling or str(sibling).casefold() == str(series_name).casefold():
+            continue
+        sibling_hits.extend(m.start() for m in re.finditer(re.escape(str(sibling)), text, re.IGNORECASE))
+    sibling_hits.sort()
     chunks = []
-    for pos in name_hits:
-        h = heading_pat.search(text, pos, min(len(text), pos + radius))
+    for match in name_pat.finditer(text):
+        pos = match.start()
+        next_sibling = next((x for x in sibling_hits if x > pos), len(text))
+        boundary = min(len(text), pos + radius, next_sibling)
+        h = heading_pat.search(text, pos, boundary)
         if not h:
             continue
-        next_name = next((x for x in name_hits if x > pos), len(text))
-        if h.start() >= next_name:
-            continue
-        e = end_pat.search(text, h.end(), min(len(text), h.end() + radius))
-        stop = e.start() if e else min(len(text), h.end() + radius)
+        e = end_pat.search(text, h.end(), min(len(text), h.end() + radius, next_sibling))
+        stop = e.start() if e else min(len(text), h.end() + radius, next_sibling)
         chunk = text[h.start():stop].strip()
         if len(chunk) > 100:
             chunks.append(chunk[:radius])
@@ -369,9 +377,16 @@ def classify(text):
                r"\bseeks? to track (?:the )?(?:investment results|performance)",
                r"\bfull replication strategy\b",r"replicate the performance of",
                r"correspond generally to the performance of"],
+      # Require positive evidence of discretionary security selection. Generic
+      # references to fundamentals, valuation, or benchmark constituents alone
+      # are not enough to label a fund active.
       "active":[r"\bis actively managed\b",r"\bactively manages\b",
                r"\bactive stock selection\b",r"\bactive management strategy\b",
-               r"does not seek to track",r"is not an index fund"]}
+               r"does not seek to track",r"is not an index fund",
+               r"\b(?:team|portfolio managers?|investment managers?|fmr)\s+(?:ranks?|selects?|chooses?|identifies?)\s+(?:the\s+)?(?:individual\s+)?(?:stocks|securities|companies)\b",
+               r"\b(?:subjects?|evaluates?|analyzes?)\s+(?:the\s+)?(?:most\s+)?(?:attractively\s+)?(?:ranked\s+)?(?:stocks|securities)\b",
+               r"\b(?:stock|security) selection\b",
+               r"\b(?:fmr|the adviser|the investment team|the portfolio management team)\s+(?:invests|selects|chooses)\b.{0,180}\b(?:believes|considers|determines)\b"]}
     found={k:[m.group(0) for p in ps for m in re.finditer(p,t)] for k,ps in pats.items()}
     present=[k for k,v in found.items() if v]
     if "enhanced index" in present: label="enhanced index"
@@ -452,14 +467,16 @@ def fetch_evidence(identity,out,max_per_cik,max_ciks):
                     attempt["filings_downloaded"]+=1
                     ids=set(re.findall(r"\bS\d{9}\b",full))
                     docs=docs_from_sgml(full)
-                    for sr in lookup[lookup.matched_cik.astype(str).eq(str(cik))].to_dict("records"):
+                    cik_series=lookup[lookup.matched_cik.astype(str).eq(str(cik))]
+                    sibling_names=cik_series.matched_series_name.dropna().astype(str).tolist()
+                    for sr in cik_series.to_dict("records"):
                         sid=str(sr["matched_series_id"])
                         if sid not in ids:
                             continue
                         chunks=[]
                         for d in docs:
                             if any(k in (d["form"]+" "+d["filename"]).lower() for k in ["497","485","n-1a"]):
-                                chunks.extend(series_context(d["text"],sr["matched_series_name"]))
+                                chunks.extend(series_context(d["text"],sr["matched_series_name"],sibling_names))
                         if not chunks:
                             output.append({"cik":str(cik).zfill(10),"series_id":sid,"series_name":sr["matched_series_name"],
                               "filing_date":str(f["filingDate"].date()),"form":f.get("form"),"accession":acc,
