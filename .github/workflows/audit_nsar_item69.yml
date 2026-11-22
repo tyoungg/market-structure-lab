@@ -1,13 +1,6 @@
 name: Historical N-SAR Item 69 index-fund flags
 
 on:
-  push:
-    branches:
-      - RUSSEL_SP
-    paths:
-      - ".github/workflows/audit_nsar_item69.yml"
-      - "scripts/audit_nsar_item69.py"
-      - "tests/test_nsar_item69_parser.py"
   workflow_dispatch:
 
 permissions:
@@ -51,7 +44,14 @@ jobs:
           python -m unittest discover -s tests -p 'test_nsar_item69_parser.py'
           test -s nsar_headers/nsar_filing_headers.csv
           test -s prior_sec_coverage/sec_historical_coverage_by_fund_year.csv
-          test -s prior_sec_coverage/sec_historical_coverage_by_series.csv
+          test -s nsar_headers/nsar_series_coverage.csv
+          test -s nsar_headers/nsar_cik_processing_manifest.csv
+          python - <<'PY'
+          import json
+          m=json.load(open("nsar_headers/nsar_linkage_metrics.json"))
+          assert m["completed_CIKs"] == 80, m
+          assert not m["runtime_deadline_reached"], m
+          PY
       - name: Extract series-specific N-SAR Item 69 flags
         env:
           SEC_CONTACT_EMAIL: ${{ secrets.SEC_CONTACT_EMAIL }}
@@ -60,7 +60,7 @@ jobs:
           timeout 30m python scripts/audit_nsar_item69.py \
             --headers-csv nsar_headers/nsar_filing_headers.csv \
             --fund-year-csv prior_sec_coverage/sec_historical_coverage_by_fund_year.csv \
-            --series-csv prior_sec_coverage/sec_historical_coverage_by_series.csv \
+            --series-csv nsar_headers/nsar_series_coverage.csv \
             --out nsar_item69_outputs \
             --max-runtime-minutes 25
       - name: Upload derived Item 69 audit outputs

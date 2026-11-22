@@ -123,11 +123,17 @@ def main():
     req_s={"cik","series_id","series_name"}
     if not req_h.issubset(filings.columns) or not req_fy.issubset(fy.columns) or not req_s.issubset(series.columns):
         raise ValueError("Prior artifact schema mismatch")
-    target_ciks=set(filings.cik.astype(str).str.zfill(10))
+    target_ciks=set(series.cik.astype(str).str.zfill(10))
     target_series=series[series.cik.astype(str).str.zfill(10).isin(target_ciks)].copy()
+    if not target_ciks or target_series.empty:
+        raise ValueError("Sample-only N-SAR series coverage file is empty")
+    if target_series.series_id.duplicated().any():
+        raise ValueError("Duplicate series IDs in sample-only N-SAR series coverage file")()
     target_pairs=set(zip(target_series.cik.astype(str).str.zfill(10),target_series.series_id.astype(str)))
+    filed_dates=pd.to_datetime(filings.filing_date,errors="coerce")
     chosen=filings[(filings.status.eq("target_series_id_found")) &
-                   pd.to_numeric(filings.target_series_matches,errors="coerce").gt(0)].copy()
+                   pd.to_numeric(filings.target_series_matches,errors="coerce").gt(0) &
+                   filed_dates.le(pd.Timestamp("2009-12-31"))].copy()
     sess=make_session()
     evidence=[]; registrant=[]; unmatched=[]; errors=[]; completed=0; timed_out=False
     for i,row in enumerate(chosen.to_dict("records"),1):
@@ -209,6 +215,10 @@ def main():
     asof=[]
     for r in fy.to_dict("records"):
         year=r.get("year_num"); cik=r.get("matched_cik_norm"); sid=str(r.get("matched_series_id") or "")
+        if not cik or cik=="NAN":
+            asof.append({**r,"nsar_index_fund_status":"unclassified_no_CIK"}); continue
+        if cik not in target_ciks:
+            asof.append({**r,"nsar_index_fund_status":"unclassified_CIK_not_in_N-SAR_sample"}); continue
         if pd.isna(year) or r.get("series_match_status")!="unique_series" or not sid or sid=="nan":
             asof.append({**r,"nsar_index_fund_status":"unclassified_no_unique_SEC_series"}); continue
         cutoff=pd.Timestamp(year=int(year),month=1,day=1)
@@ -236,7 +246,8 @@ def main():
     metrics={
       "source":"SEC Form N-SAR Item 69, contemporaneous answer.fil",
       "sample_ciks":int(len(target_ciks)),"sampled_target_series":int(len(target_series)),
-      "selected_header_filings_with_target_series":int(len(chosen)),
+      "selected_header_filings_with_target_series_through_2009":int(len(chosen)),
+      "fund_year_rows_in_sample":int(asof.matched_cik.astype(str).str.zfill(10).isin(target_ciks).sum()),
       "answer_documents_processed":completed,
       "item69_series_evidence_rows":int(len(ev)),
       "target_series_with_item69_evidence":int(ev.series_id.nunique()) if not ev.empty else 0,
@@ -262,7 +273,7 @@ def main():
       "## Method","",
       "The script reads the N-SAR answer document from each sampled submission, parses Item 007's series ordinal/name list and Item 69's Y/N response, and maps the ordinal to the SEC series ID only through a unique normalized name match between Item 007 and the same filing's SEC header. Ambiguous and unmatched names are retained as unresolved; no positional guess is used.",
       "Fund-year as-of labels require the N-SAR filing date to precede January 1 of the observation year and the reported period to be no more than 548 days old. Same-year filings are not backdated.",
-      "The sample is the deterministic 80-CIK subset from the prior SEC audit, not a probability sample. Results must not be extrapolated to all registrants or to pre-1994 observations.","",
+      "The sample denominator is taken from the sample-only series-coverage input, not inferred from CIKs that happened to return filings. Only filings dated on or before 2009-12-31 are downloaded for this 1979-2009 panel. Fund-year rows belonging to the other 471 registrants are explicitly marked unclassified_CIK_not_in_N-SAR_sample. The sample is deterministic, not probability-representative; do not extrapolate.","",
       "## Outputs","",
       "- nsar_item69_series_evidence.csv — direct per-series Item 69 answers.",
       "- nsar_item69_fund_year_asof.csv — conservative as-of labels joined to fund-year records.",
