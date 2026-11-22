@@ -1,23 +1,69 @@
+name: Publish GitHub Wiki
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/RUSSEL_SP'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: RUSSEL_SP
+
+      - name: Validate Wiki publishing token
+        env:
+          WIKI_PUSH_TOKEN: \${{ secrets.WIKI_PUSH_TOKEN }}
+        run: |
+          set -euo pipefail
+          set +x
+          if [ -z "$WIKI_PUSH_TOKEN" ]; then
+            echo "::error::WIKI_PUSH_TOKEN is empty. Add a GitHub personal access token with access to this repository's Wiki."
+            exit 1
+          fi
+          status="$(curl -sS -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer $WIKI_PUSH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/user)"
+          if [ "$status" != "200" ]; then
+            echo "::error::GitHub rejected WIKI_PUSH_TOKEN (HTTP $status)."
+            exit 1
+          fi
+          echo "GitHub accepted the publishing token."
+
       - name: Publish version-controlled Wiki pages
         env:
-          WIKI_PUSH_TOKEN: ${{ secrets.WIKI_PUSH_TOKEN }}
+          WIKI_PUSH_TOKEN: \${{ secrets.WIKI_PUSH_TOKEN }}
           GIT_TERMINAL_PROMPT: "0"
         run: |
           set -euo pipefail
-          
-          # Clone using x-access-token in the URL
-          git clone "https://x-access-token:${WIKI_PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" wiki-publish
-          
+          set +x
+
+          # GitHub's Git-over-HTTPS endpoint requires HTTP Basic authentication.
+          # Keep the token out of the remote URL and command output.
+          AUTH_HEADER="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$WIKI_PUSH_TOKEN" | base64 -w0)"
+
+          if ! git -c http.extraheader="$AUTH_HEADER" clone \
+            "https://github.com/\${GITHUB_REPOSITORY}.wiki.git" wiki-publish; then
+            echo "::error::Could not clone the Wiki repository. Confirm that its first page has been created in the GitHub Wiki UI and that WIKI_PUSH_TOKEN has Wiki write access."
+            exit 1
+          fi
+
           rsync -av --exclude=.git docs/wiki/ wiki-publish/
           cd wiki-publish
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          
+
           if git diff --cached --quiet; then
             echo "Wiki is already up to date."
             exit 0
           fi
-          
-          git commit -m "Publish Wiki from ${GITHUB_SHA}"
-          git push origin HEAD
+
+          git commit -m "Publish Wiki from \${GITHUB_SHA}"
+          git -c http.extraheader="$AUTH_HEADER" push origin HEAD
