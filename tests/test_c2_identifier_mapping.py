@@ -74,5 +74,43 @@ class C2IdentifierMappingTests(unittest.TestCase):
         self.assertEqual(result["status"], "no_ticker_match")
 
 
+    def test_starting_universe_includes_funds_and_benchmark_proxies(self):
+        base = {
+            "report_date": "2025-06-30", "is_common_equity": "True",
+            "pct_net_assets": "5.0", "isin": "US0378331005",
+            "cusip": "037833100", "ticker": "", "name": "Apple Inc.",
+            "investment_country": "US",
+        }
+        holdings = pd.DataFrame([
+            {**base, "entity": "Fund A", "role": "fund"},
+            {**base, "entity": "SPY", "role": "benchmark_sp500"},
+            {**base, "entity": "IWB", "role": "benchmark_russell1000"},
+        ])
+        universe, start = build_security_universe(holdings)
+        self.assertEqual(len(universe), 1, "same security should be mapped once")
+        self.assertEqual(universe[0]["entity_count"], 3)
+        self.assertEqual(universe[0]["fund_count"], 1)
+        self.assertEqual(set(universe[0]["roles"].split("|")),
+                         {"fund", "benchmark_sp500", "benchmark_russell1000"})
+        self.assertEqual(set(start["entity"]), {"Fund A", "SPY", "IWB"})
+
+    def test_non_starting_date_and_non_equity_rows_are_excluded(self):
+        rows = []
+        for date, equity, entity in [
+            ("2025-06-30", "True", "Fund A"),
+            ("2025-09-30", "True", "Fund B"),
+            ("2025-06-30", "False", "Fund C"),
+        ]:
+            rows.append({
+                "entity": entity, "role": "fund", "report_date": date,
+                "is_common_equity": equity, "pct_net_assets": "5.0",
+                "isin": "US0378331005", "cusip": "037833100",
+                "ticker": "", "name": "Apple Inc.", "investment_country": "US",
+            })
+        universe, start = build_security_universe(pd.DataFrame(rows))
+        self.assertEqual(len(universe), 1)
+        self.assertEqual(set(start["entity"]), {"Fund A"})
+
+
 if __name__ == "__main__":
     unittest.main()
