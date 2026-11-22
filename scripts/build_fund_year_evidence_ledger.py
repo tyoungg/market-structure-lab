@@ -66,6 +66,25 @@ def apply_manual_adjudications(fy, manual):
         fy.loc[mask,"manual_adjudication_coordinate"]=str(r.item69_coordinate)
     return fy
 
+def prospectus_staleness_sensitivity(items):
+    """Summarize eligible prospectus evidence under predeclared 1/2/3-year age caps."""
+    p=items.loc[items.source_type.eq("SEC_prospectus_or_related_filing") & items.asof_eligible].copy()
+    p["evidence_age_days"]=pd.to_numeric(p.evidence_age_days,errors="coerce")
+    windows=[("365_days",365),("730_days",730),("1095_days",1095),("no_expiry",None)]
+    rows=[]
+    for label,limit in windows:
+        q=p if limit is None else p.loc[p.evidence_age_days.le(limit)]
+        rows.append({
+            "window":label,"max_age_days":"" if limit is None else limit,
+            "fund_year_evidence_links":len(q),
+            "unique_fund_years":q[["fundno_key","fund_year"]].drop_duplicates().shape[0],
+            "unique_evidence_events":q.evidence_event_id.nunique(),
+            "unique_series":q[["cik_norm","series_id_norm"]].drop_duplicates().shape[0],
+            "active_candidate_links":int(q.candidate_class.eq("active").sum()),
+            "unclassified_evidence_links":int(q.candidate_class.eq("unclassified").sum())
+        })
+    return pd.DataFrame(rows)
+
 def build(a):
     out=a.out; out.mkdir(parents=True,exist_ok=True)
     fy, p, n, nsar_asof, h = map(read,[a.fund_year_csv,a.prospectus_evidence_csv,a.nsar_evidence_csv,a.nsar_asof_csv,a.nsar_header_matches_csv])
@@ -210,6 +229,8 @@ def build(a):
 
     itemcols=["fundno_key","fund_year","cik_norm","series_id_norm","matched_series_name","link_type","share_class_ambiguous","evidence_event_id","source_tier","source_type","form","accession","filing_date","report_date","evidence_url","evidence_text","raw_response","item69_coordinate","item69_coordinate_source_status","candidate_class","candidate_reason","review_status","evidence_age_days","report_age_days","filing_precedes_cutoff","report_precedes_cutoff","asof_eligible","temporal_exclusion_reason","prospectus_staleness_bucket"]
     items[itemcols].to_csv(out/"fund_year_evidence_items.csv",index=False)
+    staleness=prospectus_staleness_sensitivity(items)
+    staleness.to_csv(out/"prospectus_staleness_sensitivity.csv",index=False)
     fy.to_csv(out/"fund_year_evidence_ledger.csv",index=False)
     q=p.loc[p.classification.ne("unclassified")].copy()
     q["review_status"]=q.manual_review_status.where(q.manual_review_status.ne(""),"manual_review_required_unreviewed_candidate")
