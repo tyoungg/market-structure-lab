@@ -51,6 +51,32 @@ class C2IdentifierMappingTests(unittest.TestCase):
         self.assertEqual(result["selected"]["ticker"], "ABC")
         self.assertEqual(result["selected"]["exchCode"], "US")
 
+    def test_rejects_openfigi_security_description_codes_and_selects_real_ticker(self):
+        matches = [
+            {"ticker": "9666678D", "marketSector": "Equity", "securityType2": "Common Stock",
+             "exchCode": "US", "figi": "BBG000000001"},
+            {"ticker": "GTES", "marketSector": "Equity", "securityType2": "Common Stock",
+             "exchCode": "UA", "figi": "BBG000000002"},
+            {"ticker": "GTES", "marketSector": "Equity", "securityType2": "Common Stock",
+             "exchCode": "UN", "figi": "BBG000000003"},
+        ]
+        result = select_ticker(matches, "GB")
+        self.assertEqual(result["status"], "unique_ticker")
+        self.assertEqual(result["selected"]["ticker"], "GTES")
+        self.assertEqual(result["candidate_tickers"], ["GTES"])
+
+    def test_rejects_openfigi_security_description_when_no_real_ticker_exists(self):
+        matches = [
+            {"ticker": "9666655D", "marketSector": "Equity", "securityType2": "Common Stock",
+             "exchCode": "US", "figi": "BBG000000001"},
+            {"ticker": "9666655D", "marketSector": "Equity", "securityType2": "Common Stock",
+             "exchCode": "UN", "figi": "BBG000000002"},
+        ]
+        result = select_ticker(matches, "US")
+        self.assertEqual(result["status"], "no_ticker_match")
+        self.assertIsNone(result["selected"])
+        self.assertEqual(result["candidate_tickers"], [])
+
     def test_distinct_ticker_candidates_remain_ambiguous(self):
         matches = [
             {"ticker": "ABC", "marketSector": "Equity", "securityType2": "Common Stock",

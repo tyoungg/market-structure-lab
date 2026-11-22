@@ -76,10 +76,24 @@ def build_security_universe(holdings: pd.DataFrame) -> tuple[list[dict], pd.Data
     return rows, start
 
 
+def valid_openfigi_ticker(value: str) -> bool:
+    """Reject FIGI security-description codes that are not usable market tickers."""
+    ticker = str(value or "").strip().upper()
+    if not valid(ticker):
+        return False
+    # OpenFIGI can return an eight-character numeric/alphanumeric security
+    # description (for example 9666678D) in its ticker field. These are not
+    # Yahoo-compatible equity symbols; do not silently price them as tickers.
+    if len(ticker) == 8 and ticker[:7].isdigit() and ticker[-1].isalpha():
+        return False
+    return True
+
+
 def select_ticker(matches: list[dict], country: str = "") -> dict:
     equity = [
         x for x in matches
-        if x.get("ticker") and x.get("marketSector") in {"Equity", None}
+        if valid_openfigi_ticker(x.get("ticker", ""))
+        and x.get("marketSector") in {"Equity", None}
         and x.get("securityType2", "Common Stock") not in {"Option", "Warrant"}
     ]
     if not equity:
@@ -87,7 +101,7 @@ def select_ticker(matches: list[dict], country: str = "") -> dict:
     us = [x for x in equity if str(x.get("exchCode", "")).upper() == "US"]
     country_matches = [x for x in equity if country and str(x.get("exchCode", "")).upper() == country.upper()]
     preferred = us or country_matches or equity
-    tickers = sorted({str(x.get("ticker", "")).strip().upper() for x in preferred if x.get("ticker")})
+    tickers = sorted({str(x.get("ticker", "")).strip().upper() for x in preferred})
     if len(tickers) == 1:
         selected = next(x for x in preferred if str(x.get("ticker", "")).strip().upper() == tickers[0])
         return {"status": "unique_ticker", "selected": selected, "candidate_tickers": tickers}
