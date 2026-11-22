@@ -1,7 +1,7 @@
 # C.2 Public N-PORT No-Trade Drift Pilot Protocol
 
 **Branch:** `RUSSEL_SP`  
-**Status:** Initial SEC holdings acquisition and parser pilot  
+**Status:** Completed one-fund, one-quarter public-data no-trade drift pilot  
 **Scope:** One active fund, two consecutive quarter-end portfolios, two ETF benchmark proxies. This is a method-feasibility sample, not a representative empirical sample.
 
 ## 1. Pilot sample
@@ -120,6 +120,28 @@ Do not publish a drift estimate unless:
 - the benchmark is labeled as an ETF proxy, not an official index portfolio.
 
 If a gate fails, publish the acquisition/coverage audit only and state why the drift estimate is withheld.
+
+## 8. First no-trade drift result
+
+The end-to-end run [45029952352](https://github.com/tyoungg/market-structure-lab/actions/runs/45029952352) completed successfully and uploaded artifact [14757665853](https://github.com/tyoungg/market-structure-lab/actions/runs/45029952352/artifacts/14757665853). The generated report is version-controlled at [`C2_NO_TRADE_DRIFT_PILOT_REPORT.md`](C2_NO_TRADE_DRIFT_PILOT_REPORT.md).
+
+The price coverage gate passed: **99.923363%** of starting equity value had adjusted endpoint prices. One listed ticker (EXAS) and two non-ticker positions (ABIOMED CVR and Magic Leap) were carried at zero return. Their combined starting weight is **0.076637%** of the equity sleeve. This is disclosed in the output; it is not silently imputed as observed performance.
+
+| Measure | SPY proxy | IWB proxy |
+|---|---:|---:|
+| Actual Active Share, June 30 | 52.031% | 54.738% |
+| No-trade Active Share at September 30 vs. frozen June benchmark | 52.027% | 54.743% |
+| No-trade Active Share at September 30 vs. September benchmark | 50.012% | 52.952% |
+| Actual Active Share, September 30 | 49.634% | 52.800% |
+| Fund price-drift component | -0.005 pp | +0.006 pp |
+| Benchmark-weight-change component | -2.015 pp | -1.791 pp |
+| Actual-portfolio-change-beyond-drift component | -0.378 pp | -0.152 pp |
+| Reconciliation error | 0.000 pp | 0.000 pp |
+| Actual-versus-no-trade portfolio distance | 13.200% | 13.200% |
+
+The decomposition is ordered: fund price drift against the frozen June benchmark, then benchmark-weight changes, then actual portfolio change beyond no-trade drift. The components reconcile exactly. The price-drift component is negligible in this interval; most of the measured Active Share decline comes from benchmark weight changes. The actual fund portfolio differs from the no-trade portfolio by 13.2% one-way, but this is not pure manager turnover or a causal trading estimate.
+
+Yahoo Finance adjusted close via `yfinance 1.8.0` is an exploratory public price source. The package is not affiliated with or endorsed by Yahoo; Yahoo's data terms apply. The 2025 pilot is not pooled with the historical TR/CRSP panel.
 
 ## 7. Limitations
 
