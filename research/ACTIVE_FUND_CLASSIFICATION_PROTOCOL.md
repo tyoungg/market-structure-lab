@@ -151,3 +151,14 @@ C.1 passes only if positive active classifications are supported by contemporane
 - Corrected N-SAR Item 69 extraction: 9 Y fund-years, 181 N-not-active fund-years, 22,090 unclassified fund-years; deterministic 80-CIK sample, one filing-level 504 error retained. See [the full audit report](NSAR_SERIES_LINKAGE_FEASIBILITY.md) and [workflow run 45017599142](https://github.com/tyoungg/market-structure-lab/actions/runs/45017599142).
 
 No active-only panel is currently validated. The next step under issue #11 is to build and audit the evidence-level fund-year ledger, beginning with the existing SEC series links and filings, and make an explicit go/no-go decision.
+
+
+## 10. Fund-year evidence ledger implementation
+
+The reproducible builder is `scripts/build_fund_year_evidence_ledger.py`; the method and source-artifact manifest are documented in [FUND_YEAR_EVIDENCE_LEDGER_METHOD.md](FUND_YEAR_EVIDENCE_LEDGER_METHOD.md). The workflow is [Build fund-year SEC evidence ledger](../.github/workflows/build_fund_year_evidence_ledger.yml).
+
+The initial local build reconciled to the frozen SEC artifacts: 22,280 fund-year rows, 9,077 unique SEC series-linked rows, 4,664 multiple-series ambiguous rows, 8,539 without a strict candidate, and 4,087 share-class-ambiguous linked rows. It attached 17,302 fund-year/evidence-event pairs, of which 855 met the as-of timing rules (30 prospectus, 266 Item 69, 559 historical header-identity links). The N-SAR status panel reconciled exactly: 9 Item 69 Y, 181 N-not-active, 1,238 sampled rows without a recent prior N-SAR, and 20,852 outside the deterministic N-SAR sample.
+
+This is an evidence ledger, not a validated classification panel. All 22,280 `final_class` values remain `unclassified`; nine rows carry a provisional passive-index candidate, and no active labels are promoted. The five automated prospectus active candidates are held in a manual-review queue and none qualifies under the January 1 cutoff for this 1980–2009 panel. The current Item 69 source artifact omitted the original response coordinate; the ledger flags that gap rather than reconstructing it.
+
+The canonical GitHub Actions run is the required reproducibility check. No active-only result is authorized until that run succeeds and the manual review, effective-date, coordinate, and prospectus-staleness gaps are resolved.
