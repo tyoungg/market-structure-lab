@@ -320,6 +320,7 @@ def main() -> None:
         "start_date": START_DATE, "end_date": END_DATE,
         "price_source": "Yahoo Finance adjusted close via yfinance",
         "yfinance_version": yfinance_version,
+        "pandas_version": pd.__version__,
         "price_download_timestamp_utc": datetime.now(timezone.utc).isoformat(),
         "price_coverage_pct_starting_equity_value": round(100 * price_coverage, 6),
         "unpriced_starting_equity_weight_pct": round(100 * unpriced_weight, 8),
