@@ -14,7 +14,7 @@ from pathlib import Path
 from audit_c2_nport_pilot import download_xml, parse_nport_xml, summarize, validate_identity, write_csv
 
 
-EXPECTED_DATES = ["2025-06-30", "2025-09-30"]
+EXPECTED_DATES = ["2025-06-30", "2025-09-30", "2025-12-31"]
 
 
 def read_manifest(path: Path) -> list[dict]:
@@ -28,8 +28,8 @@ def read_manifest(path: Path) -> list[dict]:
 
 
 def validate_manifest(specs: list[dict]) -> None:
-    if len(specs) != 16:
-        raise ValueError(f"Expected 16 filing rows, found {len(specs)}")
+    if len(specs) != 24:
+        raise ValueError(f"Expected 24 filing rows, found {len(specs)}")
     funds = sorted({x["entity"] for x in specs if x["role"] == "fund"})
     benchmarks = sorted({x["entity"] for x in specs if x["role"].startswith("benchmark_")})
     if len(funds) != 6 or benchmarks != ["IWB", "SPY"]:

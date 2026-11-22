@@ -43,9 +43,9 @@ def security_id(row: dict) -> str:
     return "NAME:" + " ".join(name.split())
 
 
-def build_security_universe(holdings: pd.DataFrame) -> tuple[list[dict], pd.DataFrame]:
+def build_security_universe(holdings: pd.DataFrame, start_date: str = START_DATE) -> tuple[list[dict], pd.DataFrame]:
     start = holdings[
-        holdings["report_date"].eq(START_DATE)
+        holdings["report_date"].eq(start_date)
         & holdings["is_common_equity"].astype(str).str.lower().eq("true")
     ].copy()
     if start.empty:
@@ -295,13 +295,14 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", default="c2_nport_cohort")
     parser.add_argument("--out", default="c2_nport_cohort")
+    parser.add_argument("--start-date", default=START_DATE)
     args = parser.parse_args()
     source = Path(args.input)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
     holdings = pd.read_csv(source / "nport_cohort_common_equity.csv", dtype=str).fillna("")
-    universe, start = build_security_universe(holdings)
+    universe, start = build_security_universe(holdings, args.start_date)
     api_key = os.environ.get("OPENFIGI_API_KEY", "").strip()
     mapped, raw_log = run_mapping(universe, api_key)
 
@@ -339,6 +340,7 @@ def main() -> None:
         "api_key_used": bool(api_key),
         "unauthenticated_rate_limit": "25 requests/minute; 10 jobs/request",
         "include_unlisted_equities": True,
+        "start_date": args.start_date,
         "unique_starting_securities": len(universe),
         "starting_entities": sorted(start["entity"].astype(str).unique().tolist()),
         "fund_count": int(start.loc[start["role"].eq("fund"), "entity"].nunique()),
@@ -363,7 +365,7 @@ def main() -> None:
     lines = [
         "# C.2 Security Identifier Mapping Audit",
         "",
-        f"Mapped {summary['unique_starting_securities']} unique starting-date securities across {summary['fund_count']} funds and {summary['benchmark_count']} ETF benchmark proxies using N-PORT tickers and OpenFIGI v3.",
+        f"Mapped {summary['unique_starting_securities']} unique securities at {args.start_date} across {summary['fund_count']} funds and {summary['benchmark_count']} ETF benchmark proxies using N-PORT tickers and OpenFIGI v3.",
         "",
         "| Entity | Role | Ticker mapping coverage (% starting equity) | Unmapped weight (%) |",
         "|---|---:|---:|",

@@ -57,13 +57,16 @@ jobs:
         run: |
           timeout 20m python scripts/map_c2_cohort_identifiers.py \
             --input c2_nport_cohort \
-            --out c2_nport_cohort
+            --out c2_nport_cohort \
+            --start-date 2025-09-30
 
       - name: Calculate six-fund no-trade drift and Active Share decompositions
         run: |
           timeout 35m python scripts/build_c2_cohort_no_trade_drift.py \
             --input c2_nport_cohort \
-            --out c2_nport_cohort
+            --out c2_nport_cohort \
+            --start-date 2025-09-30 \
+            --end-date 2025-12-31
 
       - name: Upload C2 acquisition, mapping, and drift artifact
         uses: actions/upload-artifact@v4

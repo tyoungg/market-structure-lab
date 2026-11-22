@@ -62,6 +62,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", default="c2_nport_cohort")
     parser.add_argument("--out", default="c2_nport_cohort")
+    parser.add_argument("--start-date", default=START_DATE)
+    parser.add_argument("--end-date", default=END_DATE)
     args = parser.parse_args()
     source, out = Path(args.input), Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -76,27 +78,29 @@ def main() -> None:
         raise ValueError("Security mapping contains duplicate security_id rows")
     ticker_by_security = dict(zip(mapping["security_id"], mapping["mapped_ticker"].str.strip().str.upper()))
 
-    entities = sorted(holdings.loc[holdings["report_date"].eq(START_DATE), "entity"].unique())
+    entities = sorted(holdings.loc[holdings["report_date"].eq(args.start_date), "entity"].unique())
     roles = holdings.groupby("entity")["role"].first().to_dict()
     portfolios: dict[tuple[str, str], pd.DataFrame] = {}
     portfolio_meta = []
     for entity in entities:
-        for date in (START_DATE, END_DATE):
+        for date in (args.start_date, args.end_date):
             meta, frame = portfolio(holdings, entity, date, ticker_by_security)
             portfolios[(entity, date)] = frame
             portfolio_meta.append(meta)
 
     start_tickers = sorted({
         ticker for entity in entities
-        for ticker in portfolios[(entity, START_DATE)]["mapped_ticker"].tolist() if ticker
+        for ticker in portfolios[(entity, args.start_date)]["mapped_ticker"].tolist() if ticker
     })
     ticker_isins = {}
     for entity in entities:
-        frame = portfolios[(entity, START_DATE)]
+        frame = portfolios[(entity, args.start_date)]
         for row in frame.to_dict("records"):
             if row["mapped_ticker"] and row["isin"]:
                 ticker_isins.setdefault(row["mapped_ticker"], row["isin"])
-    prices, price_audit, yfinance_version = download_total_returns(start_tickers, ticker_isins)
+    prices, price_audit, yfinance_version = download_total_returns(
+        start_tickers, ticker_isins, start_date=args.start_date, end_date=args.end_date
+    )
 
     mapping_coverage_by_entity = {
         row["entity"]: float(row["ticker_mapping_coverage_pct_starting_equity"]) / 100.0
@@ -107,7 +111,7 @@ def main() -> None:
     unpriced_by_entity: dict[str, list[str]] = {}
     price_rows = []
     for entity in entities:
-        frame = portfolios[(entity, START_DATE)]
+        frame = portfolios[(entity, args.start_date)]
         returns, unpriced = {}, []
         priced_weight = 0.0
         for row in frame.to_dict("records"):
@@ -153,7 +157,7 @@ def main() -> None:
     benchmark_entities = [x for x in entities if str(roles[x]).startswith("benchmark_")]
     decompositions, sensitivity_rows, drift_rows = [], [], []
     for fund in fund_entities:
-        f0, f1 = portfolios[(fund, START_DATE)], portfolios[(fund, END_DATE)]
+        f0, f1 = portfolios[(fund, args.start_date)], portfolios[(fund, args.end_date)]
         start_weights = dict(zip(f0["security_id"], f0["weight"]))
         actual_end = dict(zip(f1["security_id"], f1["weight"]))
         fund_returns = returns_by_entity[fund]
@@ -174,7 +178,7 @@ def main() -> None:
                 "price_status": "priced" if sid not in unpriced_by_entity[fund] else "unpriced_zero_return_assumption",
             })
         for benchmark in benchmark_entities:
-            b0, b1 = portfolios[(benchmark, START_DATE)], portfolios[(benchmark, END_DATE)]
+            b0, b1 = portfolios[(benchmark, args.start_date)], portfolios[(benchmark, args.end_date)]
             b_start = dict(zip(b0["security_id"], b0["weight"]))
             b_end = dict(zip(b1["security_id"], b1["weight"]))
             gate_pass = all(
@@ -214,7 +218,7 @@ def main() -> None:
 
     metrics = {
         "study": "C.2 six-fund no-trade drift cohort",
-        "start_date": START_DATE, "end_date": END_DATE,
+        "start_date": args.start_date, "end_date": args.end_date,
         "funds": fund_entities, "benchmark_proxies": benchmark_entities,
         "price_source": "Yahoo Finance auto-adjusted close via yfinance",
         "yfinance_version": yfinance_version, "pandas_version": pd.__version__,
@@ -246,7 +250,7 @@ def main() -> None:
     lines = [
         "# C.2 Six-Fund No-Trade Drift and Active Share",
         "",
-        f"Period: {START_DATE} to {END_DATE}. Price source: Yahoo Finance auto-adjusted close (yfinance {yfinance_version}).",
+        f"Period: {args.start_date} to {args.end_date}. Price source: Yahoo Finance auto-adjusted close (yfinance {yfinance_version}).",
         "",
         "| Entity | Role | Ticker mapping coverage (%) | Price coverage (%) | Mapping gate | Price gate | Unpriced weight (%) |",
         "|---|---|---:|---|---:|",

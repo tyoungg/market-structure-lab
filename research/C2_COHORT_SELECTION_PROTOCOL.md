@@ -2,7 +2,7 @@
 
 **Branch:** `RUSSEL_SP`  
 **Status:** Candidate cohort predeclared; SEC holdings acquisition audit pending  
-**Holdings dates:** 2025-06-30 and 2025-09-30  
+**Holdings dates:** 2025-06-30, 2025-09-30, and 2025-12-31  
 **Funds:** Six active-management candidates, provisionally grouped into growth, value, and blend buckets  
 **Benchmarks:** SPY and IWB N-PORT holdings proxies
 
@@ -40,7 +40,7 @@ These are the starting references for manual strategy review. A prospectus dated
 
 ## 4. Frozen holdings manifest
 
-The exact 16 filing records—six funds and two benchmark proxies, each at both dates—are frozen in [`C2_COHORT_MANIFEST.csv`](C2_COHORT_MANIFEST.csv). The manifest records the expected registrant CIK, series ID, series name, accession, report date, and primary XML URL.
+The exact 24 filing records—six funds and two benchmark proxies, each at all three dates—are frozen in [`C2_COHORT_MANIFEST.csv`](C2_COHORT_MANIFEST.csv). The manifest records the expected registrant CIK, series ID, series name, accession, report date, and primary XML URL.
 
 The acquisition workflow must validate:
 
@@ -77,7 +77,7 @@ Raw SEC XML files are not committed to the repository.
 
 Do not calculate pooled cohort results until:
 
-- all 16 N-PORT filings pass date and identity validation;
+- all 24 N-PORT filings pass date and identity validation;
 - all six candidate funds have reviewed strategy evidence and provisional style buckets are confirmed or corrected;
 - common-equity holdings reconcile to reported values;
 - duplicate CUSIPs are aggregated;
@@ -94,3 +94,8 @@ The same equity-only Active Share formula, no-trade total-return drift, ordered 
 - SPY and IWB are ETF holdings proxies, not official index constituent/weight files.
 - Yahoo Finance adjusted prices remain an exploratory public price source.
 - This 2025 cohort remains separate from the historical 1979–2023 TR/CRSP panel until a valid fund/provider bridge is established.
+
+
+## 9. Second-quarter transition pre-registration
+
+The extension adds the 2025-12-31 filings for the same eight entities. The next calculation is explicitly the 2025-09-30 to 2025-12-31 transition; it does not reselect funds, alter benchmark proxies, or pool the two quarterly transitions before examining each separately. The mapping universe is constructed from 2025-09-30 common-equity holdings only, and all price returns use exact 2025-09-30 and 2025-12-31 adjusted-close endpoints. Each entity retains its own 95% mapping and price coverage gates. Missing or ambiguous mappings remain unresolved rather than being filled by ticker guesses.

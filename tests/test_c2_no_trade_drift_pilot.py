@@ -7,6 +7,13 @@ from build_c2_no_trade_drift_pilot import active_share, drift_weights, decompose
 
 
 class NoTradeDriftTests(unittest.TestCase):
+    def test_download_total_returns_accepts_adjacent_quarter_endpoints(self):
+        import inspect
+        from build_c2_no_trade_drift_pilot import download_total_returns
+        params = inspect.signature(download_total_returns).parameters
+        self.assertIn("start_date", params)
+        self.assertIn("end_date", params)
+
     def test_active_share(self):
         a = {"CUSIP:111111111": 0.6, "CUSIP:222222222": 0.4}
         b = {"CUSIP:111111111": 0.4, "CUSIP:222222222": 0.6}

@@ -166,10 +166,12 @@ def _extract_close(data: pd.DataFrame, ticker: str, requested_count: int) -> pd.
     return None
 
 
-def download_total_returns(tickers: list[str], ticker_isins: dict[str, str] = None) -> tuple[dict, list[dict], str]:
+def download_total_returns(tickers: list[str], ticker_isins: dict[str, str] = None,
+                           start_date: str = START_DATE, end_date: str = END_DATE) -> tuple[dict, list[dict], str]:
     import yfinance as yf
 
     ticker_isins = ticker_isins or {}
+    end_exclusive = (pd.Timestamp(end_date) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
     unique = sorted(set(tickers))
     symbol_map = {ticker: yahoo_symbol(ticker, ticker_isins.get(ticker, "")) for ticker in unique}
     yahoo_symbols = sorted(set(symbol_map.values()))
@@ -182,7 +184,7 @@ def download_total_returns(tickers: list[str], ticker_isins: dict[str, str] = No
         for attempt in range(3):
             try:
                 data = yf.download(
-                    tickers=batch, start=PRICE_START, end=PRICE_END_EXCLUSIVE,
+                    tickers=batch, start=start_date, end=end_exclusive,
                     auto_adjust=True, actions=False, progress=False, threads=False,
                     group_by="ticker", timeout=30,
                 )
@@ -201,7 +203,7 @@ def download_total_returns(tickers: list[str], ticker_isins: dict[str, str] = No
             series = pd.to_numeric(close, errors="coerce").dropna()
             dates = pd.to_datetime(series.index).date
             by_date = {d.isoformat(): float(v) for d, v in zip(dates, series.values)}
-            p0, p1 = by_date.get(START_DATE), by_date.get(END_DATE)
+            p0, p1 = by_date.get(start_date), by_date.get(end_date)
             if p0 and p1 and p0 > 0 and p1 > 0:
                 ret = p1 / p0 - 1.0
                 prices[original] = {"yahoo_symbol": yahoo, "start_adj_close": p0,

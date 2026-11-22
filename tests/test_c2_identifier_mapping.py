@@ -169,13 +169,31 @@ class C2IdentifierMappingTests(unittest.TestCase):
             {**base, "entity": "SPY", "role": "benchmark_sp500"},
             {**base, "entity": "IWB", "role": "benchmark_russell1000"},
         ])
-        universe, start = build_security_universe(holdings)
+        universe, start = build_security_universe(holdings, "2025-06-30")
         self.assertEqual(len(universe), 1, "same security should be mapped once")
         self.assertEqual(universe[0]["entity_count"], 3)
         self.assertEqual(universe[0]["fund_count"], 1)
         self.assertEqual(set(universe[0]["roles"].split("|")),
                          {"fund", "benchmark_sp500", "benchmark_russell1000"})
         self.assertEqual(set(start["entity"]), {"Fund A", "SPY", "IWB"})
+
+    def test_security_universe_uses_requested_quarter_start(self):
+        rows = []
+        for date, isin, ticker in [
+            ("2025-06-30", "US0378331005", "AAPL"),
+            ("2025-09-30", "US5949181045", "MSFT"),
+            ("2025-12-31", "US0231351067", "AMZN"),
+        ]:
+            rows.append({
+                "entity": "Fund A", "role": "fund", "report_date": date,
+                "is_common_equity": "True", "pct_net_assets": "5.0",
+                "isin": isin, "cusip": "", "ticker": ticker,
+                "name": "Security", "investment_country": "US",
+            })
+        universe, selected = build_security_universe(pd.DataFrame(rows), "2025-09-30")
+        self.assertEqual(len(universe), 1)
+        self.assertEqual(universe[0]["security_id"], "ISIN:US5949181045")
+        self.assertEqual(set(selected["report_date"]), {"2025-09-30"})
 
     def test_non_starting_date_and_non_equity_rows_are_excluded(self):
         rows = []

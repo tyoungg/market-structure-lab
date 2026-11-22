@@ -19,7 +19,7 @@ def sample_manifest():
         ("Oakmark Fund", "value", "0000872323", "S000002758"),
     ]
     for entity, style, cik, series in funds:
-        for date in ("2025-06-30", "2025-09-30"):
+        for date in ("2025-06-30", "2025-09-30", "2025-12-31"):
             rows.append({
                 "entity":entity,"role":"fund","style_bucket":style,"report_date":date,
                 "cik":cik,"series_id":series,"series_name":entity,
@@ -29,7 +29,7 @@ def sample_manifest():
         ("SPY","benchmark_sp500","0000884394","","SPDR S&P 500 ETF Trust"),
         ("IWB","benchmark_russell1000","0001100663","S000004347","iShares Russell 1000 ETF"),
     ]:
-        for date in ("2025-06-30", "2025-09-30"):
+        for date in ("2025-06-30", "2025-09-30", "2025-12-31"):
             rows.append({
                 "entity":entity,"role":role,"style_bucket":"","report_date":date,
                 "cik":cik,"series_id":series,"series_name":name,
@@ -42,7 +42,7 @@ class C2CohortManifestTests(unittest.TestCase):
     def test_valid_six_fund_manifest(self):
         rows = sample_manifest()
         validate_manifest(rows)
-        self.assertEqual(len(rows), 16)
+        self.assertEqual(len(rows), 24)
 
     def test_wrong_date_fails(self):
         rows = sample_manifest()
@@ -71,7 +71,7 @@ class C2CohortManifestTests(unittest.TestCase):
                 writer.writerows(rows)
             loaded = read_manifest(path)
             validate_manifest(loaded)
-            self.assertEqual(len(loaded), 16)
+            self.assertEqual(len(loaded), 24)
 
 
 if __name__ == "__main__":
