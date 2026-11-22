@@ -25,7 +25,7 @@ The automated active labels are not suitable as C.1 training labels without manu
 | Fidelity Advisor Value Fund (S000017687) | 2009-12-29 | 2008 / 2009 | **Plausible active strategy, post-sample.** Fund-specific text describes FMR's fundamental analysis and selection of companies it believes are undervalued. Filing postdates the final Petajisto observation (2009-09-30). |
 | Fidelity Advisor Value Leaders Fund (S000005435) | 2009-12-29 | 2008 / 2009 | **Plausible active strategy, post-sample.** Fund-specific text describes FMR's valuation-based security selection. Filing postdates the final Petajisto observation. |
 | Eagle Growth & Income Fund (S000008475) | 2009-02-27 | 2001 / 2008 | **Do not accept without series-level verification.** The extracted context is headed “Capital Appreciation Fund,” not the matched SEC series name. This indicates possible cross-fund context contamination within a multi-fund filing. |
-| Dreyfus Structured Midcap Fund (S000000499) | 2009-12-23 | 2004 / 2008 | **Do not label active from this trigger alone.** The extracted text describes a quantitative, risk-controlled, benchmark-aware process. The generic “portfolio managers select stocks” trigger is insufficient to distinguish active from enhanced-index-like implementation. The filing is also post-observation. |
+| Dreyfus Structured Midcap Fund (S000000499) | 2009-12-23 | 2004 / 2008 | **Enhanced-index-like candidate, post-sample.** The series-specific text constrains at least 80% of assets to S&P 400 or Russell Midcap constituents and describes quantitative security ranking with benchmark-aware overweight/underweight decisions. Retain as enhanced-index-like, not plain active; the filing is post-observation. |
 
 ## Time-alignment conclusion
 
@@ -46,13 +46,13 @@ The annual coverage table consequently reports zero prior-year strategy-evidence
 - 1,010 CIK-years hit the per-year filing cap. The selected filing set is a lower-bound coverage probe, not an exhaustive filing history.
 - 240 of 318 candidate submissions did not contain any of the target matched series IDs in the actual submission header. A CIK-level filing is not treated as evidence for every fund under that registrant.
 - The series-context extractor can still attach a nearby investment-strategy section to the wrong fund when the primary filing covers multiple funds and the relevant sibling series names are not all represented in the matched target list. This is demonstrated by the Eagle Growth & Income / Capital Appreciation Fund context.
-- The automated strategy rules include overly broad triggers (including generic “identifies the securities” and “portfolio managers select stocks”). The five active outputs must not be used as validated active labels.
+- The automated strategy rules include overly broad triggers (including generic “identifies the securities” and “portfolio managers select stocks”). The five automated outputs must not be used as validated active labels. Their manual strategy dispositions and panel-eligibility decisions are recorded in [`c1_manual_adjudications.csv`](c1_manual_adjudications.csv); none is eligible for the observed panel.
 - The 2010 SEC series/class registry remains a candidate-linkage source, not proof that a series had the same registration identity throughout its observed history.
 - The electronic EDGAR archive does not provide a complete pre-1994 filing history; pre-1994 absence is not negative evidence.
 
 ## Implications for C.1
 
-1. Do not use the five automated active outputs as ground truth.
+1. Do not use the five automated active outputs as ground truth; use the documented manual dispositions, with none time-eligible for the observed panel.
 2. Do not treat unclassified funds as passive or index.
 3. Retain the positive Petajisto index and enhanced-index flags as a separate source of evidence; do not convert missing SEC evidence into a negative label.
 4. The current public SEC route does not provide enough time-aligned, series-specific strategy evidence to construct a defensible active-only historical panel across the full 1979–2009 sample.
