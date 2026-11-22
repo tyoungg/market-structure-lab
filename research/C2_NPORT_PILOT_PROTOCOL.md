@@ -62,7 +62,24 @@ The first C.2 workflow is limited to reproducible acquisition and XML parsing. I
 
 The parser must not silently drop positions with missing CUSIP or ticker. Missing identifiers and excluded asset categories must be reported with market-value weights.
 
-## 4. No-trade drift calculation specification
+## 4. Acquisition result (validated)
+
+The successful acquisition run [45029457183](https://github.com/tyoungg/market-structure-lab/actions/runs/45029457183) uploaded artifact [14756678178](https://github.com/tyoungg/market-structure-lab/actions/runs/45029457183/artifacts/14756678178). All six reports passed date/identity validation and yielded 3,294 positions, including 3,276 common-equity positions.
+
+| Entity | Date | Positions | Common equity | Equity weight (% NAV) | CUSIP coverage (% equity) | ISIN coverage (% equity) |
+|---|---|---:|---:|---:|---:|---:|
+| Optimum Large Cap Growth | 2025-06-30 | 131 | 126 | 99.503 | 100.000 | 99.9998 |
+| Optimum Large Cap Growth | 2025-09-30 | 122 | 117 | 99.829 | 100.000 | 99.9995 |
+| SPY | 2025-06-30 | 504 | 504 | 99.983 | 100.000 | 100.000 |
+| SPY | 2025-09-30 | 503 | 503 | 99.990 | 100.000 | 100.000 |
+| IWB | 2025-06-30 | 1,019 | 1,015 | 99.836 | 100.000 | 100.000 |
+| IWB | 2025-09-30 | 1,015 | 1,011 | 99.822 | 100.000 | 100.000 |
+
+Optimum's common-equity holdings contain 145 distinct ticker symbols across both dates. Two very small positions lack tickers at each date: ABIOMED CVR and Magic Leap. Together they represent approximately 0.001% of the starting equity sleeve. They will be retained with a zero-return assumption and explicitly disclosed, rather than silently dropped. SPY and IWB have no ticker field in their N-PORT XML, but every common-equity position has a CUSIP and ISIN, which is sufficient for holdings-weight matching.
+
+Duplicate CUSIPs are present (Optimum: 10 duplicate rows per date; SPY: 25; IWB: none). The return/Active Share calculation must aggregate duplicate CUSIPs before computing weights.
+
+## 5. No-trade drift calculation specification
 
 After the acquisition and identity checks pass:
 
@@ -91,7 +108,7 @@ w^{NT}_{i,t1}=\frac{w_{i,t0}(1+r_i)}{\sum_j w_{j,t0}(1+r_j)}
 
 The final gap is not a causal estimate of manager trading. It can also reflect flows, corporate actions, derivatives, cash, reporting conventions, and data-mapping errors.
 
-## 5. Data-quality gates
+## 6. Data-quality gates
 
 Do not publish a drift estimate unless:
 
@@ -104,7 +121,7 @@ Do not publish a drift estimate unless:
 
 If a gate fails, publish the acquisition/coverage audit only and state why the drift estimate is withheld.
 
-## 6. Limitations
+## 7. Limitations
 
 - One fund and one three-month interval do not support general conclusions.
 - SPY and IWB ETF holdings are proxies for the S&P 500 and Russell 1000, not the index providers' official constituent weights.
