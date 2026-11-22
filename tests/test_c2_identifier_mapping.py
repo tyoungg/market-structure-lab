@@ -1,0 +1,78 @@
+import sys
+import unittest
+from pathlib import Path
+
+import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from map_c2_cohort_identifiers import build_security_universe, select_ticker, valid
+
+
+class C2IdentifierMappingTests(unittest.TestCase):
+    def test_placeholder_identifiers_are_invalid(self):
+        for value in ("", "N/A", "NA", "NONE", "XXXX", "000000000"):
+            self.assertFalse(valid(value))
+        self.assertTrue(valid("US0378331005"))
+
+    def test_isin_is_primary_and_cusip_is_fallback(self):
+        holdings = pd.DataFrame([{
+            "entity": "Fund A", "role": "fund", "report_date": "2025-06-30",
+            "is_common_equity": "True", "pct_net_assets": "5.0",
+            "isin": "US0378331005", "cusip": "037833100",
+            "ticker": "", "name": "Apple Inc.", "investment_country": "US",
+        }])
+        universe, _ = build_security_universe(holdings)
+        self.assertEqual(len(universe), 1)
+        self.assertEqual(universe[0]["primary_identifier_type"], "ID_ISIN")
+        self.assertEqual(universe[0]["primary_identifier_value"], "US0378331005")
+        self.assertEqual(universe[0]["fallback_identifier_type"], "ID_CUSIP")
+        self.assertEqual(universe[0]["fallback_identifier_value"], "037833100")
+
+    def test_placeholder_identifier_does_not_become_primary(self):
+        holdings = pd.DataFrame([{
+            "entity": "Fund A", "role": "fund", "report_date": "2025-06-30",
+            "is_common_equity": "True", "pct_net_assets": "2.0",
+            "isin": "N/A", "cusip": "000000000", "ticker": "",
+            "name": "Unidentified Security", "investment_country": "US",
+        }])
+        universe, _ = build_security_universe(holdings)
+        self.assertEqual(universe[0]["primary_identifier_type"], "")
+        self.assertEqual(universe[0]["security_id"], "NAME:UNIDENTIFIED SECURITY")
+
+    def test_unique_us_equity_ticker_is_selected(self):
+        matches = [
+            {"ticker": "ABC", "marketSector": "Equity", "securityType2": "Common Stock",
+             "exchCode": "US", "figi": "BBG000000001"},
+            {"ticker": "ABC", "marketSector": "Equity", "securityType2": "Common Stock",
+             "exchCode": "UN", "figi": "BBG000000002"},
+        ]
+        result = select_ticker(matches, "US")
+        self.assertEqual(result["status"], "unique_ticker")
+        self.assertEqual(result["selected"]["ticker"], "ABC")
+        self.assertEqual(result["selected"]["exchCode"], "US")
+
+    def test_distinct_ticker_candidates_remain_ambiguous(self):
+        matches = [
+            {"ticker": "ABC", "marketSector": "Equity", "securityType2": "Common Stock",
+             "exchCode": "US"},
+            {"ticker": "XYZ", "marketSector": "Equity", "securityType2": "Common Stock",
+             "exchCode": "US"},
+        ]
+        result = select_ticker(matches, "US")
+        self.assertEqual(result["status"], "ambiguous_ticker")
+        self.assertIsNone(result["selected"])
+        self.assertEqual(result["candidate_tickers"], ["ABC", "XYZ"])
+
+    def test_options_and_warrants_are_not_selected_as_equity(self):
+        matches = [
+            {"ticker": "ABC1", "marketSector": "Equity", "securityType2": "Option",
+             "exchCode": "US"},
+            {"ticker": "ABC2", "marketSector": "Equity", "securityType2": "Warrant",
+             "exchCode": "US"},
+        ]
+        result = select_ticker(matches, "US")
+        self.assertEqual(result["status"], "no_ticker_match")
+
+
+if __name__ == "__main__":
+    unittest.main()
