@@ -23,7 +23,7 @@ Report the following maximum filing ages, measured in calendar days from the fun
 | 3 years | 1,095 days | More permissive multi-year sensitivity |
 | No expiry | None | Primary ledger rule; all prior filings retained |
 
-These are sensitivity bounds, not claims that a prospectus legally expires at these ages. The 365/730/1,095-day cutoffs must not replace the primary no-expiry evidence ledger. Report the number of fund-year/evidence links, unique fund-years, unique evidence events, unique SEC series, and candidate-class counts retained by each window.
+These are sensitivity bounds, not claims that a prospectus legally expires at these ages. The 365/730/1,095-day cutoffs must not replace the primary no-expiry evidence ledger. Apply the filters after manual strategy adjudication, so the table shows how many already-confirmed active links survive each age cap. Report the number of fund-year/evidence links, unique fund-years, unique evidence events, unique SEC series, and candidate-class counts retained by each window.
 
 ## Required safeguards
 
@@ -33,7 +33,7 @@ These are sensitivity bounds, not claims that a prospectus legally expires at th
 - Keep strategy class, identity linkage, and temporal eligibility separate.
 - Report both event counts and fund-year link counts; one filing event may support multiple fund-years.
 - Item 69 N remains “not reported as index,” not active.
-- A staleness window cannot convert unclassified evidence into active or passive evidence.
+- A staleness window cannot itself convert unclassified evidence into active or passive evidence. Strategy classes are assigned by manual review first; the sensitivity window only includes or excludes those adjudicated evidence links.
 - Preserve the no-expiry primary output alongside every sensitivity table.
 
 ## Output
@@ -42,4 +42,4 @@ The reproducible builder writes `prospectus_staleness_sensitivity.csv` with the 
 
 ## Decision boundary
 
-If the sensitivity windows materially change evidence coverage, report the effect and inspect whether effective dates or amendments can resolve the cases. If all retained events remain unclassified, a higher evidence-link count does not improve active-only classification. C.1 still requires contemporaneous, series-specific positive evidence for active labels and must retain a no-go outcome if the public record does not support a defensible active-only panel.
+If the sensitivity windows materially change evidence coverage, report the effect and inspect whether effective dates or amendments can resolve the cases. Report the active fund-year count retained under each window and show the coverage loss relative to no expiry. A higher evidence-link count improves active-only classification only when the underlying series-specific strategy text has been manually confirmed. C.1 must still retain a no-go outcome if the public record does not support a defensible, sufficiently broad active-only panel.
