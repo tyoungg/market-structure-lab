@@ -1,0 +1,75 @@
+name: C1 Petajisto positive-flag stratification
+
+on:
+  push:
+    branches:
+      - RUSSEL_SP
+    paths:
+      - ".github/workflows/audit_petajisto_flag_stratification.yml"
+      - "scripts/audit_petajisto_flag_stratification.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  c1-flag-stratification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: RUSSEL_SP
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pandas gdown
+      - name: Validate scripts
+        run: |
+          python -m py_compile \
+            scripts/audit_petajisto_crosswalk.py \
+            scripts/audit_petajisto_flag_stratification.py
+      - name: Download public Notre Dame TR archive
+        run: |
+          mkdir -p /tmp/active-share
+          timeout 10m gdown "1fbdBoASGj-h2XAng-3FVmZzeJI6gcHx1" \
+            -O /tmp/active-share/tr_active_share.zip
+          test -s /tmp/active-share/tr_active_share.zip
+          unzip -tq /tmp/active-share/tr_active_share.zip
+      - name: Download public Petajisto data
+        run: |
+          timeout 5m curl --fail --location --retry 2 --retry-delay 2 \
+            -A "The Rational Coward research project via github.com/tyoungg/market-structure-lab" \
+            "https://www.petajisto.net/data/activeshare.csv" \
+            -o /tmp/active-share/petajisto_activeshare.csv
+          test -s /tmp/active-share/petajisto_activeshare.csv
+      - name: Build validated public identifier crosswalk
+        run: |
+          mkdir -p bridge_outputs
+          timeout 15m python scripts/audit_petajisto_crosswalk.py \
+            --tr-zip /tmp/active-share/tr_active_share.zip \
+            --petajisto /tmp/active-share/petajisto_activeshare.csv \
+            --out bridge_outputs
+          test -s bridge_outputs/petajisto_candidate_crosswalk.csv
+      - name: Extract TR source and run C1 stratification
+        run: |
+          mkdir -p /tmp/active-share/tr
+          unzip -q /tmp/active-share/tr_active_share.zip -d /tmp/active-share/tr
+          TR_CSV="$(find /tmp/active-share/tr -type f -name '*.csv' -print -quit)"
+          test -n "$TR_CSV"
+          mkdir -p c1_outputs
+          timeout 20m python scripts/audit_petajisto_flag_stratification.py \
+            --tr "$TR_CSV" \
+            --crosswalk bridge_outputs/petajisto_candidate_crosswalk.csv \
+            --crosswalk-metrics bridge_outputs/petajisto_bridge_metrics.json \
+            --out c1_outputs
+      - name: Upload derived outputs only
+        uses: actions/upload-artifact@v4
+        with:
+          name: c1-petajisto-flag-stratification
+          path: c1_outputs/**
+          if-no-files-found: error
+          retention-days: 30
