@@ -51,7 +51,17 @@ The acquisition workflow must validate:
 5. SPY and IWB are both present at both dates.
 6. All positions, identifiers, market values, and reported percentages are retained, including positions that cannot yet be mapped to a ticker.
 
-## 5. Acquisition-only outputs
+## 5. Identifier normalization and mapping
+
+The acquisition parser now treats `N/A`, `NA`, `NONE`, `XXXX`, and `000000000` as missing normalized identifiers while preserving their original values in `cusip_raw`, `isin_raw`, and `ticker_raw`. Coverage metrics are calculated only from valid normalized identifiers.
+
+For security matching, use **ISIN first, then CUSIP, then a verified N-PORT ticker, then a normalized-name fallback**. The cohort shows higher value-weight ISIN coverage than CUSIP coverage, especially for IWB and several active funds. The single-fund pilot will be rerun under this same priority so the reported results are comparable.
+
+Ticker mapping will use the public [OpenFIGI v3 Mapping API](https://www.openfigi.com/api/documentation). The API maps third-party identifiers such as ISIN and CUSIP to FIGI records and ticker/exchange metadata. The unauthenticated limit is 25 requests per minute and 10 mapping jobs per request. The mapping request will set `includeUnlistedEquities=true` so delisted securities are not excluded by default. All candidate matches are retained; ambiguous ticker/exchange mappings are not auto-resolved.
+
+The mapping audit will produce a security-level map and per-fund starting-equity-value coverage. Only after the mapping output and manual ambiguity review pass the 95% price-coverage gate will the multi-fund no-trade calculation proceed.
+
+## 6. Acquisition and mapping outputs
 
 The first cohort run produces:
 
@@ -63,7 +73,7 @@ The first cohort run produces:
 
 Raw SEC XML files are not committed to the repository.
 
-## 6. Gates before multi-fund drift calculation
+## 7. Gates before multi-fund drift calculation
 
 Do not calculate pooled cohort results until:
 
@@ -77,7 +87,7 @@ Do not calculate pooled cohort results until:
 
 The same equity-only Active Share formula, no-trade total-return drift, ordered decomposition, and unpriced-position sensitivity used in the single-fund pilot will be applied to each eligible fund. The actual-portfolio-change component remains descriptive, not a causal estimate of manager trading or turnover.
 
-## 7. Interpretation limits
+## 8. Interpretation limits
 
 - Six purposively selected funds do not represent the active-fund population.
 - Growth/value/blend buckets are descriptive controls, not a formal style taxonomy.
