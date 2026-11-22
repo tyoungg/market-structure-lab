@@ -149,13 +149,21 @@ def parse_nport_xml(xml_bytes: bytes, spec: dict) -> tuple[dict, list[dict]]:
 def validate_identity(meta: dict, spec: dict) -> None:
     if meta["rep_pd_date"] != spec["report_date"]:
         raise ValueError(f"{spec['entity']} {spec['accession']}: repPdDate {meta['rep_pd_date']!r} != {spec['report_date']}")
-    if meta["xml_reg_cik"] and meta["xml_reg_cik"].zfill(10) != spec["cik"].zfill(10):
-        raise ValueError(f"{spec['entity']} {spec['accession']}: registrant CIK mismatch {meta['xml_reg_cik']}")
+    path_cik = spec["url"].split("/edgar/data/", 1)[1].split("/", 1)[0]
+    if path_cik != spec["cik"].lstrip("0"):
+        raise ValueError(f"{spec['entity']} {spec['accession']}: SEC URL CIK {path_cik} != {spec['cik']}")
+    xml_cik = meta["xml_reg_cik"].strip()
+    if xml_cik and xml_cik.upper() != "N/A" and xml_cik.zfill(10) != spec["cik"].zfill(10):
+        raise ValueError(f"{spec['entity']} {spec['accession']}: registrant CIK mismatch {xml_cik}")
     if spec["series_id"] and meta["xml_series_id"] != spec["series_id"]:
         raise ValueError(f"{spec['entity']} {spec['accession']}: series ID {meta['xml_series_id']!r} != {spec['series_id']}")
-    observed_name = meta["xml_series_name"] or meta["xml_reg_name"]
-    if spec["series_name"].lower() not in observed_name.lower():
+    observed_name = (meta["xml_series_name"] or meta["xml_reg_name"]).strip()
+    if spec["role"] == "benchmark_sp500" and observed_name.upper() in ("", "N/A"):
+        meta["identity_validation_method"] = "SEC accession path CIK + filing-index registrant identity; UIT XML name fields are N/A"
+    elif spec["series_name"].lower() not in observed_name.lower():
         raise ValueError(f"{spec['entity']} {spec['accession']}: series/registrant name mismatch: {observed_name!r}")
+    else:
+        meta["identity_validation_method"] = "XML CIK/series ID/name and report date"
 
 
 def summarize(meta: dict, positions: list[dict], byte_count: int, digest: str) -> dict:
