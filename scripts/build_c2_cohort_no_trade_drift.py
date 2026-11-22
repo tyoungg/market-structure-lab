@@ -53,6 +53,11 @@ def portfolio(holdings: pd.DataFrame, entity: str, date: str,
     }, result.sort_values("security_id").reset_index(drop=True)
 
 
+
+def coverage_gate_pass(priced_weight_fraction: float, threshold: float = MIN_PRICE_COVERAGE) -> bool:
+    return float(priced_weight_fraction) >= float(threshold)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", default="c2_nport_cohort")
@@ -131,7 +136,7 @@ def main() -> None:
             "unpriced_starting_equity_weight_pct": 100.0 * (1.0 - priced_weight),
             "price_coverage_pct_starting_equity": 100.0 * coverage,
             "price_coverage_gate_pct": 100.0 * MIN_PRICE_COVERAGE,
-            "price_gate_pass": bool(coverage >= MIN_PRICE_COVERAGE),
+            "price_gate_pass": coverage_gate_pass(coverage),
             "unpriced_security_count": len(unpriced),
         })
 
@@ -164,8 +169,8 @@ def main() -> None:
             b0, b1 = portfolios[(benchmark, START_DATE)], portfolios[(benchmark, END_DATE)]
             b_start = dict(zip(b0["security_id"], b0["weight"]))
             b_end = dict(zip(b1["security_id"], b1["weight"]))
-            gate_pass = (coverage_by_entity[fund]["price_gate_pass"]
-                         and coverage_by_entity[benchmark]["price_gate_pass"])
+            gate_pass = (coverage_gate_pass(coverage_by_entity[fund]["price_coverage_pct_starting_equity"] / 100.0)
+                         and coverage_gate_pass(coverage_by_entity[benchmark]["price_coverage_pct_starting_equity"] / 100.0))
             if gate_pass:
                 result = decompose_active_share(
                     start_weights, no_trade, actual_end, b_start, b_end,
