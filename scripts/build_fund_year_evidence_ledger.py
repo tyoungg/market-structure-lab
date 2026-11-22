@@ -34,11 +34,14 @@ def require(df, cols, name):
     missing=sorted(set(cols)-set(df.columns))
     if missing: raise ValueError(f"{name} missing columns: {missing}")
 
-def apply_manual_adjudications(fy, manual):
-    """Apply only explicit, accession-matched series-level Item 69 Y decisions."""
-    fy=fy.copy()
+def apply_manual_adjudications(fy, manual, items):
+    """Apply accession-matched series-level Item 69 and prospectus decisions."""
+    fy=fy.copy(); items=items.copy()
     for col in ["manual_adjudication_status","manual_adjudication_reason","manual_adjudication_accession","manual_adjudication_coordinate"]:
         fy[col]=""
+    for col in ["manual_adjudication_status","manual_adjudicated_class","manual_review_rationale"]:
+        items[col]=""
+
     rows=manual[manual.evidence_kind.eq("nsar_item69_fund_year")]
     if rows.duplicated(["fundno_key","fund_year"]).any():
         raise ValueError("Duplicate Item 69 fund-year manual adjudications")
@@ -64,7 +67,44 @@ def apply_manual_adjudications(fy, manual):
         fy.loc[mask,"manual_adjudication_reason"]=str(r.rationale)
         fy.loc[mask,"manual_adjudication_accession"]=str(r.accession)
         fy.loc[mask,"manual_adjudication_coordinate"]=str(r.item69_coordinate)
-    return fy
+
+    prospectus_rows=manual[manual.evidence_kind.eq("prospectus_fund_year")]
+    if prospectus_rows.duplicated(["fundno_key","fund_year"]).any():
+        raise ValueError("Duplicate prospectus fund-year manual adjudications")
+    for r in prospectus_rows.itertuples(index=False):
+        fy_mask=(fy.fundno_key.astype(str).eq(str(r.fundno_key)) &
+                 fy.fund_year.astype(int).eq(int(r.fund_year)) &
+                 fy.cik_norm.astype(str).eq(str(r.cik_norm)) &
+                 fy.series_id_norm.astype(str).eq(str(r.series_id_norm)))
+        item_mask=(items.source_type.eq("SEC_prospectus_or_related_filing") &
+                   items.asof_eligible.eq(True) &
+                   items.fundno_key.astype(str).eq(str(r.fundno_key)) &
+                   items.fund_year.astype(str).eq(str(r.fund_year)) &
+                   items.cik_norm.astype(str).eq(str(r.cik_norm)) &
+                   items.series_id_norm.astype(str).eq(str(r.series_id_norm)) &
+                   items.accession.astype(str).eq(str(r.accession)))
+        if int(fy_mask.sum())!=1 or int(item_mask.sum())!=1:
+            raise ValueError(f"Prospectus decision must match exactly one as-of fund-year evidence item: {r.fundno_key}/{r.fund_year}")
+        eligible=str(r.panel_eligible).lower()=="true"
+        klass=str(r.adjudicated_strategy_class)
+        if eligible and klass!="other_active_style":
+            raise ValueError(f"Only manually confirmed active prospectus evidence can be promoted: {r.fundno_key}/{r.fund_year}")
+        if not eligible and klass!="unclassified":
+            raise ValueError(f"Ineligible prospectus evidence cannot receive a strategy class: {r.fundno_key}/{r.fund_year}")
+        if eligible:
+            items.loc[item_mask,"candidate_class"]="active"
+            items.loc[item_mask,"manual_adjudicated_class"]=klass
+            fy.loc[fy_mask,"final_class"]=klass
+            fy.loc[fy_mask,"candidate_class"]="active_candidate"
+            fy.loc[fy_mask,"final_class_reason"]=str(r.rationale)
+        items.loc[item_mask,"manual_adjudication_status"]=str(r.review_status)
+        items.loc[item_mask,"manual_adjudicated_class"]=klass
+        items.loc[item_mask,"manual_review_rationale"]=str(r.rationale)
+        fy.loc[fy_mask,"classification_review_status"]=str(r.review_status)
+        fy.loc[fy_mask,"manual_adjudication_status"]=str(r.review_status)
+        fy.loc[fy_mask,"manual_adjudication_reason"]=str(r.rationale)
+        fy.loc[fy_mask,"manual_adjudication_accession"]=str(r.accession)
+    return fy, items
 
 def prospectus_staleness_sensitivity(items):
     """Summarize eligible prospectus evidence under predeclared 1/2/3-year age caps."""
@@ -225,19 +265,20 @@ def build(a):
     fy.loc[no,"final_class_reason"]="N-SAR_N_is_not_active_evidence"
     fy.loc[active,"final_class_reason"]="automated_prospectus_candidate_not_manually_validated"
     fy.loc[conflict,"final_class_reason"]="conflicting_or_unreviewed_evidence_requires_adjudication"
-    fy=apply_manual_adjudications(fy,manual)
+    fy,items=apply_manual_adjudications(fy,manual,items)
 
     itemcols=["fundno_key","fund_year","cik_norm","series_id_norm","matched_series_name","link_type","share_class_ambiguous","evidence_event_id","source_tier","source_type","form","accession","filing_date","report_date","evidence_url","evidence_text","raw_response","item69_coordinate","item69_coordinate_source_status","candidate_class","candidate_reason","review_status","evidence_age_days","report_age_days","filing_precedes_cutoff","report_precedes_cutoff","asof_eligible","temporal_exclusion_reason","prospectus_staleness_bucket"]
+    itemcols=itemcols+["manual_adjudication_status","manual_adjudicated_class","manual_review_rationale"]
     items[itemcols].to_csv(out/"fund_year_evidence_items.csv",index=False)
     staleness=prospectus_staleness_sensitivity(items)
     staleness.to_csv(out/"prospectus_staleness_sensitivity.csv",index=False)
     fy.to_csv(out/"fund_year_evidence_ledger.csv",index=False)
-    q=p.loc[p.classification.ne("unclassified")].copy()
+    q=p.loc[p.classification.ne("unclassified") | p.manual_review_status.ne("")].copy()
     q["review_status"]=q.manual_review_status.where(q.manual_review_status.ne(""),"manual_review_required_unreviewed_candidate")
     q["adjudicated_strategy_class"]=q.manual_adjudicated_strategy_class
     q["panel_eligible"]=q.manual_panel_eligible
     q["manual_review_rationale"]=q.manual_review_rationale
-    q["final_class"]="not_eligible_for_observed_panel"
+    q["final_class"]=q.manual_adjudicated_strategy_class.where(q.manual_panel_eligible.eq("true"),"not_eligible_for_observed_panel")
     q.to_csv(out/"prospectus_candidate_review_queue.csv",index=False)
     for src,dest in [(a.nsar_registrant_csv,"nsar_registrant_level_unassigned.csv"),(a.nsar_unmatched_csv,"nsar_unmatched_item7_evidence.csv"),(a.nsar_errors_csv,"nsar_item69_retrieval_errors.csv"),(a.nsar_api_errors_csv,"nsar_header_api_errors.csv"),(a.nsar_manifest_csv,"nsar_header_processing_manifest.csv")]:
         if src and Path(src).exists(): shutil.copyfile(src,out/dest)
@@ -252,15 +293,16 @@ def build(a):
         annual.append({"year":int(year),"fund_year_rows":len(g),"unique_fundnos":g.fundno_key.nunique(),"unique_series_link_rows":int(g.unique_series_link.sum()),"multiple_series_ambiguous_rows":int(g.series_match_status.eq("multiple_series_ambiguous").sum()),"no_strict_candidate_rows":int(g.series_match_status.eq("no_strict_candidate").sum()),"sampled_unique_series_rows":int((g.unique_series_link & g.sampled_registry_series_match.astype(str).str.lower().isin(["true","1"])).sum()),"fund_years_with_prior_prospectus_evidence":int(g.prospectus_asof_evidence_events.gt(0).sum()),"prior_prospectus_evidence_events":int(g.prospectus_asof_evidence_events.sum()),"fund_years_with_prior_nsar_header_identity":int(g.all_linked_nsar_header_events.gt(0).sum()),"prior_nsar_header_identity_events":int(g.all_linked_nsar_header_events.sum()),"prior_automated_active_candidates":int(g.prospectus_active_candidate_events.sum()),"n_sar_item69_yes":int(g.nsar_index_fund_status_recomputed.eq("n_sar_index_fund_yes").sum()),"n_sar_item69_no_not_active":int(g.nsar_index_fund_status_recomputed.eq("n_sar_index_fund_no_not_active").sum()),"n_sar_unclassified":int(g.nsar_index_fund_status_recomputed.str.startswith("unclassified").sum()),"final_unclassified":int(g.final_class.eq("unclassified").sum())})
     pd.DataFrame(annual).to_csv(out/"fund_year_evidence_annual_coverage.csv",index=False)
 
-    metrics={"fund_year_rows":len(fy),"fund_year_unique_keys":len(fy[["fundno_key","fund_year"]].drop_duplicates()),"duplicate_fund_year_keys":int(fy.duplicated(["fundno_key","fund_year"]).sum()),"fundnos":int(fy.fundno_key.nunique()),"year_min":int(fy.fund_year.min()),"year_max":int(fy.fund_year.max()),"series_match_status_counts":{str(k):int(v) for k,v in fy.series_match_status.value_counts().items()},"unique_series_link_rows":int(fy.unique_series_link.sum()),"share_class_ambiguous_rows":int(fy.share_class_ambiguous.astype(str).str.lower().isin(["true","1"]).sum()),"sampled_unique_series_rows":int((fy.unique_series_link & fy.sampled_registry_series_match.astype(str).str.lower().isin(["true","1"])).sum()),"prospectus_source_rows":len(p),"prospectus_source_series":int(p.series_id.nunique()),"nsar_source_rows":len(n),"nsar_source_series":int(n.series_id.nunique()),"nsar_header_identity_source_rows":len(h),"nsar_header_identity_source_series":int(h.series_id.nunique()),"nsar_item69_coordinate_available_in_source_artifact":bool(n.item69_coordinate.ne("").all()),"nsar_item69_coordinate_gap_rows":int(n.item69_coordinate.eq("").sum()),"evidence_event_rows":len(events),"fund_year_evidence_item_rows":len(items),"asof_eligible_evidence_item_rows":int(items.asof_eligible.sum()),"asof_prospectus_evidence_item_rows":int((is_p & items.asof_eligible).sum()),"asof_nsar_evidence_item_rows":int((is_n & items.asof_eligible).sum()),"asof_nsar_header_identity_item_rows":int((is_h & items.asof_eligible).sum()),"nsar_reconciliation_mismatches":int((~fy.nsar_status_reconciles_to_prior_artifact).sum()),"nsar_recomputed_status_counts":{str(k):int(v) for k,v in fy.nsar_index_fund_status_recomputed.value_counts().items()},"candidate_class_counts":{str(k):int(v) for k,v in fy.candidate_class.replace("","(none)").value_counts().items()},"final_class_counts":{str(k):int(v) for k,v in fy.final_class.value_counts().items()},"active_candidate_fund_year_rows":int(active.sum()),"final_active_rows":int(fy.final_class.isin(["active_large_cap_core","other_active_style"]).sum()),"manual_passive_index_rows":int(fy.final_class.eq("passive_index").sum()),"manual_adjudication_rows":int(fy.manual_adjudication_status.ne("").sum()),"method_boundary":"Only the nine accession-matched, series-specific Item 69 Y fund-years manually reviewed in the adjudication register are promoted to passive_index. Item 69 N is not active evidence. No active prospectus candidate is eligible for the observed panel.","prospectus_staleness":"No universal expiry imposed; age retained for predeclared sensitivity analysis.","source_sha256":{"fund_year_csv":digest(a.fund_year_csv),"prospectus_evidence_csv":digest(a.prospectus_evidence_csv),"nsar_evidence_csv":digest(a.nsar_evidence_csv),"nsar_asof_csv":digest(a.nsar_asof_csv),"nsar_header_matches_csv":digest(a.nsar_header_matches_csv)}}
+    metrics={"fund_year_rows":len(fy),"fund_year_unique_keys":len(fy[["fundno_key","fund_year"]].drop_duplicates()),"duplicate_fund_year_keys":int(fy.duplicated(["fundno_key","fund_year"]).sum()),"fundnos":int(fy.fundno_key.nunique()),"year_min":int(fy.fund_year.min()),"year_max":int(fy.fund_year.max()),"series_match_status_counts":{str(k):int(v) for k,v in fy.series_match_status.value_counts().items()},"unique_series_link_rows":int(fy.unique_series_link.sum()),"share_class_ambiguous_rows":int(fy.share_class_ambiguous.astype(str).str.lower().isin(["true","1"]).sum()),"sampled_unique_series_rows":int((fy.unique_series_link & fy.sampled_registry_series_match.astype(str).str.lower().isin(["true","1"])).sum()),"prospectus_source_rows":len(p),"prospectus_source_series":int(p.series_id.nunique()),"nsar_source_rows":len(n),"nsar_source_series":int(n.series_id.nunique()),"nsar_header_identity_source_rows":len(h),"nsar_header_identity_source_series":int(h.series_id.nunique()),"nsar_item69_coordinate_available_in_source_artifact":bool(n.item69_coordinate.ne("").all()),"nsar_item69_coordinate_gap_rows":int(n.item69_coordinate.eq("").sum()),"evidence_event_rows":len(events),"fund_year_evidence_item_rows":len(items),"asof_eligible_evidence_item_rows":int(items.asof_eligible.sum()),"asof_prospectus_evidence_item_rows":int((is_p & items.asof_eligible).sum()),"asof_nsar_evidence_item_rows":int((is_n & items.asof_eligible).sum()),"asof_nsar_header_identity_item_rows":int((is_h & items.asof_eligible).sum()),"nsar_reconciliation_mismatches":int((~fy.nsar_status_reconciles_to_prior_artifact).sum()),"nsar_recomputed_status_counts":{str(k):int(v) for k,v in fy.nsar_index_fund_status_recomputed.value_counts().items()},"candidate_class_counts":{str(k):int(v) for k,v in fy.candidate_class.replace("","(none)").value_counts().items()},"final_class_counts":{str(k):int(v) for k,v in fy.final_class.value_counts().items()},"active_candidate_fund_year_rows":int(active.sum()),"final_active_rows":int(fy.final_class.isin(["active_large_cap_core","other_active_style"]).sum()),"manual_active_rows":int(fy.final_class.eq("other_active_style").sum()),"manual_passive_index_rows":int(fy.final_class.eq("passive_index").sum()),"manual_adjudication_rows":int(fy.manual_adjudication_status.ne("").sum()),"method_boundary":"Thirty as-of fund-years across fourteen series are manually adjudicated active from contemporaneous prospectuses; nine fund-years are manually adjudicated passive_index from series-specific Item 69 Y. Item 69 N is not active evidence. The remaining fund-years are unclassified.","prospectus_staleness":"No universal expiry is the primary rule; 365-, 730-, and 1,095-day sensitivity windows are reported separately.","source_sha256":{"fund_year_csv":digest(a.fund_year_csv),"prospectus_evidence_csv":digest(a.prospectus_evidence_csv),"nsar_evidence_csv":digest(a.nsar_evidence_csv),"nsar_asof_csv":digest(a.nsar_asof_csv),"nsar_header_matches_csv":digest(a.nsar_header_matches_csv)}}
     (out/"fund_year_evidence_ledger_metrics.json").write_text(json.dumps(metrics,indent=2)+"\n")
     report=["# Fund-Year Evidence Ledger Audit","","**Status:** Evidence ledger assembled; no active-only panel validated.","","## Key boundary",metrics["method_boundary"],"","## Metrics",json.dumps(metrics,indent=2),"","## Interpretation","Nine accession-matched, series-specific Item 69 Y fund-years are manually adjudicated passive_index. Item 69 N is not active evidence. The five automated prospectus candidates have documented manual dispositions, but none is eligible for the observed panel. SEC 2010 registry fields are linkage/context only. Prospectus effective dates remain unavailable.",""]
     (out/"FUND_YEAR_EVIDENCE_LEDGER_AUDIT.md").write_text("\n".join(report))
 
     assert len(fy)==22280 and fy.duplicated(["fundno_key","fund_year"]).sum()==0
-    assert int(fy.final_class.isin(["active_large_cap_core","other_active_style"]).sum())==0
+    assert int(fy.final_class.isin(["active_large_cap_core","other_active_style"]).sum())==30
     assert int(fy.final_class.eq("passive_index").sum())==9
-    assert int(fy.manual_adjudication_status.ne("").sum())==9
+    assert int(fy.manual_adjudication_status.ne("").sum())==39
+    assert int(items.loc[items.source_type.eq("SEC_prospectus_or_related_filing") & items.asof_eligible.eq(True),"candidate_class"].eq("active").sum())==30
     assert int(n.item69_coordinate.eq("").sum())==0
     assert int(fy.nsar_index_fund_status_recomputed.eq("n_sar_index_fund_no_not_active").sum())==181
     assert int(fy.nsar_index_fund_status_recomputed.eq("n_sar_index_fund_yes").sum())==9
