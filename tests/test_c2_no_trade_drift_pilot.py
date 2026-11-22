@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from build_c2_no_trade_drift_pilot import active_share, drift_weights, decompose_active_share, security_identifier, yahoo_symbol
+from build_c2_no_trade_drift_pilot import active_share, drift_weights, decompose_active_share, security_identifier, yahoo_symbol, missing_return_sensitivity
 
 
 class NoTradeDriftTests(unittest.TestCase):
@@ -44,6 +44,19 @@ class NoTradeDriftTests(unittest.TestCase):
     def test_yahoo_symbol_exchange_mapping(self):
         self.assertEqual(yahoo_symbol("6861","JP3236200006"),"6861.T")
         self.assertEqual(yahoo_symbol("BRK.B","US0846707026"),"BRK-B")
+
+    def test_unpriced_return_sensitivity_includes_extreme_scenarios(self):
+        start = {"A": 0.999, "UNPRICED": 0.001}
+        returns = {"A": 0.05, "UNPRICED": 0.0}
+        actual_end = {"A": 0.998, "UNPRICED": 0.002}
+        benchmark = {"A": 1.0}
+        rows = missing_return_sensitivity(
+            start, returns, ["UNPRICED"], actual_end,
+            [("benchmark", benchmark, benchmark)],
+        )
+        self.assertEqual([r["unpriced_return_scenario"] for r in rows],
+                         ["minus_100_pct", "zero_return", "plus_100_pct"])
+        self.assertTrue(all(abs(r["active_share_no_trade_end_vs_end_benchmark_pct"]) < 1.0 for r in rows))
 
 
 if __name__ == "__main__":
