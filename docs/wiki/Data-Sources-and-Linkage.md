@@ -29,16 +29,17 @@ The bounded header audit processed all 80 sampled CIKs and 1,730 selected filing
 - [Header audit workflow](https://github.com/tyoungg/market-structure-lab/actions/runs/45013756019)
 - [N-SAR linkage report](https://github.com/tyoungg/market-structure-lab/blob/RUSSEL_SP/research/NSAR_SERIES_LINKAGE_FEASIBILITY.md)
 
-## N-SAR Item 69
+## N-SAR Item 69 — validated extraction
 
 Item 69 asks whether the registrant/series is an index fund. A series-level Y is positive index-fund evidence. N means only "not reported as an index fund"; it may include enhanced-index or active strategies. Registrant-level answers are not assigned to individual series.
 
-The first extraction processed 281 of 283 selected answer documents and produced 408 evidence rows for 117 target series (6 with at least one Y; 111 with N evidence). It retained 66 registrant-level answers, 882 unresolved Item 007 name mappings, and two SEC 504 retrieval errors.
+The corrected run processed 282 of 283 selected answer documents and produced 409 series-specific evidence rows covering 117 target series (6 with at least one Y; 111 with N evidence). It retained 66 registrant-level answers and 882 unresolved Item 007 name mappings. One SEC 504 retrieval error is retained in the error output. All 409 report dates parse, including 32 ISO-formatted dates handled by the corrected mixed-format parser.
 
-**Correction pending reproducible rerun:** 32 report dates were ISO-formatted while the original default parser inferred slash-formatted dates. The parser and regression tests are corrected in the branch. Recalculation against the downloaded evidence changes the as-of panel from 3 Y / 176 N to 9 Y / 181 N fund-year records. These corrected totals are provisional until a fresh workflow run confirms them.
+The joined panel has 22,280 fund-year rows: 9 contemporaneous Item 69 Y labels, 181 N-not-active responses, and 22,090 unclassified. The unclassified group includes 1,238 fund-years without a recent prior N-SAR and 20,852 fund-years outside the deterministic 80-CIK sample. The 9 Y labels represent three S&P index funds in 2007, 2008, and 2009. This is a limited positive index signal, not an active-only classification.
 
-- [Initial Item 69 workflow](https://github.com/tyoungg/market-structure-lab/actions/runs/45017074794)
-- [Item 69 script](https://github.com/tyoungg/market-structure-lab/blob/RUSSEL_SP/scripts/audit_nsar_item69.py)
+- [Corrected Item 69 workflow](https://github.com/tyoungg/market-structure-lab/actions/runs/45017599142)
+- [Corrected Item 69 artifact](https://github.com/tyoungg/market-structure-lab/actions/runs/45017599142/artifacts/14753065280)
+- [Parser and regression tests](https://github.com/tyoungg/market-structure-lab/tree/RUSSEL_SP/tests)
 
 ## Source boundaries
 - EDGAR electronic filings do not cover pre-1994.

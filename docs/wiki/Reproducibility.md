@@ -12,7 +12,7 @@ The current research branch is `RUSSEL_SP`. Do not merge or promote to `main` wi
 | SEC prospectus bridge | Candidate series/class links and sparse filing evidence | [44924324396](https://github.com/tyoungg/market-structure-lab/actions/runs/44924324396) |
 | Historical SEC coverage | Bounded 80-CIK coverage probe | [44966589936](https://github.com/tyoungg/market-structure-lab/actions/runs/44966589936) |
 | N-SAR header coverage | Contemporaneous identity coverage | [45013756019](https://github.com/tyoungg/market-structure-lab/actions/runs/45013756019) |
-| N-SAR Item 69 | Series-level index-fund responses | [45017074794](https://github.com/tyoungg/market-structure-lab/actions/runs/45017074794); corrected parser rerun pending |
+| N-SAR Item 69 | Corrected mixed-format parser and series-level index flags | [45017599142](https://github.com/tyoungg/market-structure-lab/actions/runs/45017599142) |
 
 ## Acceptance standard
 
@@ -40,4 +40,8 @@ python -m py_compile scripts/audit_nsar_item69.py
 python -m unittest discover -s tests -p 'test_nsar_item69_parser.py'
 ```
 
-The parser suite includes slash-formatted and ISO-formatted report dates. A fresh workflow artifact is still required before corrected empirical counts are considered validated.
+The corrected run processed 282/283 selected answer documents; one SEC 504 retrieval error remains recorded. All 409 report dates parse, including the 32 ISO-formatted rows that were missed by the initial inference path. The corrected as-of panel has 9 positive index-fund Y labels, 181 N-not-active responses, and 22,090 unclassified fund-years. See the exact [workflow run](https://github.com/tyoungg/market-structure-lab/actions/runs/45017599142) and [artifact](https://github.com/tyoungg/market-structure-lab/actions/runs/45017599142/artifacts/14753065280).
+
+## Research management
+
+See [Project Management](Project-Management) for the milestone structure, label taxonomy, Project board fields, and setup workflow.

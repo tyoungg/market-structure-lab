@@ -20,13 +20,17 @@ The bridge is viable for a substantial historical subset but incomplete. Ambiguo
 
 The bounded prospectus work did not produce a usable time-aligned active-only panel. Automated active labels included false positives or ambiguous fund-specific contexts; post-observation evidence cannot be backdated. Unclassified is not passive.
 
-## N-SAR Item 69
+## N-SAR Item 69 — validated extraction
 
 The header audit validated 80/80 sampled CIK processing and found 162/191 target series with at least one header match. This is identity evidence only.
 
-The initial Item 69 extraction found Y responses for six target series at some point and N responses for 111 target series. A mixed-format date bug affected 32 report dates. Corrected parser code and tests are committed, but the corrected output is pending a fresh workflow run. The locally recalculated 9 Y / 181 N as-of fund-year counts are provisional.
+The corrected Item 69 extraction is reproducible in [workflow run 45017599142](https://github.com/tyoungg/market-structure-lab/actions/runs/45017599142), on commit `e236cffa36bbd498cfdeeeccc74f6057531202ed`. The parser now handles both slash-formatted and ISO report dates; all 409 report dates parse, including the 32 ISO-formatted rows that were missed by the original default-inference path. Five parser tests, input validation, extraction, and artifact upload passed. Runtime was 7.35 minutes against a 25-minute deadline.
 
-Even after correction, Item 69 does not classify active funds. It may support excluding verified index funds from a sample, while leaving N and unknown records unresolved.
+The validated as-of fund-year panel contains 9 positive Item 69 Y labels, 181 N responses explicitly classified as `NO_NOT_ACTIVE`, and 22,090 unclassified rows. The unclassified rows split into 1,238 without a recent prior N-SAR and 20,852 outside the deterministic 80-CIK sample. The positive labels are three S&P index funds in each of 2007, 2008, and 2009. The evidence output contains 409 series-specific responses covering 117 target series (6 with at least one Y, 111 with N evidence), plus 66 registrant-level rows and 882 unmatched Item 007 mappings. One SEC 504 retrieval error remains recorded.
+
+This is a validated positive index-fund signal for a small, deterministic sample—not an active-only panel. Item 69 N does not prove active management or exclude enhanced-index strategies. The sample is not probability-representative; do not extrapolate.
+
+See the [full N-SAR feasibility and Item 69 audit](https://github.com/tyoungg/market-structure-lab/blob/RUSSEL_SP/research/NSAR_SERIES_LINKAGE_FEASIBILITY.md) and [artifact](https://github.com/tyoungg/market-structure-lab/actions/runs/45017599142/artifacts/14753065280).
 
 ## Exploratory simulation
 

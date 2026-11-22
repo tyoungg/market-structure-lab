@@ -50,14 +50,13 @@ This creates a potentially valuable positive index-fund label. The interpretatio
 - A series-specific answer is mapped only when Item 007's series name uniquely matches a series name in the same filing's SEC header.
 - As-of labels require the filing to predate the fund-year and the reported period to be sufficiently recent; same-year evidence is not backdated.
 
-A bounded follow-on extraction is implemented in `scripts/audit_nsar_item69.py`, with parser tests in `tests/test_nsar_item69_parser.py`. It is deliberately separate from the header-only identity audit above. The output will retain YES, NO-not-active, and unclassified as distinct states; it will not create an active-only panel by treating NO as active.
+A bounded follow-on extraction is implemented in `scripts/audit_nsar_item69.py`, with parser tests in `tests/test_nsar_item69_parser.py`. It retains YES, NO-not-active, and unclassified as distinct states; it does not create an active-only panel by treating NO as active.
 
 Official sources and examples:
 - SEC Form N-SAR, Item 69: https://www.sec.gov/about/forms/formn-sar.pdf
 - SEC, Key to Reading N-SAR Document: https://www.sec.gov/info/edgar/forms/nsarkey.htm
 - Example series-specific Item 69 values: https://www.sec.gov/Archives/edgar/data/1039803/000100472610000036/answer2.txt
 - Example N-SAR Item 69 answer in 2015: https://www.sec.gov/Archives/edgar/data/1039803/000100472615000293/Answer2.txt
-
 
 ## Completed header coverage audit (2026-11-22)
 
@@ -78,3 +77,26 @@ The audit completed in 38.11 minutes against a 43-minute script deadline. The 80
 This is a deterministic lower-bound sample, not a probability sample. Do not extrapolate its coverage rates to the other 471 registrants or infer that missing header evidence indicates non-index status.
 
 - Completed workflow: https://github.com/tyoungg/market-structure-lab/actions/runs/45013756019
+
+## Completed Item 69 extraction and date-parser correction (2026-11-22)
+
+The first extraction exposed a mixed-format date bug: 32 of 409 report dates were ISO-formatted while the majority used slash-formatted dates. The original pandas inference path failed to parse those ISO rows. The parser was changed to explicitly support mixed formats, an ISO date regex path was added, and regression tests now cover slash-formatted and ISO-formatted report dates.
+
+The corrected workflow completed successfully on branch `RUSSEL_SP` at commit `e236cffa36bbd498cfdeeeccc74f6057531202ed`. The run passed Python compilation, all five parser tests, input/manifest validation, extraction, and artifact upload. It processed 282 of 283 selected answer documents; one SEC request returned HTTP 504 and is retained in the error output. The script completed in 7.35 minutes against a 25-minute deadline, with no deadline cutoff.
+
+Validated output from the run artifact:
+- 80 sampled CIKs and 191 target series.
+- 283 selected header filings; 282 answer documents processed.
+- 409 series-specific Item 69 evidence rows covering 117 target series (6 with at least one Y; 111 with N evidence).
+- 20 Y evidence rows and 389 N evidence rows.
+- 66 registrant-level Item 69 rows and 882 unresolved Item 007 name/ordinal mappings.
+- 22,280 fund-year rows in the joined panel.
+- As-of labels: 9 `n_sar_index_fund_yes`, 181 `n_sar_index_fund_no_not_active`, and 22,090 unclassified. The unclassified total consists of 1,238 with no recent prior N-SAR and 20,852 outside the 80-CIK sample.
+- The 9 positive fund-year labels are three S&P index funds repeated across 2007, 2008, and 2009. The annual YES/NO counts are 3/56 in 2007, 3/62 in 2008, and 3/63 in 2009.
+
+The 32 ISO report dates are all parseable in the corrected evidence output. The 9/181 result is now reproducible and replaces the earlier provisional 3/176 count. It remains a limited positive index-fund signal, not an active-only classification. Item 69 N is not an active label. The deterministic 80-CIK sample is not probability-representative and must not be extrapolated. One filing-level 504 error and all unmatched/registrant-level records remain visible.
+
+- Corrected workflow: https://github.com/tyoungg/market-structure-lab/actions/runs/45017599142
+- Corrected artifact: https://github.com/tyoungg/market-structure-lab/actions/runs/45017599142/artifacts/14753065280
+- Parser: https://github.com/tyoungg/market-structure-lab/blob/RUSSEL_SP/scripts/audit_nsar_item69.py
+- Regression tests: https://github.com/tyoungg/market-structure-lab/blob/RUSSEL_SP/tests/test_nsar_item69_parser.py

@@ -14,7 +14,7 @@ The sequence in the [governing Research Protocol](https://github.com/tyoungg/mar
 | C.8 Tier1 economics | Is a differentiated patient-investment product viable? | Product/channel economics, capacity, competition, contribution margins |
 
 ## Current priority
-C.1 remains the gate. N-SAR Item 69 is a useful positive index-fund signal, but N is not an active label and historical as-of coverage is limited.
+C.1 remains the gate. N-SAR Item 69 is a useful positive index-fund signal, but N is not an active label and historical as-of coverage is limited. The corrected extraction has 9 Y fund-years and 181 N-not-active fund-years in the deterministic 80-CIK sample; see [Findings and Falsification](Findings-and-Falsification).
 
 C.2 is the core counterfactual and must be run independently against both the S&P 500 and Russell 1000. The Russell 1000 replication is a required primary analysis, not an optional robustness check.
 
