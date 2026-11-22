@@ -8,6 +8,8 @@ on:
     paths:
       - ".github/workflows/c2_nport_cohort.yml"
       - "scripts/audit_c2_nport_cohort.py"
+      - "scripts/audit_c2_nport_pilot.py"
+      - "tests/test_c2_nport_pilot.py"
       - "tests/test_c2_nport_cohort.py"
       - "research/C2_COHORT_MANIFEST.csv"
       - "research/C2_COHORT_SELECTION_PROTOCOL.md"
