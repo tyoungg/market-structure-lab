@@ -88,6 +88,8 @@ def extract_answer_body(text):
 def parse_item7_item69(body):
     series_names={}
     flags=[]
+    period=re.search(r"(?im)^\\s*000\\s+[AB]000000\\s+(\\d{2}/\\d{2}/\\d{4})\\s*$",body)
+    report_date=period.group(1) if period else ""
     for line in body.splitlines():
         m=re.match(r"^\s*007\s+C02(\d{2})00\s+(.+?)\s*$",line)
         if m:
@@ -99,7 +101,7 @@ def parse_item7_item69(body):
             scope="series" if ordinal.isdigit() and ordinal!="00" else (
                 "all_series" if ordinal=="AA" else "registrant")
             flags.append({"coordinate":coord,"series_ordinal":ordinal,"value":value,"scope":scope})
-    return series_names,flags
+    return series_names,flags,report_date
 
 
 def main():
@@ -139,7 +141,8 @@ def main():
             if not body:
                 unmatched.append({"cik":cik,"accession":row["accession"],"reason":"NSAR_answer_document_not_found"})
                 completed+=1; continue
-            item7,flags=parse_item7_item69(body)
+            item7,flags,body_report_date=parse_item7_item69(body)
+            report_date=body_report_date or row["report_date"]
             name_to_ids={}
             for sid,nm in header_series.items():
                 name_to_ids.setdefault(norm_name(nm),[]).append(sid)
@@ -155,7 +158,7 @@ def main():
             for flag in flags:
                 if flag["scope"]=="registrant":
                     registrant.append({"cik":cik,"accession":row["accession"],"filing_date":row["filing_date"],
-                                       "report_date":row["report_date"],"form":row["form"],
+                                       "report_date":report_date,"form":row["form"],
                                        "index_fund_flag":flag["value"],"scope":"registrant"})
                     continue
                 ords=list(item7) if flag["scope"]=="all_series" else [flag["series_ordinal"]]
@@ -178,7 +181,7 @@ def main():
                                  "item7_series_name":next((item7[o] for o,x in ordinal_to_sid.items() if x==sid),""),
                                  "index_fund_flag":uniq[0] if len(uniq)==1 else "CONFLICT",
                                  "duplicate_item69_values":"|".join(values),
-                                 "filing_date":row["filing_date"],"report_date":row["report_date"],
+                                 "filing_date":row["filing_date"],"report_date":report_date,
                                  "form":row["form"],"accession":row["accession"],"submission_url":url,
                                  "answer_filename":filename,"truncated_submission_prefix":truncated})
             completed+=1
