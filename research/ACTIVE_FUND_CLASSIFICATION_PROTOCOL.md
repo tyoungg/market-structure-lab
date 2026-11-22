@@ -161,4 +161,4 @@ The initial local build reconciled to the frozen SEC artifacts: 22,280 fund-year
 
 This is an evidence ledger, not a validated classification panel. All 22,280 `final_class` values remain `unclassified`; nine rows carry a provisional passive-index candidate, and no active labels are promoted. The five automated prospectus active candidates are held in a manual-review queue and none qualifies under the January 1 cutoff for this 1980–2009 panel. The current Item 69 source artifact omitted the original response coordinate; the ledger flags that gap rather than reconstructing it.
 
-The canonical GitHub Actions run is the required reproducibility check. No active-only result is authorized until that run succeeds and the manual review, effective-date, coordinate, and prospectus-staleness gaps are resolved.
+The canonical GitHub Actions run [45022954457](https://github.com/tyoungg/market-structure-lab/actions/runs/45022954457) completed successfully and uploaded the reproducible ledger artifact. The manual review, effective-date, Item 69 coordinate, and prospectus-staleness gaps remain open; therefore, no active-only result is authorized.
