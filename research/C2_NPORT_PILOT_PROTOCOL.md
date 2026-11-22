@@ -38,7 +38,7 @@ All six source files are public SEC Form N-PORT-P XML filings. The XML `repPdDat
 | IWB | 2025-06-30 | 0001100663 | S000004347 | 0001752724-25-204367 |
 | IWB | 2025-09-30 | 0001100663 | S000004347 | 0001004726-25-002043 |
 
-Primary XML URLs:
+Primary XML URLs (the adjacent SEC filing-index pages provide the registrant/series metadata used for independent identity checks):
 
 - [Optimum 2025-06-30](https://www.sec.gov/Archives/edgar/data/1227523/000175272425207530/primary_doc.xml)
 - [Optimum 2025-09-30](https://www.sec.gov/Archives/edgar/data/1227523/000094040025009486/primary_doc.xml)
@@ -47,7 +47,7 @@ Primary XML URLs:
 - [IWB 2025-06-30](https://www.sec.gov/Archives/edgar/data/1100663/000175272425204367/primary_doc.xml)
 - [IWB 2025-09-30](https://www.sec.gov/Archives/edgar/data/1100663/000100472625002043/primary_doc.xml)
 
-The acquisition workflow must validate the expected report date and fund/series identity from the XML before accepting a file. SPY is a unit investment trust, so its identity check uses the registrant CIK/name and report date rather than a series ID.
+The acquisition workflow must validate the expected report date and fund/series identity from the XML before accepting a file. SPY is a unit investment trust; its N-PORT XML reports `N/A` in the series/registrant name fields. Its identity is validated using the SEC filing-index registrant CIK/name, the accession path CIK, and the report date rather than a series ID. The parser records this distinct validation method rather than treating `N/A` as a name match.
 
 ## 3. Initial acquisition output
 
