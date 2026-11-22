@@ -41,7 +41,7 @@ class FundYearEvidenceLedgerTests(unittest.TestCase):
             "raw_response":"Y","item69_coordinate":"001400","adjudicated_strategy_class":"passive_index",
             "review_status":"confirmed_series_specific_item69_y","rationale":"Exact series identity and positive Item 69 response."
         }])
-        got = apply_manual_adjudications(fy, manual)
+        got = apply_manual_adjudications(fy, manual, pd.DataFrame(columns=['source_type','asof_eligible','fundno_key','fund_year','cik_norm','series_id_norm','accession','candidate_class']))
         self.assertEqual(got.iloc[0].final_class, "passive_index")
         self.assertEqual(got.iloc[0].manual_adjudication_coordinate, "001400")
 
@@ -83,6 +83,48 @@ class FundYearEvidenceLedgerTests(unittest.TestCase):
         self.assertEqual(got.loc["1095_days","fund_year_evidence_links"],3)
         self.assertEqual(got.loc["no_expiry","fund_year_evidence_links"],3)
         self.assertEqual(got.loc["no_expiry","active_candidate_links"],0)
+
+    def test_manual_prospectus_active_adjudication_requires_asof_series_evidence(self):
+        fy = pd.DataFrame([{
+            "fundno_key":"60020","fund_year":2007,"cik_norm":"0001282693","series_id_norm":"S000000758",
+            "final_class":"unclassified","candidate_class":"unclassified","classification_review_status":"pending",
+            "final_class_reason":"pending"
+        }])
+        items = pd.DataFrame([{
+            "source_type":"SEC_prospectus_or_related_filing","asof_eligible":True,"fundno_key":"60020",
+            "fund_year":"2007","cik_norm":"0001282693","series_id_norm":"S000000758",
+            "accession":"0000894189-06-000960","candidate_class":"unclassified"
+        }])
+        manual = pd.DataFrame([{
+            "evidence_kind":"prospectus_fund_year","fundno_key":"60020","fund_year":"2007",
+            "cik_norm":"0001282693","series_id_norm":"S000000758","accession":"0000894189-06-000960",
+            "adjudicated_strategy_class":"other_active_style","panel_eligible":"true",
+            "review_status":"confirmed_active_strategy_asof_fund_year","rationale":"Reviewed source strategy."
+        }])
+        got, got_items = apply_manual_adjudications(fy, manual, items)
+        self.assertEqual(got.iloc[0].final_class,"other_active_style")
+        self.assertEqual(got_items.iloc[0].candidate_class,"active")
+        self.assertEqual(got_items.iloc[0].manual_adjudication_status,"confirmed_active_strategy_asof_fund_year")
+
+    def test_manual_prospectus_adjudication_rejects_post_cutoff_evidence(self):
+        fy = pd.DataFrame([{
+            "fundno_key":"60020","fund_year":2007,"cik_norm":"0001282693","series_id_norm":"S000000758",
+            "final_class":"unclassified","candidate_class":"unclassified","classification_review_status":"pending",
+            "final_class_reason":"pending"
+        }])
+        items = pd.DataFrame([{
+            "source_type":"SEC_prospectus_or_related_filing","asof_eligible":False,"fundno_key":"60020",
+            "fund_year":"2007","cik_norm":"0001282693","series_id_norm":"S000000758",
+            "accession":"0000894189-06-000960","candidate_class":"unclassified"
+        }])
+        manual = pd.DataFrame([{
+            "evidence_kind":"prospectus_fund_year","fundno_key":"60020","fund_year":"2007",
+            "cik_norm":"0001282693","series_id_norm":"S000000758","accession":"0000894189-06-000960",
+            "adjudicated_strategy_class":"other_active_style","panel_eligible":"true",
+            "review_status":"confirmed_active_strategy_asof_fund_year","rationale":"test"
+        }])
+        with self.assertRaises(ValueError):
+            apply_manual_adjudications(fy, manual, items)
 
 
 if __name__ == "__main__":
