@@ -88,7 +88,7 @@ def extract_answer_body(text):
 def parse_item7_item69(body):
     series_names={}
     flags=[]
-    period=re.search(r"(?im)^\\s*000\\s+[AB]000000\\s+(\\d{2}/\\d{2}/\\d{4})\\s*$",body)
+    period=re.search(r"(?im)^\s*000\s+[AB]000000\s+(\d{2}/\d{2}/\d{4})\s*$",body)
     report_date=period.group(1) if period else ""
     for line in body.splitlines():
         m=re.match(r"^\s*007\s+C02(\d{2})00\s+(.+?)\s*$",line)
