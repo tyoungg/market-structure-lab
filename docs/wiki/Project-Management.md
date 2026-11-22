@@ -71,7 +71,7 @@ GitHub Projects v2 is a user/organization-level resource and is not created by t
 
 ## Guardrails
 
-- All research changes remain on `RUSSEL_SP`; do not merge or promote to `main) without explicit approval.
+- All research changes remain on `RUSSEL_SP`; do not merge or promote to `main` without explicit approval.
 - Do not commit raw source datasets, credentials, or private data.
 - Keep each issue/workflow under the three-hour ceiling; target substantially shorter runs.
 - A successful workflow is execution evidence, not empirical validation.
