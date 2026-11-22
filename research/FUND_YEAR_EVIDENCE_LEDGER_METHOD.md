@@ -76,7 +76,7 @@ The corrected Item 69 artifact retains `item69_coordinate` and `all_item69_coord
 
 ## Next C.1 work
 
-1. Complete the reproducible ledger build with all 30 active prospectus adjudications and nine Item 69 passive adjudications.
+1. Independently audit the 30 active prospectus fund-year labels and their 14 series-level source links.
 2. Review the resulting age-sensitivity output and effective-date caveats; do not backdate filings.
 3. Assess whether additional prospectus coverage can materially expand the 30-row active sample beyond 2007–2009.
 4. Decide whether the current public evidence supports any inferential use of an active-only panel; otherwise record a C.1 no-go for the main analysis.
