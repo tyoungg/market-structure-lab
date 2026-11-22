@@ -16,7 +16,7 @@ permissions:
 jobs:
   nsar-linkage:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -46,11 +46,11 @@ jobs:
           SEC_CONTACT_EMAIL: ${{ secrets.SEC_CONTACT_EMAIL }}
         run: |
           mkdir -p nsar_outputs
-          timeout 30m python scripts/audit_nsar_series_linkage.py \
+          timeout 50m python scripts/audit_nsar_series_linkage.py \
             --series-csv prior_sec_coverage/sec_historical_coverage_by_series.csv \
             --candidate-csv prior_sec_coverage/sec_historical_filing_candidates.csv \
             --out nsar_outputs \
-            --max-runtime-minutes 25
+            --max-runtime-minutes 43
       - name: Upload derived audit outputs
         uses: actions/upload-artifact@v4
         with:

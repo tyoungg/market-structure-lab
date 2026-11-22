@@ -141,17 +141,20 @@ def main():
         raise ValueError("Duplicate target series IDs in sampled input")
     target_by_cik = {c: g for c, g in targets.groupby(targets.cik.astype(str).str.zfill(10))}
     s = make_session()
-    filing_rows, match_rows, errors = [], [], []
+    filing_rows, match_rows, errors, cik_rows = [], [], [], []
     completed, timed_out = 0, False
     for i, cik in enumerate(sampled, 1):
         if time.monotonic() >= DEADLINE:
             timed_out = True
             break
         print(f"[{i}/{len(sampled)}] CIK {cik}", flush=True)
+        cik_started = time.monotonic()
         try:
             history = load_history(s, cik)
         except Exception as e:
             errors.append({"cik": cik, "stage": "submissions_history", "error": f"{type(e).__name__}:{e}"})
+            cik_rows.append({"cik": cik, "status": "history_error", "selected_filings": 0, "elapsed_seconds": round(time.monotonic()-cik_started, 2)})
+            pd.DataFrame(cik_rows).to_csv(a.out/"nsar_cik_processing_manifest_checkpoint.csv", index=False)
             continue
         chosen = select_filings(history)
         target = target_by_cik.get(cik, pd.DataFrame())
@@ -207,6 +210,8 @@ def main():
                                "error": f"{type(e).__name__}:{e}"})
             filing_rows.append(row)
         completed += 1
+        cik_rows.append({"cik": cik, "status": "completed", "selected_filings": len(chosen), "elapsed_seconds": round(time.monotonic()-cik_started, 2)})
+        pd.DataFrame(cik_rows).to_csv(a.out/"nsar_cik_processing_manifest_checkpoint.csv", index=False)
         pd.DataFrame(filing_rows).to_csv(a.out/"nsar_filing_headers_checkpoint.csv", index=False)
         pd.DataFrame(match_rows).to_csv(a.out/"nsar_target_series_matches_checkpoint.csv", index=False)
         if timed_out:
@@ -215,6 +220,7 @@ def main():
     filings.to_csv(a.out/"nsar_filing_headers.csv", index=False)
     matches.to_csv(a.out/"nsar_target_series_matches.csv", index=False)
     pd.DataFrame(errors).to_csv(a.out/"nsar_api_errors.csv", index=False)
+    pd.DataFrame(cik_rows).to_csv(a.out/"nsar_cik_processing_manifest.csv", index=False)
     summary = targets.copy()
     if not matches.empty:
         agg = matches.groupby("series_id").agg(
@@ -246,6 +252,8 @@ def main():
         "source": "SEC EDGAR public N-SAR submissions and actual submission headers",
         "sample_method": "same deterministic 80-CIK subset as prior SEC pilot; not probability-representative",
         "sampled_CIKs": len(sampled), "sampled_target_series": len(targets),
+        "completed_CIKs": completed, "history_error_CIKs": int(sum(x["status"] == "history_error" for x in cik_rows)),
+        "unprocessed_CIKs": len(sampled) - len(cik_rows),
         "target_series_found_in_any_NSAR_header": len(target_ids.intersection(found_ids)),
         "target_series_header_match_pct": round(100*len(target_ids.intersection(found_ids))/len(target_ids), 2) if target_ids else None,
         "registrants_with_at_least_one_NSAR_filing": int(filings.cik.nunique()) if not filings.empty else 0,
@@ -259,7 +267,7 @@ def main():
         "series_name_nonempty_header_rows": int(matches.historical_header_series_name.astype(str).str.len().gt(0).sum()) if not matches.empty else 0,
         "matches_with_class_ids": int(matches.header_class_count.gt(0).sum()) if not matches.empty else 0,
         "matches_filed_before_first_observed_year": int(matches.filing_precedes_first_observed_year.sum()) if not matches.empty else 0,
-        "submission_header_errors": len(errors), "completed_CIKs": completed,
+        "submission_header_errors": len(errors),
         "runtime_minutes": round((time.monotonic()-started)/60, 2),
         "runtime_deadline_minutes": a.max_runtime_minutes,
         "runtime_deadline_reached": bool(timed_out or time.monotonic() >= DEADLINE),
@@ -277,6 +285,7 @@ def main():
         "- nsar_series_coverage.csv — series-level linkage coverage.",
         "- nsar_annual_prior_header_coverage.csv — prior-filing identity coverage by observation year.",
         "- nsar_linkage_metrics.json — machine-readable results.",
+        "- nsar_cik_processing_manifest.csv — explicit per-CIK completion and selected-filing counts.",
         "- nsar_api_errors.csv — bounded request errors.", ""]
     (a.out/"NSAR_SERIES_LINKAGE_FEASIBILITY_AUDIT.md").write_text("\n".join(report), encoding="utf-8")
     print(json.dumps(metrics, indent=2, default=str))
