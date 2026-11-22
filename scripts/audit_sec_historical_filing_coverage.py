@@ -442,11 +442,15 @@ def main():
             "strategy_class_conflict_asof": len(labels) > 1,
         })
     coverage = pd.DataFrame(coverage_rows)
+    coverage["sampled_registry_series_match"] = coverage.apply(
+        lambda r: r.get("series_match_status") == "unique_series" and
+                  str(r.get("matched_cik") or "") in selected_ciks, axis=1)
     coverage.to_csv(a.out / "sec_historical_coverage_by_fund_year.csv", index=False)
 
     annual = (coverage.groupby("year").agg(
         fund_year_rows=("fundno_key", "size"),
         unique_2010_registry_series_matches=("series_match_status", lambda x: int(x.eq("unique_series").sum())),
+        sampled_unique_registry_series_matches=("sampled_registry_series_match", "sum"),
         series_confirmed_before_year=("coverage_status", lambda x: int(x.isin([
             "series_in_filing_header_before_year", "accessible_prospectus_before_year",
             "strategy_evidence_before_year"]).sum())),
@@ -459,8 +463,8 @@ def main():
     ).reset_index())
     for col in ["series_confirmed_before_year", "accessible_prospectus_before_year",
                 "strategy_evidence_before_year"]:
-        denom = annual.unique_2010_registry_series_matches.replace(0, pd.NA)
-        annual[col + "_pct_of_registry_matches"] = (100 * annual[col] / denom).round(2)
+        denom = annual.sampled_unique_registry_series_matches.replace(0, pd.NA)
+        annual[col + "_pct_of_sampled_registry_matches"] = (100 * annual[col] / denom).round(2)
     annual.to_csv(a.out / "sec_historical_coverage_by_year.csv", index=False)
 
     series_cov = series.rename(columns={
