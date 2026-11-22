@@ -63,6 +63,21 @@ class NportPilotTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_identity(meta, bad)
 
+    def test_spy_uit_n_a_xml_name_uses_sec_accession_identity(self):
+        xml = b"""<edgarSubmission xmlns="http://www.sec.gov/edgar/nport">
+          <formData><genInfo><regCik>N/A</regCik><regName>N/A</regName>
+          <seriesId>N/A</seriesId><seriesName>N/A</seriesName><repPdDate>2025-06-30</repPdDate></genInfo>
+          <fundInfo><netAssets>1000000</netAssets></fundInfo></formData></edgarSubmission>"""
+        spec = {
+            "entity":"SPY","role":"benchmark_sp500","report_date":"2025-06-30",
+            "cik":"0000884394","series_id":"","series_name":"SPDR S&P 500 ETF Trust",
+            "accession":"0001752724-25-211156",
+            "url":"https://www.sec.gov/Archives/edgar/data/884394/000175272425211156/primary_doc.xml"
+        }
+        meta, _ = parse_nport_xml(xml, spec)
+        validate_identity(meta, spec)
+        self.assertIn("SEC accession path CIK", meta["identity_validation_method"])
+
     def test_summary_reports_identifier_coverage(self):
         meta, positions = parse_nport_xml(self.xml, self.spec)
         summary = summarize(meta, positions, 1234, "abc")
