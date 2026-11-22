@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from build_c2_no_trade_drift_pilot import active_share, drift_weights, decompose_active_share, security_identifier
+from build_c2_no_trade_drift_pilot import active_share, drift_weights, decompose_active_share, security_identifier, yahoo_symbol
 
 
 class NoTradeDriftTests(unittest.TestCase):
@@ -40,6 +40,10 @@ class NoTradeDriftTests(unittest.TestCase):
         self.assertEqual(security_identifier({"cusip":"123456789","isin":"US1234567890"}),"CUSIP:123456789")
         self.assertEqual(security_identifier({"cusip":"000000000","isin":"US1234567890"}),"ISIN:US1234567890")
         self.assertEqual(security_identifier({"cusip":"000000000","isin":"","name":"Magic Leap"}),"NAME:MAGIC LEAP")
+
+    def test_yahoo_symbol_exchange_mapping(self):
+        self.assertEqual(yahoo_symbol("6861","JP3236200006"),"6861.T")
+        self.assertEqual(yahoo_symbol("BRK.B","US0846707026"),"BRK-B")
 
 
 if __name__ == "__main__":
