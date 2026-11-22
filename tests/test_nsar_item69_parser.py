@@ -2,10 +2,10 @@ import sys
 import unittest
 from pathlib import Path
 
+import pandas as pd
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from audit_nsar_item69 import parse_item7_item69, parse_sec_dates
-import pandas as pd, parse_sec_dates
-import pandas as pd
 
 
 class TestNSARItem69(unittest.TestCase):
@@ -36,7 +36,6 @@ class TestNSARItem69(unittest.TestCase):
         _, _, report_date = parse_item7_item69("069 000100 Y")
         self.assertEqual(report_date, "")
 
-
     def test_iso_period_date(self):
         _, _, report_date = parse_item7_item69("000 B000000 2006-10-31\n069 000100 Y")
         self.assertEqual(report_date, "2006-10-31")
@@ -46,6 +45,7 @@ class TestNSARItem69(unittest.TestCase):
         self.assertEqual(parsed.dt.strftime("%Y-%m-%d").tolist(),
                          ["2006-10-31", "2006-10-31", "2005-12-31"])
         self.assertFalse(parsed.isna().any())
+
 
 if __name__ == "__main__":
     unittest.main()
