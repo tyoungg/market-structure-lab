@@ -1,70 +1,112 @@
-# C.1 Manual Adjudication — Prospectus Candidates and N-SAR Item 69
+# C.1 Manual Adjudication — Prospectus and N-SAR Evidence
 
 **Branch:** `RUSSEL_SP`  
 **Decision register:** [`c1_manual_adjudications.csv`](c1_manual_adjudications.csv)  
-**Scope:** Five automated prospectus candidates and all nine Item 69-positive fund-years in the bounded 80-CIK sample.
+**Bounded source scope:** 80 CIKs; 191 target SEC series; 22,280 fund-year rows.
 
-## Executive decisions
+## Executive result
 
-- **Nine fund-years confirmed as `passive_index`**: three SEC series, each observed in 2007, 2008, and 2009.
-- **No active fund-year promoted.** The five prospectus candidates are either false positives, plausible active strategies filed too late for the panel, or an enhanced-index-like strategy filed too late.
-- **181 Item 69 N fund-years remain unclassified.** An N response means “not reported as an index fund”; it is not evidence of active management.
-- **No active-only panel is validated.** This review improves the passive-index labels but does not solve the much larger active/unclassified coverage problem.
+- **30 active fund-years** are manually confirmed from contemporaneous, series-linked prospectuses, covering 14 series in 2007–2009.
+- **Nine passive-index fund-years** are manually confirmed from series-specific N-SAR Item 69 Y responses, covering three series in 2007–2009.
+- **22,241 fund-years remain unclassified.** The 181 Item 69 N rows are not active evidence.
+- The active evidence is only 30 of 22,280 fund-year rows (0.135%), clustered in the last three years. It is not a representative historical active-only panel.
+- The five automated phrase-extractor candidates are separately adjudicated; none adds an in-panel active row because their filings are too late or the series context is invalid.
 
-## 1. Item 69 positive fund-years
+## 1. Direct review of all as-of prospectus evidence
 
-The three series were reviewed against the contemporaneous SEC submission header, Item 007 series name, and Item 69 response in the original `answer.fil` document. The series ID/name in the SEC header and the Item 007 name agree for each series. The original six-character coordinates are preserved by the corrected extractor and checked against the actual filings.
+The ledger contains 30 as-of prospectus fund-year/evidence links across 14 distinct series. The automated phrase/context extractor marked these links unclassified, so each primary prospectus was reviewed directly. The review confirmed discretionary security selection, fundamental or quantitative research, and manager-set portfolio weights. Index references in several prospectuses define a market-cap universe or performance comparator; they do not describe index replication.
 
-| Fundno | Series | 2007 evidence | 2008 evidence | 2009 evidence | Decision |
-|---:|---|---|---|---|---|
-| 65260 | LargeCap S&P 500 Index Fund (S000007016) | 2006-12-29 / 2006-10-31 / `001400=Y` | 2007-12-28 / 2007-10-31 / `001400=Y` | 2008-12-30 / 2008-10-31 / `001400=Y` | `passive_index` |
-| 64887 | MidCap S&P 400 Index Fund (S000007079) | 2006-12-29 / 2006-10-31 / `002400=Y` | 2007-12-28 / 2007-10-31 / `002400=Y` | 2008-12-30 / 2008-10-31 / `002400=Y` | `passive_index` |
-| 6634 | SmallCap S&P 600 Index Fund (S000007203) | 2006-12-29 / 2006-10-31 / `004100=Y` | 2007-12-28 / 2007-10-31 / `004100=Y` | 2008-12-30 / 2008-10-31 / `004100=Y` | `passive_index` |
+| Series | Fundno | Fund-years | Filing date | Manual strategy decision |
+|---|---:|---|---|---|
+| Dreyfus S&P STARS Fund | 1366 | 2008–2009 | 2007-07-27 | Active stock selection based on S&P STARS analyst ratings |
+| Dreyfus S&P STARS Opportunities Fund | 64960 | 2008–2009 | 2007-07-27 | Active STARS selection and shorting strategy |
+| Legg Mason Capital Management Opportunity Trust | 52926 | 2007–2009 | 2006-09-15 | Flexible, unconstrained active security and asset selection |
+| Baird LargeCap Fund | 60020 | 2007–2009 | 2006-04-27 | Active fundamental and quantitative stock selection |
+| Baird MidCap Fund | 60021 | 2007–2009 | 2006-04-27 | Active fundamental and quantitative stock selection |
+| Baird SmallCap Fund | 45178 | 2007 | 2006-04-27 | Active fundamental and quantitative stock selection |
+| Touchstone Sands Capital Institutional Growth Fund | 48042 | 2008–2009 | 2007-05-01 | Active concentrated growth selection by Sands Capital |
+| Morgan Stanley Mid Cap Value Fund | 67019 | 2008 | 2006-12-11 | Active mid-cap value selection |
+| Optimum Large Cap Growth Fund | 38997 | 2008–2009 | 2007-07-27 | Active multi-subadviser growth selection |
+| Optimum Small-Mid Cap Growth Fund | 38964 | 2008–2009 | 2007-07-27 | Active subadviser growth selection; name/universe change effective 2008-01-01 |
+| Optimum Small-Mid Cap Value Fund | 39005 | 2008–2009 | 2007-07-27 | Active subadviser value selection; name/universe change effective 2008-01-01 |
+| Fort Pitt Capital Total Return Fund | 71760 | 2007–2009 | 2006-02-24 | Active fundamental stock selection and flexible equity/fixed-income allocation |
+| The Hillman Focused Advantage Fund | 81148 | 2007–2009 | 2006-05-09 | Active focused portfolio selected using qualitative and quantitative company analysis |
+| Calvert Large Cap Value Fund | 53752 | 2009 | 2008-11-04 | Active bottom-up fundamental value selection with responsibility screens |
 
-All nine filing/report pairs meet the predeclared as-of rule: filing date and report date precede January 1 of the fund-year, and the report period is within 548 days of the cutoff. Each positive is a series-level response, not a registrant-level answer.
+All 30 rows are adjudicated `other_active_style`. No row is assigned to `active_large_cap_core`: these are growth, value, focused, flexible, total-return, or systematic active strategies rather than a clean large-cap core category.
 
-### Primary-source checks
+### Important source-specific decisions
 
-The SEC filings below are the source documents from which the coordinates were checked:
+**Baird SmallCap context correction.** The automated context snippet attached to Baird SmallCap began with the LargeCap section, so the snippet itself was rejected. The complete May 1, 2006 prospectus has separate LargeCap, MidCap, and SmallCap strategy sections. The SmallCap section independently describes discretionary quantitative/fundamental security selection. Baird SmallCap is therefore confirmed active for its single as-of 2007 fund-year; the extractor's context assignment, not the series, was wrong.
 
-- [2006 N-SAR-B, accession 0001325358-06-000577](https://www.sec.gov/Archives/edgar/data/898745/000132535806000577/0001325358-06-000577.txt): Item 69 responses at `001400`, `002400`, and `004100` are Y.
-- [2007 N-SAR-B, accession 0001325358-07-000557](https://www.sec.gov/Archives/edgar/data/898745/000132535807000557/0001325358-07-000557.txt): the same three coordinates are Y.
-- [2008 N-SAR-B, accession 0001325358-08-000661](https://www.sec.gov/Archives/edgar/data/898745/000132535808000661/0001325358-08-000661.txt): the same three coordinates are Y.
+**Optimum small/mid name change.** The July 2007 prospectus uses the former names Optimum Small Cap Growth Fund and Optimum Small Cap Value Fund. A later SEC prospectus identifies the new Small-Mid names as former names and states that the investment universe changed effective January 1, 2008. That later document is used only to resolve the name transition; the contemporaneous 2007 prospectus supplies the active strategy evidence. The two series remain active after the change because their sub-advisers continue using their respective investment styles and strategies.
 
-The coordinate distinction matters. For example, the SmallCap S&P 600 Index Fund is coordinate `004100`, not the nearby `002500` coordinate. In the 2008 filing, `069 004100 Y` is present in the series block; `069 002500` belongs to a different series and is N. The extractor must preserve the full coordinate rather than infer it from ordinal or nearby text.
+**Near-name aliases.** The Dreyfus prospectuses use the “Premier” prefix; Legg Mason's prospectus omits “Capital Management”; and the Touchstone filing names the portfolio as “CIP Sands Capital Institutional Growth Portfolio.” The target SEC series IDs are present in the corresponding submission headers, and each fund/portfolio name and strategy has a unique one-to-one match within the filing. These aliases are explicitly documented in the decision register rather than silently normalized.
 
-### Identity and share-class limitation
+**Benchmark references are not index mandates.** Baird, Morgan Stanley, Calvert, and Optimum use S&P or Russell indexes to define market-cap ranges or compare performance. Their prospectuses describe adviser security selection, fundamental/quantitative research, and discretionary portfolio decisions. They are classified active, not passive or enhanced-index, on that basis.
 
-The fund-year ledger's series link is unique for each of these nine rows, and the SEC historical header/Item 007 identities agree. The ledger also marks the rows `share_class_ambiguous=true` because the registry contains multiple class contracts for each series. The adjudication is therefore at the **portfolio-series level**. It does not claim that a particular share class was uniquely identified, and the ambiguity flag remains in the ledger.
+### Timing and effective-date notes
 
-## 2. Prospectus candidate dispositions
+- Fort Pitt's filing states effectiveness on February 28, 2006.
+- Baird's prospectus is dated May 1, 2006; its filing was submitted April 27, 2006.
+- Hillman's filing states effectiveness 60 days after May 9, 2006, before the first included 2007 cutoff.
+- Legg Mason's filing is effective September 15, 2006.
+- Morgan Stanley's filing is dated December 11, 2006; the prospectus is dated December 29, 2006. No separate new effective date is stated on the cover; the filing and prospectus dates both precede the 2008 cutoff used for its observed row.
+- Touchstone's prospectus is dated May 1, 2007.
+- Optimum's prospectus is dated July 29, 2007; the small/mid strategy/name change is effective January 1, 2008.
+- Dreyfus's 2007 prospectus is filed July 27, 2007 and identifies the two STARS funds.
+- Calvert's November 4, 2008 filing is marked effective immediately and incorporates the October 31, 2008 prospectus; the fund commenced operations December 12, 2008.
 
-The five phrase-extractor candidates were manually reviewed against the series-specific text and timing:
+Where an explicit effective date is not stated, the register retains the filing/prospectus date and does not invent an effective date.
 
-| Series | Strategy disposition | Panel eligible? | Reason |
+## 2. Automated prospectus phrase-candidate dispositions
+
+The five automated active phrase candidates were reviewed separately:
+
+| Series | Manual disposition | In-panel? | Reason |
 |---|---|---:|---|
-| Small Cap Growth (S000008810) | Rejected false positive; unclassified | No | Trigger phrase is boilerplate. Extracted passage begins with Security Large Cap Value Fund and describes a different fund's Russell 1000 Value strategy. |
-| Fidelity Advisor Value Fund (S000017687) | Active value strategy at filing date | No | FMR's series-specific principal strategy describes bottom-up fundamental analysis and selection of undervalued companies. Filing is 2009-12-29, after the panel's final observation and after the 2009-01-01 cutoff. |
-| Fidelity Advisor Value Leaders Fund (S000005435) | Active value strategy at filing date | No | Series-specific text describes blue-chip selection, fundamental valuation, and bottom-up analysis. Filing is 2009-12-29, after the panel's final observation and after the 2009-01-01 cutoff. |
-| Eagle Growth & Income Fund (S000008475) | Unclassified; series-context mismatch | No | Extracted strategy section is headed Capital Appreciation Fund, not the matched Eagle Growth & Income series. |
-| Dreyfus Structured Midcap Fund (S000000499) | Enhanced-index-like candidate | No | At least 80% of assets are constrained to S&P 400 or Russell Midcap constituents; a quantitative valuation/momentum/quality process makes benchmark-aware overweight/underweight decisions. Filing is 2009-12-23, after the observed period. |
+| Small Cap Growth (S000008810) | Rejected false positive | No | Extracted context describes Security Large Cap Value Fund, not the matched Small Cap Growth series |
+| Fidelity Advisor Value Fund (S000017687) | Active value strategy at filing date | No | Series-specific fundamental bottom-up value strategy; filing dated 2009-12-29, after the panel cutoff and final observation |
+| Fidelity Advisor Value Leaders Fund (S000005435) | Active value strategy at filing date | No | Series-specific fundamental/blue-chip value strategy; filing dated 2009-12-29, after the panel cutoff and final observation |
+| Eagle Growth & Income Fund (S000008475) | Unclassified identity/context mismatch | No | Extracted strategy passage is headed Capital Appreciation Fund |
+| Dreyfus Structured Midcap Fund (S000000499) | Enhanced-index-like candidate | No | Benchmark-constituent constraint and quantitative benchmark-aware overweight/underweight process; filing is post-sample |
 
-The two Fidelity filings are plausible evidence of active value strategies as of their filing dates, but they cannot be backdated into the observed panel. Dreyfus is retained as an enhanced-index-like candidate rather than mislabeled as conventional active. Small Cap Growth and Eagle are not accepted as series-specific evidence.
+These five decisions do not add fund-year classifications to the 1980–2009 observed panel.
 
-## 3. Ledger implementation and acceptance
+## 3. N-SAR Item 69 positive adjudications
 
-The builder consumes the manual register and enforces the following checks before promoting a fund-year to `passive_index`:
+The three series below were checked against the SEC submission header, Item 007 series name, and the original Item 69 response coordinate. Each of the three filings has a Y at the stated coordinate.
 
-1. Exact match on `fundno_key`, fund-year, CIK, and SEC series ID.
-2. Recomputed as-of status is Item 69 Y and the latest eligible response is Y.
-3. Manual accession matches the latest eligible accession in the ledger.
-4. Manual response is Y, the coordinate is present, and the adjudicated class is `passive_index`.
-5. Duplicate manual decisions for a fund-year are rejected.
+| Fundno | Series | 2007 evidence | 2008 evidence | 2009 evidence |
+|---:|---|---|---|---|
+| 65260 | LargeCap S&P 500 Index Fund (S000007016) | 2006-12-29; report 2006-10-31; `001400=Y` | 2007-12-28; report 2007-10-31; `001400=Y` | 2008-12-30; report 2008-10-31; `001400=Y` |
+| 64887 | MidCap S&P 400 Index Fund (S000007079) | 2006-12-29; report 2006-10-31; `002400=Y` | 2007-12-28; report 2007-10-31; `002400=Y` | 2008-12-30; report 2008-10-31; `002400=Y` |
+| 6634 | SmallCap S&P 600 Index Fund (S000007203) | 2006-12-29; report 2006-10-31; `004100=Y` | 2007-12-28; report 2007-10-31; `004100=Y` | 2008-12-30; report 2008-10-31; `004100=Y` |
 
-The corrected extraction artifact contains all 409 series-level evidence rows with `item69_coordinate` and `all_item69_coordinates`. The nine adjudications above are the only fund-years promoted. Item 69 N is never converted to active.
+The original six-character coordinates are preserved in all 409 source evidence rows. The SmallCap S&P 600 response is `004100`; the nearby `002500` coordinate belongs to a different series and is N. The as-of rule is unchanged: filing and report dates must precede January 1 of the fund-year and the report must be no more than 548 days old.
 
-## 4. C.1 implication
+The ledger continues to retain `share_class_ambiguous=true` for these funds. The adjudication is at the portfolio-series level, not a claim that one share class was uniquely identified.
 
-The bounded N-SAR sample now provides a small set of defensible passive-index exclusions: nine fund-years across three series. It does not provide positive active evidence. The five prospectus candidates produce no in-sample active labels under the strict time cutoff. The remaining 22,271 fund-years in the 22,280-row ledger remain unclassified unless supported by additional contemporaneous evidence.
+Primary SEC filings:
+- [2006 N-SAR-B, accession 0001325358-06-000577](https://www.sec.gov/Archives/edgar/data/898745/000132535806000577/0001325358-06-000577.txt)
+- [2007 N-SAR-B, accession 0001325358-07-000557](https://www.sec.gov/Archives/edgar/data/898745/000132535807000557/0001325358-07-000557.txt)
+- [2008 N-SAR-B, accession 0001325358-08-000661](https://www.sec.gov/Archives/edgar/data/898745/000132535808000661/0001325358-08-000661.txt)
 
-**Decision:** retain the nine passive-index classifications; do not construct or publish an active-only panel from the current evidence. Continue with effective-date retrieval and predeclared prospectus-staleness sensitivity analysis, then make an explicit C.1 go/no-go decision.
+## 4. Prospectus-age sensitivity
+
+The no-expiry rule remains the primary evidence ledger. The 1-, 2-, and 3-year windows are sensitivity filters applied after manual strategy adjudication; they do not create a strategy class.
+
+| Maximum filing age | Prospectus fund-year links retained | Manually confirmed active links |
+|---|---:|---:|
+| 365 days | 13 | 13 |
+| 730 days | 25 | 25 |
+| 1,095 days | 30 | 30 |
+| No expiry | 30 | 30 |
+
+The 1-year and 2-year filters reduce the active sample substantially. The 3-year and no-expiry results coincide because the oldest as-of prospectus evidence in this bounded set is 1,042 days old. No evidence is backdated: each fund-year link still requires a filing before its January 1 cutoff.
+
+## 5. C.1 implication
+
+The evidence ledger now has 30 active fund-years, nine passive-index fund-years, and 22,241 unclassified fund-years. The 30 active rows represent 14 funds but are concentrated entirely in 2007–2009. They are a useful manually validated seed set for diagnostics, not a representative active-only historical panel.
+
+**Decision:** do not publish or use the current 30-row subset as a general active-only panel. Preserve the manually adjudicated labels, report the staleness sensitivities, and continue only if broader contemporaneous series-specific coverage can be established. Item 69 N remains unclassified; it is never promoted to active.
