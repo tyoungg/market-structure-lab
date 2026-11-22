@@ -77,6 +77,45 @@ class C2IdentifierMappingTests(unittest.TestCase):
         self.assertIsNone(result["selected"])
         self.assertEqual(result["candidate_tickers"], [])
 
+    def test_prefers_valid_us_listing_over_country_market_code(self):
+        matches = [
+            {"ticker": "9666678D", "marketSector": "Equity", "securityType2": "Common Stock",
+             "exchCode": "US", "figi": "BBG000000001"},
+            {"ticker": "GTES", "marketSector": "Equity", "securityType2": "Common Stock",
+             "exchCode": "UN", "figi": "BBG000000002"},
+            {"ticker": "GTES", "marketSector": "Equity", "securityType2": "Common Stock",
+             "exchCode": "UA", "figi": "BBG000000003"},
+            {"ticker": "1JL", "marketSector": "Equity", "securityType2": "Common Stock",
+             "exchCode": "GB", "figi": "BBG000000004"},
+        ]
+        result = select_ticker(matches, "GB")
+        self.assertEqual(result["status"], "unique_ticker")
+        self.assertEqual(result["selected"]["ticker"], "GTES")
+        self.assertIn(result["selected"]["exchCode"], {"UN", "UA"})
+
+    def test_uses_clean_base_ticker_from_otc_composite(self):
+        matches = [
+            {"ticker": "9666655D", "marketSector": "Equity", "securityType2": "Common Stock",
+             "exchCode": "US"},
+            {"ticker": "XOM", "marketSector": "Equity", "securityType2": "Common Stock",
+             "exchCode": "EO"},
+            {"ticker": "XOMEUR", "marketSector": "Equity", "securityType2": "Common Stock",
+             "exchCode": "EO"},
+            {"ticker": "XOMGBX", "marketSector": "Equity", "securityType2": "Common Stock",
+             "exchCode": "EO"},
+        ]
+        result = select_ticker(matches, "US")
+        self.assertEqual(result["status"], "unique_ticker")
+        self.assertEqual(result["selected"]["ticker"], "XOM")
+
+    def test_does_not_select_unverified_non_us_local_ticker(self):
+        matches = [
+            {"ticker": "1JL", "marketSector": "Equity", "securityType2": "Common Stock",
+             "exchCode": "GB"},
+        ]
+        result = select_ticker(matches, "GB")
+        self.assertEqual(result["status"], "no_ticker_match")
+
     def test_distinct_ticker_candidates_remain_ambiguous(self):
         matches = [
             {"ticker": "ABC", "marketSector": "Equity", "securityType2": "Common Stock",

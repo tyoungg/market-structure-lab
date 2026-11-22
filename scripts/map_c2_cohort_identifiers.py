@@ -15,6 +15,14 @@ import requests
 OPENFIGI_URL = "https://api.openfigi.com/v3/mapping"
 START_DATE = "2025-06-30"
 INVALID = {"", "N/A", "NA", "NONE", "XXXX", "000000000"}
+# OpenFIGI true-composite and venue codes for U.S. equity listings.
+US_EXCHANGE_CODES = {
+    "US", "OC", "OD", "PQ", "UA", "UB", "UC", "UD", "UE", "UF", "UI",
+    "UJ", "UL", "UM", "UN", "UO", "UP", "UQ", "UR", "UT", "UU", "UV",
+    "UW", "UX", "VF", "VJ", "VK", "VL", "VT", "VY",
+}
+# Currency-denominated OTC quote variants are not the underlying U.S. ticker.
+OTC_CURRENCY_SUFFIXES = ("USD", "EUR", "GBP", "GBX", "CHF", "CAD", "AUD", "JPY", "MXN", "PLN", "RUB")
 
 
 def valid(value: str) -> bool:
@@ -82,14 +90,18 @@ def valid_openfigi_ticker(value: str) -> bool:
     if not valid(ticker):
         return False
     # OpenFIGI can return an eight-character numeric/alphanumeric security
-    # description (for example 9666678D) in its ticker field. These are not
-    # Yahoo-compatible equity symbols; do not silently price them as tickers.
+    # description (for example 9666678D) in its ticker field.
     if len(ticker) == 8 and ticker[:7].isdigit() and ticker[-1].isalpha():
         return False
     return True
 
 
 def select_ticker(matches: list[dict], country: str = "") -> dict:
+    """Select a priceable U.S. listing; otherwise use a clean OTC composite ticker.
+
+    Investment-country codes are not exchange codes. Do not use them to select
+    a local listing whose Yahoo Finance suffix is unknown.
+    """
     equity = [
         x for x in matches
         if valid_openfigi_ticker(x.get("ticker", ""))
@@ -98,9 +110,24 @@ def select_ticker(matches: list[dict], country: str = "") -> dict:
     ]
     if not equity:
         return {"status": "no_ticker_match", "selected": None, "candidate_tickers": []}
-    us = [x for x in equity if str(x.get("exchCode", "")).upper() == "US"]
-    country_matches = [x for x in equity if country and str(x.get("exchCode", "")).upper() == country.upper()]
-    preferred = us or country_matches or equity
+
+    us_listed = [
+        x for x in equity
+        if str(x.get("exchCode", "")).upper() in US_EXCHANGE_CODES
+    ]
+    if us_listed:
+        preferred = us_listed
+    else:
+        otc = [x for x in equity if str(x.get("exchCode", "")).upper() == "EO"]
+        otc_base = [
+            x for x in otc
+            if not str(x.get("ticker", "")).strip().upper().endswith(OTC_CURRENCY_SUFFIXES)
+        ]
+        preferred = otc_base
+
+    if not preferred:
+        return {"status": "no_ticker_match", "selected": None, "candidate_tickers": []}
+
     tickers = sorted({str(x.get("ticker", "")).strip().upper() for x in preferred})
     if len(tickers) == 1:
         selected = next(x for x in preferred if str(x.get("ticker", "")).strip().upper() == tickers[0])
