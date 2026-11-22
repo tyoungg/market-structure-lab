@@ -1,6 +1,13 @@
 name: Historical N-SAR Item 69 index-fund flags
 
 on:
+  push:
+    branches:
+      - RUSSEL_SP
+    paths:
+      - ".github/workflows/audit_nsar_item69.yml"
+      - "scripts/audit_nsar_item69.py"
+      - "tests/test_nsar_item69_parser.py"
   workflow_dispatch:
 
 permissions:
@@ -27,7 +34,7 @@ jobs:
         with:
           name: historical-nsar-series-linkage
           repository: tyoungg/market-structure-lab
-          run-id: 44976888836
+          run-id: 45013756019
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: nsar_headers
       - name: Download prior SEC fund-year and series crosswalk
