@@ -79,3 +79,8 @@ The source Item 69 evidence artifact omitted the original six-character response
 3. Review all nine Item 69 `Y` fund-years for strategy-document consistency and conflicts.
 4. Predeclare prospectus staleness windows and run sensitivity tables.
 5. Decide whether the public evidence supports a valid active-only panel; otherwise document a C.1 no-go.
+
+
+## Canonical reproducibility result
+
+GitHub Actions run [45022954457](https://github.com/tyoungg/market-structure-lab/actions/runs/45022954457) completed successfully on `RUSSEL_SP`. The three pinned source artifacts downloaded, all three unit tests passed, the ledger builder completed, and the derived output bundle uploaded as artifact `fund-year-evidence-ledger` (artifact ID `14754616521`). The generated metrics match the initial local build: 22,280 unique fund-year rows, 17,302 linked evidence-event rows, 855 as-of-eligible evidence links, zero N-SAR status reconciliation mismatches, and zero final active classifications. The uploaded artifact is the canonical reproducible output.
