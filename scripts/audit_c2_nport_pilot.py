@@ -78,24 +78,43 @@ def number(value: str) -> float | None:
         return None
 
 
-def position_identifiers(position: ET.Element) -> tuple[str, str, str, str]:
-    cusip = first_text(position, "cusip")
+def normalize_identifier(value: str) -> tuple[str, str]:
+    raw = str(value or "").strip()
+    if raw.upper() in {"", "N/A", "NA", "NONE", "XXXX", "000000000"}:
+        return raw, ""
+    return raw, raw
+
+
+def position_identifiers(position: ET.Element) -> tuple[str, str, str, str, str, str, str]:
+    cusip_raw, cusip = normalize_identifier(first_text(position, "cusip"))
+    isin_raw = ""
+    ticker_raw = ""
     isin = ""
     ticker = ""
     others = []
     for el in position.iter():
         tag = local_name(el.tag)
-        value = (el.attrib.get("value") or (el.text or "")).strip()
-        if tag == "isin" and value:
-            isin = value
-        elif tag == "ticker" and value:
-            ticker = value.upper()
-        elif tag == "other" and value:
+        raw_value = (el.attrib.get("value") or (el.text or "")).strip()
+        raw, normalized = normalize_identifier(raw_value)
+        if tag == "isin" and raw:
+            if not isin_raw:
+                isin_raw = raw
+            if normalized and not isin:
+                isin = normalized.upper()
+        elif tag == "ticker" and raw:
+            if not ticker_raw:
+                ticker_raw = raw
+            if normalized and not ticker:
+                ticker = normalized.upper()
+        elif tag == "other" and raw:
             desc = (el.attrib.get("otherDesc") or "").strip()
-            others.append({"description": desc, "value": value})
-            if desc.lower() in {"ticker", "ticker symbol", "trading symbol"} and not ticker:
-                ticker = value.upper()
-    return cusip, isin, ticker, json.dumps(others, sort_keys=True)
+            others.append({"description": desc, "value": raw})
+            if desc.lower() in {"ticker", "ticker symbol", "trading symbol"}:
+                if not ticker_raw:
+                    ticker_raw = raw
+                if normalized and not ticker:
+                    ticker = normalized.upper()
+    return cusip, isin, ticker, json.dumps(others, sort_keys=True), cusip_raw, isin_raw, ticker_raw
 
 
 def parse_nport_xml(xml_bytes: bytes, spec: dict) -> tuple[dict, list[dict]]:
@@ -120,7 +139,7 @@ def parse_nport_xml(xml_bytes: bytes, spec: dict) -> tuple[dict, list[dict]]:
 
     positions = []
     for index, pos in enumerate(descendants(root, "invstOrSec"), start=1):
-        cusip, isin, ticker, other_ids = position_identifiers(pos)
+        cusip, isin, ticker, other_ids, cusip_raw, isin_raw, ticker_raw = position_identifiers(pos)
         asset_cat = first_text(pos, "assetCat")
         if not asset_cat:
             conditional = descendants(pos, "assetConditional")
@@ -134,7 +153,9 @@ def parse_nport_xml(xml_bytes: bytes, spec: dict) -> tuple[dict, list[dict]]:
             "accession": spec["accession"], "series_id": meta["xml_series_id"],
             "position_number": index,
             "name": first_text(pos, "name"), "title": first_text(pos, "title"),
-            "cusip": cusip, "isin": isin, "ticker": ticker, "other_identifiers_json": other_ids,
+            "cusip": cusip, "isin": isin, "ticker": ticker,
+            "cusip_raw": cusip_raw, "isin_raw": isin_raw, "ticker_raw": ticker_raw,
+            "other_identifiers_json": other_ids, "investment_country": first_text(pos, "invCountry"),
             "balance": number(first_text(pos, "balance")), "units": first_text(pos, "units"),
             "currency": first_text(pos, "curCd"), "value_usd": val, "pct_net_assets": pct,
             "asset_category": asset_cat, "payoff_profile": payoff,
