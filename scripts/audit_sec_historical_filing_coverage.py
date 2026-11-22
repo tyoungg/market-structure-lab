@@ -25,6 +25,7 @@ PRIORITY = {"485BPOS": 0, "485APOS": 1, "N-1A": 2, "485BXT": 3, "497K": 4, "497"
 MIN_YEAR, MAX_YEAR = 1994, 2009
 DELAY = 0.12
 MAX_PREFIX = 1_048_576
+DEADLINE = None
 
 
 def session():
@@ -32,9 +33,9 @@ def session():
     if not email:
         raise RuntimeError("SEC_CONTACT_EMAIL environment variable is required")
     s = requests.Session()
-    retry = Retry(total=7, connect=7, read=7, status=7, backoff_factor=1.5,
+    retry = Retry(total=2, connect=2, read=2, status=2, backoff_factor=0.5,
                   status_forcelist=[408, 429, 500, 502, 503, 504],
-                  allowed_methods=frozenset(["GET"]), respect_retry_after_header=True,
+                  allowed_methods=frozenset(["GET"]), respect_retry_after_header=False,
                   raise_on_status=False)
     adapter = HTTPAdapter(max_retries=retry, pool_connections=8, pool_maxsize=8)
     s.mount("https://", adapter)
@@ -47,9 +48,14 @@ def session():
 
 
 def get(s, url, **kwargs):
+    if DEADLINE is not None and time.monotonic() >= DEADLINE:
+        raise TimeoutError("historical SEC audit reached its runtime deadline")
     time.sleep(DELAY)
-    response = s.get(url, timeout=(30, 120), **kwargs)
+    response = s.get(url, timeout=(10, 30), **kwargs)
     response.raise_for_status()
+    if DEADLINE is not None and time.monotonic() >= DEADLINE:
+        response.close()
+        raise TimeoutError("historical SEC audit reached its runtime deadline")
     return response
 
 
@@ -232,8 +238,16 @@ def main():
     ap.add_argument("--fund-period-csv", required=True, type=Path)
     ap.add_argument("--fund-year-csv", required=True, type=Path)
     ap.add_argument("--out", required=True, type=Path)
-    ap.add_argument("--max-filings-per-cik-year", type=int, default=5)
+    ap.add_argument("--max-filings-per-cik-year", type=int, default=1)
+    ap.add_argument("--max-filings-per-cik", type=int, default=4)
+    ap.add_argument("--max-ciks", type=int, default=80)
+    ap.add_argument("--max-runtime-minutes", type=int, default=70)
     a = ap.parse_args()
+    if min(a.max_filings_per_cik_year, a.max_filings_per_cik, a.max_ciks, a.max_runtime_minutes) < 1:
+        raise ValueError("All runtime and sampling limits must be positive")
+    global DEADLINE
+    started = time.monotonic()
+    DEADLINE = started + a.max_runtime_minutes * 60
     a.out.mkdir(parents=True, exist_ok=True)
 
     period = pd.read_csv(a.fund_period_csv, dtype=str, low_memory=False)
@@ -250,13 +264,33 @@ def main():
                    first_observed_year=("year", "min"), last_observed_year=("year", "max"),
                    observed_fundnos=("fundno_key", lambda x: "|".join(sorted(set(x)))))
               .reset_index())
-    series_by_cik = {cik: g.to_dict("records") for cik, g in series.groupby("matched_cik")}
+    all_series_by_cik = {cik: g.to_dict("records") for cik, g in series.groupby("matched_cik")}
+    cik_summary = (series.groupby("matched_cik").agg(
+        series_count=("matched_series_id", "nunique"),
+        first_observed_year=("first_observed_year", "min"),
+        last_observed_year=("last_observed_year", "max")).reset_index()
+        .sort_values(["first_observed_year", "series_count", "matched_cik"]).reset_index(drop=True))
+    all_ciks = len(cik_summary)
+    if all_ciks > a.max_ciks:
+        # Deterministic systematic sample across the sorted time/registrant-size distribution.
+        indices = sorted({round(i * (all_ciks - 1) / max(a.max_ciks - 1, 1))
+                          for i in range(a.max_ciks)})
+        selected_ciks = set(cik_summary.iloc[indices].matched_cik.astype(str))
+    else:
+        selected_ciks = set(cik_summary.matched_cik.astype(str))
+    series_by_cik = {cik: all_series_by_cik[cik] for cik in sorted(selected_ciks)}
     names_by_cik = {cik: [str(x["series_name"]) for x in rows] for cik, rows in series_by_cik.items()}
     s = session()
     candidate_rows, evidence_rows, api_errors = [], [], []
     total_cap_hits = 0
+    completed_ciks = 0
+    timed_out = False
+    max_total_filings = a.max_ciks * a.max_filings_per_cik
 
     for cik_number, (cik, target_rows) in enumerate(series_by_cik.items(), start=1):
+        if time.monotonic() >= DEADLINE:
+            timed_out = True
+            break
         print(f"[{cik_number}/{len(series_by_cik)}] Scanning CIK {cik}", flush=True)
         try:
             history = load_history(s, cik)
@@ -265,10 +299,19 @@ def main():
             continue
         filings, cap_hits = choose_filings(history, a.max_filings_per_cik_year)
         total_cap_hits += cap_hits
-        print(f"  selected {len(filings)} prospectus candidates; capped years={cap_hits}", flush=True)
+        if len(filings) > a.max_filings_per_cik:
+            positions = sorted({round(i * (len(filings) - 1) / max(a.max_filings_per_cik - 1, 1))
+                                for i in range(a.max_filings_per_cik)})
+            filings = filings.iloc[positions].copy()
+        remaining = max_total_filings - len(candidate_rows)
+        filings = filings.head(max(0, remaining))
+        print(f"  selected {len(filings)} bounded candidates; capped years={cap_hits}", flush=True)
         target_ids = {str(x["matched_series_id"]) for x in target_rows}
         names = {str(x["matched_series_id"]): str(x["series_name"]) for x in target_rows}
         for filing in filings.to_dict("records"):
+            if time.monotonic() >= DEADLINE or len(candidate_rows) >= max_total_filings:
+                timed_out = time.monotonic() >= DEADLINE
+                break
             accession = str(filing.get("accessionNumber", ""))
             form = str(filing.get("form", "")).upper()
             filing_date = pd.to_datetime(filing.get("filingDate"), errors="coerce")
@@ -320,6 +363,12 @@ def main():
                 base["status"] = "submission_header_error"
                 base["detail"] = f"{type(exc).__name__}:{exc}"
             candidate_rows.append(base)
+        completed_ciks += 1
+        # Persist a checkpoint after every registrant so interrupted runs retain completed work.
+        pd.DataFrame(candidate_rows).to_csv(a.out / "sec_historical_filing_candidates_checkpoint.csv", index=False)
+        pd.DataFrame(evidence_rows).to_csv(a.out / "sec_historical_series_filing_evidence_checkpoint.csv", index=False)
+        if timed_out or len(candidate_rows) >= max_total_filings:
+            break
 
     candidates = pd.DataFrame(candidate_rows)
     evidence = pd.DataFrame(evidence_rows)
@@ -360,6 +409,9 @@ def main():
         if not cik or cik == "nan":
             prior = evidence.iloc[0:0]
             status = "unique_registry_match_missing_cik_mapping"
+        elif cik not in selected_ciks:
+            prior = evidence.iloc[0:0]
+            status = "cik_not_in_historical_sample"
         elif yr <= MIN_YEAR:
             prior = evidence.iloc[0:0]
             status = "pre_edgar_electronic_archive"
@@ -402,7 +454,8 @@ def main():
             "accessible_prospectus_before_year", "strategy_evidence_before_year"]).sum())),
         strategy_evidence_before_year=("coverage_status", lambda x: int(x.eq("strategy_evidence_before_year").sum())),
         pre_edgar_fund_years=("coverage_status", lambda x: int(x.eq("pre_edgar_electronic_archive").sum())),
-        no_prior_series_specific_filing=("coverage_status", lambda x: int(x.eq("no_prior_series_specific_filing_found").sum()))
+        no_prior_series_specific_filing=("coverage_status", lambda x: int(x.eq("no_prior_series_specific_filing_found").sum())),
+        not_scanned_cik_sample=("coverage_status", lambda x: int(x.eq("cik_not_in_historical_sample").sum()))
     ).reset_index())
     for col in ["series_confirmed_before_year", "accessible_prospectus_before_year",
                 "strategy_evidence_before_year"]:
@@ -438,7 +491,17 @@ def main():
     metrics = {
         "scope": "All CIKs attached to unique-series matches in the Petajisto/TR panel",
         "unique_matched_ciks": int(series.matched_cik.nunique()),
+        "sampled_ciks": len(selected_ciks),
+        "ciks_not_sampled": int(max(0, all_ciks - len(selected_ciks))),
         "unique_matched_series": int(series.matched_series_id.nunique()),
+        "series_in_sampled_ciks": int(series[series.matched_cik.isin(selected_ciks)].matched_series_id.nunique()),
+        "cik_sample_method": "deterministic systematic sample sorted by first observed year, series count, and CIK",
+        "max_filings_per_cik": int(a.max_filings_per_cik),
+        "max_total_filing_candidates": int(max_total_filings),
+        "completed_ciks": int(completed_ciks),
+        "runtime_minutes": round((time.monotonic() - started) / 60, 2),
+        "runtime_deadline_minutes": int(a.max_runtime_minutes),
+        "runtime_deadline_reached": bool(timed_out or time.monotonic() >= DEADLINE),
         "matched_series_fund_year_rows": int((year.series_match_status == "unique_series").sum()),
         "filing_forms_scanned": sorted(FORMS),
         "edgar_electronic_archive_start_year": MIN_YEAR,
@@ -462,11 +525,13 @@ def main():
     report = [
         "# Historical SEC Prospectus Coverage Audit", "",
         "## Scope and method",
-        f"- Matched registrants scanned: {metrics['unique_matched_ciks']:,}.",
-        f"- Matched series scanned: {metrics['unique_matched_series']:,}.",
+        f"- Matched registrants in full bridge: {metrics['unique_matched_ciks']:,}; sampled registrants: {metrics['sampled_ciks']:,}; not sampled: {metrics['ciks_not_sampled']:,}.",
+        f"- Matched series in full bridge: {metrics['unique_matched_series']:,}; series represented in sampled registrants: {metrics['series_in_sampled_ciks']:,}.",
+        f"- Completed registrants: {metrics['completed_ciks']:,}; runtime: {metrics['runtime_minutes']} minutes; deadline reached: {metrics['runtime_deadline_reached']}.",
         f"- Candidate forms: {', '.join(sorted(FORMS))}.",
         f"- Electronic EDGAR window scanned: {MIN_YEAR}–{MAX_YEAR}; pre-1994 years are reported separately.",
-        f"- Filing cap: {a.max_filings_per_cik_year} selected filings per registrant/year; cap reached in {total_cap_hits:,} registrant-years.",
+        f"- Filing limits: at most {a.max_filings_per_cik_year} per registrant/year and {a.max_filings_per_cik} per registrant; global candidate ceiling {max_total_filings:,}.",
+        f"- Registrant sample: deterministic systematic sample of {len(selected_ciks):,} from {all_ciks:,} matched registrants; not a census.",
         "- A filing counts as series-confirmed only when the matched SEC series ID appears in the actual submission header.",
         "- A prospectus counts as accessible only when its primary document is successfully retrieved and text-extracted.",
         "- Strategy labels require explicit fund-specific prospectus text. Missing text is unclassified, not active.", "",
@@ -478,7 +543,7 @@ def main():
         f"- Matched series with explicit strategy evidence: {metrics['series_with_explicit_strategy_evidence']:,}.",
         f"- SEC submissions API errors: {len(api_errors):,}.", "",
         "## Interpretation limits",
-        "This is a bounded lower-bound coverage audit, not a complete EDGAR census. Registrant/year filing caps can omit relevant filings; cap-hit counts are reported. A CIK-level filing without the matched series ID is not treated as evidence for that fund. A series ID in a submission header confirms filing linkage but not strategy. An accessible prospectus without an extracted fund-specific strategy section remains unclassified. EDGAR's electronic archive begins in 1994; absence of electronic filings before that date says nothing about paper prospectuses or historical fund status. The 2010 registry snapshot remains a candidate-linkage source, not proof of historical registration.", "",
+        "This is a bounded, sampled lower-bound coverage audit, not a complete EDGAR census. Only a deterministic systematic sample of registrants is scanned, with per-year, per-registrant, global candidate, and runtime ceilings. Unselected registrants are explicitly labeled not sampled, not as having no filings. A CIK-level filing without the matched series ID is not treated as evidence for that fund. A series ID in a submission header confirms filing linkage but not strategy. An accessible prospectus without an extracted fund-specific strategy section remains unclassified. EDGAR's electronic archive begins in 1994; absence of electronic filings before that date says nothing about paper prospectuses or historical fund status. The 2010 registry snapshot remains a candidate-linkage source, not proof of historical registration.", "",
         "## Output inventory",
         "- sec_historical_filing_candidates.csv",
         "- sec_historical_series_filing_evidence.csv",
