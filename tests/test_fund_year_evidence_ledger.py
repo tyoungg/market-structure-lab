@@ -60,7 +60,7 @@ class FundYearEvidenceLedgerTests(unittest.TestCase):
             "review_status":"confirmed_series_specific_item69_y","rationale":"test"
         }])
         with self.assertRaises(ValueError):
-            apply_manual_adjudications(fy, manual)
+            apply_manual_adjudications(fy, manual, pd.DataFrame(columns=['source_type','asof_eligible','fundno_key','fund_year','cik_norm','series_id_norm','accession','candidate_class']))
 
     def test_prospectus_staleness_sensitivity_windows(self):
         items = pd.DataFrame([
