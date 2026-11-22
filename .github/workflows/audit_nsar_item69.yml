@@ -49,7 +49,9 @@ jobs:
           python - <<'PY'
           import json
           m=json.load(open("nsar_headers/nsar_linkage_metrics.json"))
-          assert m["completed_CIKs"] == 80, m
+          assert m["unprocessed_CIKs"] == 0, m
+          manifest=__import__("pandas").read_csv("nsar_headers/nsar_cik_processing_manifest.csv")
+          assert len(manifest) == 80, len(manifest)
           assert not m["runtime_deadline_reached"], m
           PY
       - name: Extract series-specific N-SAR Item 69 flags

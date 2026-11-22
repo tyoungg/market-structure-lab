@@ -128,7 +128,7 @@ def main():
     if not target_ciks or target_series.empty:
         raise ValueError("Sample-only N-SAR series coverage file is empty")
     if target_series.series_id.duplicated().any():
-        raise ValueError("Duplicate series IDs in sample-only N-SAR series coverage file")()
+        raise ValueError("Duplicate series IDs in sample-only N-SAR series coverage file")
     target_pairs=set(zip(target_series.cik.astype(str).str.zfill(10),target_series.series_id.astype(str)))
     filed_dates=pd.to_datetime(filings.filing_date,errors="coerce")
     chosen=filings[(filings.status.eq("target_series_id_found")) &
