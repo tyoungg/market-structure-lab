@@ -11,7 +11,7 @@ class NportPilotTests(unittest.TestCase):
         self.spec = {
             "entity": "Sample Active Fund", "role": "fund", "report_date": "2025-06-30",
             "cik": "0000000001", "series_id": "S000000001", "series_name": "Sample Active Fund",
-            "accession": "0000000001-25-000001", "url": "https://example.invalid/primary_doc.xml",
+            "accession": "0000000001-25-000001", "url": "https://www.sec.gov/Archives/edgar/data/1/000000000125000001/primary_doc.xml",
         }
         self.xml = b"""<?xml version="1.0"?>
         <edgarSubmission xmlns="http://www.sec.gov/edgar/nport">
