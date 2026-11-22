@@ -38,11 +38,10 @@ def security_id(row: dict) -> str:
 def build_security_universe(holdings: pd.DataFrame) -> tuple[list[dict], pd.DataFrame]:
     start = holdings[
         holdings["report_date"].eq(START_DATE)
-        & holdings["role"].eq("fund")
         & holdings["is_common_equity"].astype(str).str.lower().eq("true")
     ].copy()
     if start.empty:
-        raise ValueError("No starting-date fund common-equity holdings found")
+        raise ValueError("No starting-date common-equity holdings found")
     start["weight_pct_nav_num"] = pd.to_numeric(start["pct_net_assets"], errors="coerce").fillna(0.0)
     start["security_id"] = start.apply(lambda r: security_id(r.to_dict()), axis=1)
     rows = []
@@ -62,8 +61,11 @@ def build_security_universe(holdings: pd.DataFrame) -> tuple[list[dict], pd.Data
             "nport_tickers": "|".join(tickers),
             "ticker_count": len(tickers),
             "investment_country": next((str(x).strip().upper() for x in group["investment_country"] if valid(x)), ""),
-            "funds": "|".join(sorted(set(group["entity"].astype(str)))),
-            "fund_count": int(group["entity"].nunique()),
+            "entities": "|".join(sorted(set(group["entity"].astype(str)))),
+            "roles": "|".join(sorted(set(group["role"].astype(str)))),
+            "funds": "|".join(sorted(set(group.loc[group["role"].eq("fund"), "entity"].astype(str)))),
+            "fund_count": int(group.loc[group["role"].eq("fund"), "entity"].nunique()),
+            "entity_count": int(group["entity"].nunique()),
             "starting_weight_pct_nav_sum": float(group["weight_pct_nav_num"].sum()),
             "primary_identifier_type": primary_type,
             "primary_identifier_value": primary_value,
@@ -249,6 +251,7 @@ def main() -> None:
     mapping_df = pd.DataFrame(mapped)
     map_by_id = {row["security_id"]: row for row in mapped}
     coverage_rows = []
+    role_by_entity = start.groupby("entity")["role"].first().to_dict()
     for entity, group in start.groupby("entity", sort=True):
         total = pd.to_numeric(group["pct_net_assets"], errors="coerce").fillna(0.0).sum()
         mapped_weight = 0.0
@@ -263,7 +266,8 @@ def main() -> None:
                 unresolved_weight += w
         coverage = 100.0 * mapped_weight / total if total else 0.0
         coverage_rows.append({
-            "fund": entity,
+            "entity": entity,
+            "role": role_by_entity[entity],
             "starting_equity_weight_pct_nav": total,
             "mapped_equity_weight_pct_nav": mapped_weight,
             "unmapped_equity_weight_pct_nav": unresolved_weight,
@@ -279,17 +283,22 @@ def main() -> None:
         "unauthenticated_rate_limit": "25 requests/minute; 10 jobs/request",
         "include_unlisted_equities": True,
         "unique_starting_securities": len(universe),
+        "starting_entities": sorted(start["entity"].astype(str).unique().tolist()),
+        "fund_count": int(start.loc[start["role"].eq("fund"), "entity"].nunique()),
+        "benchmark_count": int(start.loc[start["role"].str.startswith("benchmark_"), "entity"].nunique()),
         "direct_nport_ticker_rows": sum(x["mapping_status"] == "nport_ticker" for x in mapped),
         "openfigi_primary_unique": sum(x["mapping_status"] == "openfigi_primary_unique_ticker" for x in mapped),
         "openfigi_fallback_unique": sum(x["mapping_status"] == "openfigi_fallback_unique_ticker" for x in mapped),
         "ambiguous": sum(x["mapping_status"] in {"ambiguous_ticker", "conflicting_nport_tickers"} for x in mapped),
         "no_match": sum(x["mapping_status"] in {"no_ticker_match", "missing_identifiers"} for x in mapped),
         "mapping_error": sum(x["mapping_status"] == "mapping_error" for x in mapped),
-        "fund_coverage": coverage_rows,
-        "interpretation": "Ticker mapping audit only. Historical adjusted-price retrieval and no-trade drift calculation are separate steps.",
+        "entity_coverage": coverage_rows,
+        "interpretation": "Ticker mapping audit for all six funds and both ETF benchmark proxies. Historical adjusted-price retrieval and no-trade drift calculation are separate steps.",
     }
 
     mapping_df.to_csv(out / "c2_security_identifier_map.csv", index=False)
+    pd.DataFrame(coverage_rows).to_csv(out / "c2_identifier_mapping_coverage_by_entity.csv", index=False)
+    # Compatibility filename; now contains all eight entities.
     pd.DataFrame(coverage_rows).to_csv(out / "c2_identifier_mapping_coverage_by_fund.csv", index=False)
     (out / "c2_openfigi_raw_results.json").write_text(json.dumps(raw_log, indent=2), encoding="utf-8")
     (out / "c2_identifier_mapping_metrics.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
@@ -297,13 +306,13 @@ def main() -> None:
     lines = [
         "# C.2 Security Identifier Mapping Audit",
         "",
-        f"Mapped {summary['unique_starting_securities']} unique starting-date securities using N-PORT tickers and OpenFIGI v3.",
+        f"Mapped {summary['unique_starting_securities']} unique starting-date securities across {summary['fund_count']} funds and {summary['benchmark_count']} ETF benchmark proxies using N-PORT tickers and OpenFIGI v3.",
         "",
-        "| Fund | Ticker mapping coverage (% starting equity) | Unmapped weight (%) |",
+        "| Entity | Role | Ticker mapping coverage (% starting equity) | Unmapped weight (%) |",
         "|---|---:|---:|",
     ]
     for row in coverage_rows:
-        lines.append(f"| {row['fund']} | {row['ticker_mapping_coverage_pct_starting_equity']:.3f} | {row['unmapped_weight_pct_starting_equity']:.3f} |")
+        lines.append(f"| {row['entity']} | {row['role']} | {row['ticker_mapping_coverage_pct_starting_equity']:.3f} | {row['unmapped_weight_pct_starting_equity']:.3f} |")
     lines += [
         "",
         f"- Direct N-PORT ticker mappings: {summary['direct_nport_ticker_rows']}",
@@ -313,7 +322,7 @@ def main() -> None:
         f"- No-match/missing-identifier mappings: {summary['no_match']}",
         f"- Mapping errors: {summary['mapping_error']}",
         "",
-        "All OpenFIGI candidate responses are retained in the artifact. Ambiguous mappings are not auto-resolved. This report measures ticker mapping coverage, not price coverage.",
+        "All OpenFIGI candidate responses are retained in the artifact. Ambiguous mappings are not auto-resolved. Coverage is reported separately for each fund and ETF benchmark proxy. This report measures ticker mapping coverage, not price coverage.",
     ]
     (out / "C2_IDENTIFIER_MAPPING_AUDIT.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(json.dumps(summary, indent=2))
