@@ -24,11 +24,12 @@ def security_identifier(row: dict) -> str:
     isin = str(row.get("isin", "")).strip().upper()
     ticker = str(row.get("ticker", "")).strip().upper()
     name = str(row.get("name", "")).strip().upper()
-    if cusip and cusip != "000000000":
+    invalid = {"", "N/A", "NA", "NONE", "XXXX", "000000000"}
+    if cusip not in invalid:
         return "CUSIP:" + cusip
-    if isin:
+    if isin not in invalid:
         return "ISIN:" + isin
-    if ticker:
+    if ticker not in invalid:
         return "TICKER:" + ticker
     return "NAME:" + re.sub(r"\s+", " ", name)
 
@@ -45,15 +46,16 @@ def aggregate_portfolio(holdings: pd.DataFrame, entity: str, report_date: str) -
     subset["security_id"] = subset.apply(lambda r: security_identifier(r.to_dict()), axis=1)
     rows = []
     for security_id, group in subset.groupby("security_id", sort=True):
-        tickers = sorted({str(x).strip().upper() for x in group["ticker"] if str(x).strip()})
+        invalid = {"", "N/A", "NA", "NONE", "XXXX", "000000000"}
+        tickers = sorted({str(x).strip().upper() for x in group["ticker"] if str(x).strip().upper() not in invalid})
         if len(tickers) > 1:
             raise ValueError(f"Conflicting tickers for {security_id}: {tickers}")
         rows.append({
             "entity": entity, "report_date": report_date, "security_id": security_id,
             "name": next((str(x) for x in group["name"] if str(x).strip()), ""),
             "title": next((str(x) for x in group["title"] if str(x).strip()), ""),
-            "cusip": next((str(x) for x in group["cusip"] if str(x).strip() and str(x) != "000000000"), ""),
-            "isin": next((str(x) for x in group["isin"] if str(x).strip()), ""),
+            "cusip": next((str(x) for x in group["cusip"] if str(x).strip().upper() not in invalid), ""),
+            "isin": next((str(x) for x in group["isin"] if str(x).strip().upper() not in invalid), ""),
             "ticker": tickers[0] if tickers else "",
             "weight_pct_nav": float(group["pct_net_assets_num"].sum()),
             "source_position_rows": int(len(group)),
