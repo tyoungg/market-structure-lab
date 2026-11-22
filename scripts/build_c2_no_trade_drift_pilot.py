@@ -111,8 +111,12 @@ def decompose_active_share(
     }
 
 
-def yahoo_symbol(ticker: str) -> str:
-    return ticker.strip().upper().replace(".", "-").replace("/", "-")
+def yahoo_symbol(ticker: str, isin: str = "") -> str:
+    value = ticker.strip().upper()
+    # The N-PORT ticker for Japanese listings is often numeric without an exchange suffix.
+    if value.isdigit() and isin.strip().upper().startswith("JP"):
+        return value + ".T"
+    return value.replace(".", "-").replace("/", "-")
 
 
 def _extract_close(data: pd.DataFrame, ticker: str, requested_count: int) -> pd.Series | None:
@@ -133,11 +137,12 @@ def _extract_close(data: pd.DataFrame, ticker: str, requested_count: int) -> pd.
     return None
 
 
-def download_total_returns(tickers: list[str]) -> tuple[dict, list[dict], str]:
+def download_total_returns(tickers: list[str], ticker_isins: dict[str, str] = None) -> tuple[dict, list[dict], str]:
     import yfinance as yf
 
+    ticker_isins = ticker_isins or {}
     unique = sorted(set(tickers))
-    symbol_map = {ticker: yahoo_symbol(ticker) for ticker in unique}
+    symbol_map = {ticker: yahoo_symbol(ticker, ticker_isins.get(ticker, "")) for ticker in unique}
     yahoo_symbols = sorted(set(symbol_map.values()))
     prices, audit = {}, []
     batch_size = 15
@@ -178,6 +183,44 @@ def download_total_returns(tickers: list[str]) -> tuple[dict, list[dict], str]:
                               "end_adj_close": p1 or "", "total_return": "", "status": "missing_exact_endpoint_price",
                               "batch_error": last_error})
         time.sleep(1.0)
+
+    # Retry any missing endpoints individually; do not silently treat a listed security as unpriced.
+    audit_by_ticker = {row["ticker"]: row for row in audit}
+    for original in unique:
+        if original in prices:
+            continue
+        yahoo = symbol_map[original]
+        last_error = ""
+        for attempt in range(3):
+            try:
+                data = yf.download(
+                    tickers=yahoo, start=PRICE_START, end=PRICE_END_EXCLUSIVE,
+                    auto_adjust=True, actions=False, progress=False, threads=False, timeout=30,
+                )
+                close = _extract_close(data, yahoo, 1)
+                if close is not None:
+                    series = pd.to_numeric(close, errors="coerce").dropna()
+                    dates = pd.to_datetime(series.index).date
+                    by_date = {d.isoformat(): float(v) for d, v in zip(dates, series.values)}
+                    p0, p1 = by_date.get(START_DATE), by_date.get(END_DATE)
+                    if p0 and p1 and p0 > 0 and p1 > 0:
+                        info = {"yahoo_symbol": yahoo, "start_adj_close": p0, "end_adj_close": p1,
+                                "total_return": p1 / p0 - 1.0, "status": "priced_individual_fallback"}
+                        prices[original] = info
+                        audit_by_ticker[original] = {"ticker": original, **info}
+                        break
+                    last_error = "missing exact endpoint in individual response"
+                else:
+                    last_error = "individual response missing Close column"
+            except Exception as exc:
+                last_error = repr(exc)
+            time.sleep(2 ** attempt)
+        if original not in prices:
+            existing = audit_by_ticker.get(original, {"ticker": original, "yahoo_symbol": yahoo})
+            existing["status"] = "missing_exact_endpoint_price"
+            existing["fallback_error"] = last_error
+            audit_by_ticker[original] = existing
+    audit = [audit_by_ticker[ticker] for ticker in unique]
     return prices, audit, getattr(yf, "__version__", "unknown")
 
 
@@ -207,7 +250,8 @@ def main() -> None:
     iwb_meta1, iwb1 = aggregate_portfolio(holdings, "IWB", END_DATE)
 
     start_tickers = sorted({x for x in fund0["ticker"] if x})
-    prices, price_audit, yfinance_version = download_total_returns(start_tickers)
+    ticker_isins = dict(zip(fund0["ticker"], fund0["isin"]))
+    prices, price_audit, yfinance_version = download_total_returns(start_tickers, ticker_isins)
     start_weights = dict(zip(fund0["security_id"], fund0["weight"]))
     returns_by_security = {}
     price_rows = []
