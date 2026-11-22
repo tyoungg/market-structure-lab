@@ -93,6 +93,24 @@ class C2IdentifierMappingTests(unittest.TestCase):
         self.assertEqual(result["selected"]["ticker"], "GTES")
         self.assertIn(result["selected"]["exchCode"], {"UN", "UA"})
 
+    def test_prefers_exact_us_composite_and_excludes_when_issued_symbols(self):
+        matches = [
+            {"ticker": "BALL", "marketSector": "Equity", "securityType2": "Common Stock",
+             "exchCode": "US", "name": "BALL CORP"},
+            {"ticker": "BLL", "marketSector": "Equity", "securityType2": "Common Stock",
+             "exchCode": "UI", "name": "BALL CORP"},
+            {"ticker": "JNJ", "marketSector": "Equity", "securityType2": "Common Stock",
+             "exchCode": "US", "name": "JOHNSON & JOHNSON"},
+            {"ticker": "JNJ/WD", "marketSector": "Equity", "securityType2": "Common Stock",
+             "exchCode": "US", "name": "JOHNSON & JOHNSON-W/D"},
+        ]
+        ball = select_ticker(matches[:2], "US")
+        jnj = select_ticker(matches[2:], "US")
+        self.assertEqual(ball["status"], "unique_ticker")
+        self.assertEqual(ball["selected"]["ticker"], "BALL")
+        self.assertEqual(jnj["status"], "unique_ticker")
+        self.assertEqual(jnj["selected"]["ticker"], "JNJ")
+
     def test_uses_clean_base_ticker_from_otc_composite(self):
         matches = [
             {"ticker": "9666655D", "marketSector": "Equity", "securityType2": "Common Stock",

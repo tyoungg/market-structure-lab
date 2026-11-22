@@ -111,12 +111,28 @@ def select_ticker(matches: list[dict], country: str = "") -> dict:
     if not equity:
         return {"status": "no_ticker_match", "selected": None, "candidate_tickers": []}
 
-    us_listed = [
+    # Exclude when-issued / when-distributed instruments that OpenFIGI may
+    # return beside the ordinary common stock.
+    equity = [
+        x for x in equity
+        if not str(x.get("ticker", "")).strip().upper().endswith(("/WD", "-W", "-W/I"))
+        and not str(x.get("name", "")).strip().upper().endswith(("-W/D", "-W/I"))
+    ]
+    if not equity:
+        return {"status": "no_ticker_match", "selected": None, "candidate_tickers": []}
+
+    exact_us_composite = [
+        x for x in equity if str(x.get("exchCode", "")).upper() == "US"
+    ]
+    us_venues = [
         x for x in equity
         if str(x.get("exchCode", "")).upper() in US_EXCHANGE_CODES
+        and str(x.get("exchCode", "")).upper() != "US"
     ]
-    if us_listed:
-        preferred = us_listed
+    if exact_us_composite:
+        preferred = exact_us_composite
+    elif us_venues:
+        preferred = us_venues
     else:
         otc = [x for x in equity if str(x.get("exchCode", "")).upper() == "EO"]
         otc_base = [
