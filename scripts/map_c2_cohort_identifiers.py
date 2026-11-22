@@ -229,7 +229,6 @@ def run_mapping(universe: list[dict], api_key: str = "") -> tuple[list[dict], li
         })
 
     output_by_id = {row["security_id"]: row for row in output}
-    start = pd.read_csv(Path(args_input_placeholder), dtype=str).fillna("") if False else None
     return [output_by_id[row["security_id"]] for row in universe], raw_log
 
 
@@ -256,7 +255,8 @@ def main() -> None:
         unresolved_weight = 0.0
         for row in group.to_dict("records"):
             m = map_by_id.get(row["security_id"], {})
-            w = float(pd.to_numeric(row["pct_net_assets"], errors="coerce") or 0.0)
+            w_value = pd.to_numeric(row["pct_net_assets"], errors="coerce")
+            w = float(w_value) if pd.notna(w_value) else 0.0
             if m.get("mapped_ticker"):
                 mapped_weight += w
             else:
