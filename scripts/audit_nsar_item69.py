@@ -170,6 +170,7 @@ def main():
                 if flag["scope"]=="registrant":
                     registrant.append({"cik":cik,"accession":row["accession"],"filing_date":row["filing_date"],
                                        "report_date":report_date,"form":row["form"],
+                                       "item69_coordinate":flag["coordinate"],
                                        "index_fund_flag":flag["value"],"scope":"registrant"})
                     continue
                 ords=list(item7) if flag["scope"]=="all_series" else [flag["series_ordinal"]]
@@ -178,18 +179,25 @@ def main():
                     if not sid:
                         unmatched.append({"cik":cik,"accession":row["accession"],"series_ordinal":ordinal,
                                           "item7_series_name":item7.get(ordinal,""),
+                                          "item69_coordinate":flag["coordinate"],
+                                          "index_fund_flag":flag["value"],
                                           "reason":"item7_name_not_uniquely_matched_to_header_series"})
                         continue
                     if (cik,sid) not in target_pairs:
                         continue
-                    per_series.setdefault(sid,[]).append(flag["value"])
-            for sid,values in per_series.items():
+                    per_series.setdefault(sid,[]).append(flag)
+            for sid,series_flags in per_series.items():
                 t=target_series[(target_series.cik.astype(str).str.zfill(10).eq(cik)) &
                                 target_series.series_id.astype(str).eq(sid)].iloc[0]
+                values=[flag["value"] for flag in series_flags]
+                coordinates=[flag["coordinate"] for flag in series_flags]
+                unique_coordinates=sorted(set(coordinates))
                 uniq=sorted(set(values))
                 evidence.append({"cik":cik,"series_id":sid,"registry_series_name":t.series_name,
                                  "historical_header_series_name":header_series.get(sid,""),
                                  "item7_series_name":next((item7[o] for o,x in ordinal_to_sid.items() if x==sid),""),
+                                 "item69_coordinate":unique_coordinates[0] if len(unique_coordinates)==1 else "",
+                                 "all_item69_coordinates":"|".join(coordinates),
                                  "index_fund_flag":uniq[0] if len(uniq)==1 else "CONFLICT",
                                  "duplicate_item69_values":"|".join(values),
                                  "filing_date":row["filing_date"],"report_date":report_date,
@@ -204,7 +212,8 @@ def main():
     ev=pd.DataFrame(evidence)
     if ev.empty:
         ev=pd.DataFrame(columns=["cik","series_id","registry_series_name","historical_header_series_name",
-                                 "item7_series_name","index_fund_flag","duplicate_item69_values",
+                                 "item7_series_name","item69_coordinate","all_item69_coordinates",
+                                 "index_fund_flag","duplicate_item69_values",
                                  "filing_date","report_date","form","accession","submission_url",
                                  "answer_filename","truncated_submission_prefix"])
     ev.to_csv(a.out/"nsar_item69_series_evidence.csv",index=False)
