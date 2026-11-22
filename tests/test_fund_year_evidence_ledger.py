@@ -41,7 +41,7 @@ class FundYearEvidenceLedgerTests(unittest.TestCase):
             "raw_response":"Y","item69_coordinate":"001400","adjudicated_strategy_class":"passive_index",
             "review_status":"confirmed_series_specific_item69_y","rationale":"Exact series identity and positive Item 69 response."
         }])
-        got = apply_manual_adjudications(fy, manual, pd.DataFrame(columns=['source_type','asof_eligible','fundno_key','fund_year','cik_norm','series_id_norm','accession','candidate_class']))
+        got, _ = apply_manual_adjudications(fy, manual, pd.DataFrame(columns=['source_type','asof_eligible','fundno_key','fund_year','cik_norm','series_id_norm','accession','candidate_class']))
         self.assertEqual(got.iloc[0].final_class, "passive_index")
         self.assertEqual(got.iloc[0].manual_adjudication_coordinate, "001400")
 
