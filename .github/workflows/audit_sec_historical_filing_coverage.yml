@@ -1,0 +1,60 @@
+name: Bounded historical SEC prospectus coverage audit
+
+on:
+  push:
+    branches:
+      - RUSSEL_SP
+    paths:
+      - ".github/workflows/audit_sec_historical_filing_coverage.yml"
+      - "scripts/audit_sec_historical_filing_coverage.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  historical-sec-coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      SEC_CONTACT_EMAIL: ${{ secrets.SEC_CONTACT_EMAIL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: RUSSEL_SP
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install minimal dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pandas requests tabulate
+      - name: Validate Python syntax
+        run: python -m py_compile scripts/audit_sec_historical_filing_coverage.py
+      - name: Retrieve validated SEC bridge input artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: petajisto-sec-public-bridge-audit
+          run-id: 44927970994
+          github-token: ${{ github.token }}
+          path: sec_bridge_outputs
+      - name: Run bounded historical prospectus coverage sample
+        timeout-minutes: 75
+        run: |
+          python scripts/audit_sec_historical_filing_coverage.py \
+            --fund-period-csv sec_bridge_outputs/sec_match_by_fund_period.csv \
+            --fund-year-csv sec_bridge_outputs/sec_match_by_fund_year.csv \
+            --out sec_bridge_outputs/historical_filing_coverage \
+            --max-ciks 80 \
+            --max-filings-per-cik-year 1 \
+            --max-filings-per-cik 4 \
+            --max-runtime-minutes 70
+      - name: Upload bounded audit outputs and checkpoints
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bounded-historical-sec-coverage
+          path: sec_bridge_outputs/historical_filing_coverage/**
+          if-no-files-found: warn
+          retention-days: 30
