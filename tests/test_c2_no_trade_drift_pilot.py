@@ -36,9 +36,9 @@ class NoTradeDriftTests(unittest.TestCase):
             places=8,
         )
 
-    def test_security_identifier_uses_cusip_then_isin_then_name(self):
-        self.assertEqual(security_identifier({"cusip":"123456789","isin":"US1234567890"}),"CUSIP:123456789")
-        self.assertEqual(security_identifier({"cusip":"000000000","isin":"US1234567890"}),"ISIN:US1234567890")
+    def test_security_identifier_uses_isin_then_cusip_then_name(self):
+        self.assertEqual(security_identifier({"cusip":"123456789","isin":"US1234567890"}),"ISIN:US1234567890")
+        self.assertEqual(security_identifier({"cusip":"123456789","isin":"N/A"}),"CUSIP:123456789")
         self.assertEqual(security_identifier({"cusip":"000000000","isin":"","name":"Magic Leap"}),"NAME:MAGIC LEAP")
 
     def test_yahoo_symbol_exchange_mapping(self):
