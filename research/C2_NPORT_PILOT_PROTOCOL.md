@@ -1,0 +1,113 @@
+# C.2 Public N-PORT No-Trade Drift Pilot Protocol
+
+**Branch:** `RUSSEL_SP`  
+**Status:** Initial SEC holdings acquisition and parser pilot  
+**Scope:** One active fund, two consecutive quarter-end portfolios, two ETF benchmark proxies. This is a method-feasibility sample, not a representative empirical sample.
+
+## 1. Pilot sample
+
+Fund selected from the manually reviewed C.1 active series:
+
+- **Optimum Large Cap Growth Fund**
+- SEC CIK: `0001227523`
+- SEC series: `S000002422`
+- Filing/series identity was manually linked in C.1; the 2025 prospectus describes active multi-subadviser security selection.
+
+Two quarter-end holdings dates:
+
+- 2025-06-30
+- 2025-09-30
+
+Benchmark proxies, using SEC N-PORT holdings at the same dates:
+
+- **SPY** — SPDR S&P 500 ETF Trust; S&P 500 proxy
+- **IWB** — iShares Russell 1000 ETF; Russell 1000 proxy
+
+The ETF holdings are investable proxies, not the official index constituent/weight files. Tracking differences, cash, derivatives, sampling, and securities lending may affect the comparison.
+
+## 2. Frozen SEC source filings
+
+All six source files are public SEC Form N-PORT-P XML filings. The XML `repPdDate` is the portfolio valuation date; the filing date is not used as the holdings date.
+
+| Entity | Holdings date | CIK | Series ID | Accession |
+|---|---|---|---|---|
+| Optimum Large Cap Growth Fund | 2025-06-30 | 0001227523 | S000002422 | 0001752724-25-207530 |
+| Optimum Large Cap Growth Fund | 2025-09-30 | 0001227523 | S000002422 | 0000940400-25-009486 |
+| SPY | 2025-06-30 | 0000884394 | UIT trust | 0001752724-25-211156 |
+| SPY | 2025-09-30 | 0000884394 | UIT trust | 0001410368-25-031962 |
+| IWB | 2025-06-30 | 0001100663 | S000004347 | 0001752724-25-204367 |
+| IWB | 2025-09-30 | 0001100663 | S000004347 | 0001004726-25-002043 |
+
+Primary XML URLs:
+
+- [Optimum 2025-06-30](https://www.sec.gov/Archives/edgar/data/1227523/000175272425207530/primary_doc.xml)
+- [Optimum 2025-09-30](https://www.sec.gov/Archives/edgar/data/1227523/000094040025009486/primary_doc.xml)
+- [SPY 2025-06-30](https://www.sec.gov/Archives/edgar/data/884394/000175272425211156/primary_doc.xml)
+- [SPY 2025-09-30](https://www.sec.gov/Archives/edgar/data/884394/000141036825031962/primary_doc.xml)
+- [IWB 2025-06-30](https://www.sec.gov/Archives/edgar/data/1100663/000175272425204367/primary_doc.xml)
+- [IWB 2025-09-30](https://www.sec.gov/Archives/edgar/data/1100663/000100472625002043/primary_doc.xml)
+
+The acquisition workflow must validate the expected report date and fund/series identity from the XML before accepting a file. SPY is a unit investment trust, so its identity check uses the registrant CIK/name and report date rather than a series ID.
+
+## 3. Initial acquisition output
+
+The first C.2 workflow is limited to reproducible acquisition and XML parsing. It must:
+
+1. Download all six XML files with an SEC-compliant `User-Agent` using the repository's `SEC_CONTACT_EMAIL` secret.
+2. Retain the original XML files in the workflow artifact only; do not commit raw filings.
+3. Validate the two report dates for each entity and the expected Optimum/IWB series IDs.
+4. Extract filing metadata, `repPdDate`, `seriesId`, `seriesName`, `netAssets`, and every `invstOrSec` position.
+5. Preserve security name/title, CUSIP, ISIN, any ticker/other identifier, asset category, payoff profile, market value, and reported percent of net assets.
+6. Produce all-position and common-equity CSVs plus a per-report quality summary.
+
+The parser must not silently drop positions with missing CUSIP or ticker. Missing identifiers and excluded asset categories must be reported with market-value weights.
+
+## 4. No-trade drift calculation specification
+
+After the acquisition and identity checks pass:
+
+- Aggregate duplicate positions by security identifier before calculating weights.
+- Define common equity positions as N-PORT asset category `EC` with long payoff profile. Retain other asset categories separately for reconciliation.
+- Compute actual equity-only Active Share at each date:
+
+[
+AS_t = \frac{1}{2}\sum_i |w_{fund,i,t}-w_{benchmark,i,t}|
+]
+
+  Weights are normalized to 100% of the common-equity sleeve. Also report the sleeve's percent of net assets so the cash/non-equity allocation is not hidden.
+- Map CUSIPs/ISINs to stable traded tickers or identifiers using a documented public mapping source. Retain one-to-many and unmapped cases; do not guess.
+- Use dividend- and split-adjusted security total returns from 2025-06-30 through 2025-09-30 to grow the June fund holdings without trades:
+
+[
+w^{NT}_{i,t1}=\frac{w_{i,t0}(1+r_i)}{\sum_j w_{j,t0}(1+r_j)}
+]
+
+- Compare the no-trade portfolio at September 30 with actual Optimum holdings and with the September 30 SPY and IWB proxy portfolios.
+- Report the decomposition separately:
+  - starting actual Active Share;
+  - no-trade fund price drift against the frozen starting benchmark;
+  - benchmark weight/reconstitution change;
+  - actual-versus-no-trade portfolio gap at the end date.
+
+The final gap is not a causal estimate of manager trading. It can also reflect flows, corporate actions, derivatives, cash, reporting conventions, and data-mapping errors.
+
+## 5. Data-quality gates
+
+Do not publish a drift estimate unless:
+
+- all six filings pass date and identity validation;
+- the equity holdings reconcile to reported N-PORT values within documented tolerances;
+- at least 95% of the starting fund equity market value has valid total-return coverage;
+- at least 99% of each endpoint fund/benchmark equity value is mapped to a stable security identifier;
+- duplicate, short, derivative, and non-equity positions are handled explicitly;
+- the benchmark is labeled as an ETF proxy, not an official index portfolio.
+
+If a gate fails, publish the acquisition/coverage audit only and state why the drift estimate is withheld.
+
+## 6. Limitations
+
+- One fund and one three-month interval do not support general conclusions.
+- SPY and IWB ETF holdings are proxies for the S&P 500 and Russell 1000, not the index providers' official constituent weights.
+- N-PORT reporting and filing dates differ; use `repPdDate` for portfolio timing.
+- Yahoo Finance adjusted prices, if used for the next stage, are a public third-party price source and may have ticker history, delisting, corporate-action, and survivorship limitations.
+- The 2025 pilot is separate from the 1979–2023 TR/CRSP Active Share panel. Do not pool observations or infer continuity without a validated provider/fund identity bridge.
