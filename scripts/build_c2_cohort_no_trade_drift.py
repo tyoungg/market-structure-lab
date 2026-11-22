@@ -68,6 +68,7 @@ def main() -> None:
 
     holdings = pd.read_csv(source / "nport_cohort_common_equity.csv", dtype=str).fillna("")
     mapping = pd.read_csv(source / "c2_security_identifier_map.csv", dtype=str).fillna("")
+    mapping_coverage = pd.read_csv(source / "c2_identifier_mapping_coverage_by_entity.csv", dtype=str).fillna("")
     required = {"security_id", "mapped_ticker", "mapping_status"}
     if not required.issubset(mapping.columns):
         raise ValueError(f"Mapping file missing columns: {sorted(required - set(mapping.columns))}")
@@ -97,6 +98,10 @@ def main() -> None:
                 ticker_isins.setdefault(row["mapped_ticker"], row["isin"])
     prices, price_audit, yfinance_version = download_total_returns(start_tickers, ticker_isins)
 
+    mapping_coverage_by_entity = {
+        row["entity"]: float(row["ticker_mapping_coverage_pct_starting_equity"]) / 100.0
+        for row in mapping_coverage.to_dict("records")
+    }
     coverage_rows = []
     returns_by_entity: dict[str, dict[str, float]] = {}
     unpriced_by_entity: dict[str, list[str]] = {}
@@ -128,8 +133,11 @@ def main() -> None:
         coverage = priced_weight
         returns_by_entity[entity] = returns
         unpriced_by_entity[entity] = unpriced
+        mapping_coverage_fraction = mapping_coverage_by_entity.get(entity, 0.0)
         coverage_rows.append({
             "entity": entity, "role": roles[entity],
+            "ticker_mapping_coverage_pct_starting_equity": 100.0 * mapping_coverage_fraction,
+            "mapping_coverage_gate_pass": coverage_gate_pass(mapping_coverage_fraction),
             "starting_unique_securities": int(len(frame)),
             "mapped_ticker_securities": int(frame["mapped_ticker"].ne("").sum()),
             "priced_starting_equity_weight_pct": 100.0 * priced_weight,
@@ -169,8 +177,11 @@ def main() -> None:
             b0, b1 = portfolios[(benchmark, START_DATE)], portfolios[(benchmark, END_DATE)]
             b_start = dict(zip(b0["security_id"], b0["weight"]))
             b_end = dict(zip(b1["security_id"], b1["weight"]))
-            gate_pass = (coverage_gate_pass(coverage_by_entity[fund]["price_coverage_pct_starting_equity"] / 100.0)
-                         and coverage_gate_pass(coverage_by_entity[benchmark]["price_coverage_pct_starting_equity"] / 100.0))
+            gate_pass = all(
+                coverage_by_entity[entity]["mapping_coverage_gate_pass"]
+                and coverage_by_entity[entity]["price_gate_pass"]
+                for entity in (fund, benchmark)
+            )
             if gate_pass:
                 result = decompose_active_share(
                     start_weights, no_trade, actual_end, b_start, b_end,
@@ -237,11 +248,11 @@ def main() -> None:
         "",
         f"Period: {START_DATE} to {END_DATE}. Price source: Yahoo Finance auto-adjusted close (yfinance {yfinance_version}).",
         "",
-        "| Entity | Role | Price coverage (% starting equity) | 95% gate | Unpriced weight (%) |",
+        "| Entity | Role | Ticker mapping coverage (%) | Price coverage (%) | Mapping gate | Price gate | Unpriced weight (%) |",
         "|---|---|---:|---|---:|",
     ]
     for row in coverage_rows:
-        lines.append(f"| {row['entity']} | {row['role']} | {row['price_coverage_pct_starting_equity']:.3f} | {'PASS' if row['price_gate_pass'] else 'FAIL'} | {row['unpriced_starting_equity_weight_pct']:.3f} |")
+        lines.append(f"| {row['entity']} | {row['role']} | {row['ticker_mapping_coverage_pct_starting_equity']:.3f} | {row['price_coverage_pct_starting_equity']:.3f} | {'PASS' if row['mapping_coverage_gate_pass'] else 'FAIL'} | {'PASS' if row['price_gate_pass'] else 'FAIL'} | {row['unpriced_starting_equity_weight_pct']:.3f} |")
     lines += [
         "",
         "## Active Share decomposition",
