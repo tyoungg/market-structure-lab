@@ -2,12 +2,6 @@ name: Publish GitHub Wiki
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - RUSSEL_SP
-    paths:
-      - docs/wiki/**
-      - .github/workflows/publish-wiki.yml
 
 permissions:
   contents: read
@@ -21,23 +15,31 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: RUSSEL_SP
-      - name: Require Wiki publishing token
-        env:
-          WIKI_PUSH_TOKEN: ${{ secrets.WIKI_PUSH_TOKEN }}
-        run: |
-          if [ -z "$WIKI_PUSH_TOKEN" ]; then
-            echo "::error::Create the WIKI_PUSH_TOKEN Actions secret before publishing."
-            exit 1
-          fi
-      - name: Publish version-controlled Wiki pages
+      - name: Validate Wiki publishing token
         env:
           WIKI_PUSH_TOKEN: ${{ secrets.WIKI_PUSH_TOKEN }}
         run: |
           set -euo pipefail
-          # Keep the credential out of the clone URL. This also safely handles
-          # token characters that would otherwise be parsed as URL delimiters.
-          AUTH_HEADER="$(printf 'x-access-token:%s' "$WIKI_PUSH_TOKEN" | base64 -w 0)"
-          git -c http.extraheader="AUTHORIZATION: basic ${AUTH_HEADER}" clone \
+          if [ -z "$WIKI_PUSH_TOKEN" ]; then
+            echo "::error::WIKI_PUSH_TOKEN is empty. Add a GitHub personal access token with access to this repository's Wiki."
+            exit 1
+          fi
+          status="$(curl -sS -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer $WIKI_PUSH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/user)"
+          if [ "$status" != "200" ]; then
+            echo "::error::WIKI_PUSH_TOKEN was rejected by GitHub (HTTP $status). The secret must contain a valid GitHub PAT, not an email address or username, and it must have access to this repository."
+            exit 1
+          fi
+          echo "GitHub accepted the publishing token."
+      - name: Publish version-controlled Wiki pages
+        env:
+          WIKI_PUSH_TOKEN: ${{ secrets.WIKI_PUSH_TOKEN }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          set -euo pipefail
+          git -c http.extraheader="AUTHORIZATION: Bearer ${WIKI_PUSH_TOKEN}" clone \
             "https://github.com/${GITHUB_REPOSITORY}.wiki.git" wiki-publish
           rsync -av --exclude=.git docs/wiki/ wiki-publish/
           cd wiki-publish
@@ -49,4 +51,4 @@ jobs:
             exit 0
           fi
           git commit -m "Publish Wiki from ${GITHUB_SHA}"
-          git -c http.extraheader="AUTHORIZATION: basic ${AUTH_HEADER}" push
+          git -c http.extraheader="AUTHORIZATION: Bearer ${WIKI_PUSH_TOKEN}" push
