@@ -263,7 +263,7 @@ def main() -> None:
         security_id = row["security_id"]
         if ticker and ticker in prices:
             ret = prices[ticker]["total_return"]
-            status = "priced"
+            status = prices[ticker].get("status", "priced")
             priced_weight += row["weight"]
             price_info = prices[ticker]
         else:
