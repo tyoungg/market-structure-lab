@@ -1,8 +1,8 @@
 # C.2 No-Trade Drift Pilot — Results
 
 **Branch:** `RUSSEL_SP`  
-**Workflow:** [run 45029952352](https://github.com/tyoungg/market-structure-lab/actions/runs/45029952352)  
-**Artifact:** [`c2-no-trade-drift-pilot`, ID 14757665853](https://github.com/tyoungg/market-structure-lab/actions/runs/45029952352/artifacts/14757665853)  
+**Workflow:** [run 45030339928](https://github.com/tyoungg/market-structure-lab/actions/runs/45030339928)  
+**Artifact:** [`c2-no-trade-drift-pilot`, ID 14757665853](https://github.com/tyoungg/market-structure-lab/actions/runs/45029952352/artifacts/14757716120)  
 **Fund:** Optimum Large Cap Growth Fund, CIK 0001227523, series S000002422  
 **Period:** 2025-06-30 through 2025-09-30
 
