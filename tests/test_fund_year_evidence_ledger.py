@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from build_fund_year_evidence_ledger import dates, item69_candidate, nsar_eligible, apply_manual_adjudications
+from build_fund_year_evidence_ledger import dates, item69_candidate, nsar_eligible, apply_manual_adjudications, prospectus_staleness_sensitivity
 
 
 class FundYearEvidenceLedgerTests(unittest.TestCase):
@@ -61,6 +61,28 @@ class FundYearEvidenceLedgerTests(unittest.TestCase):
         }])
         with self.assertRaises(ValueError):
             apply_manual_adjudications(fy, manual)
+
+    def test_prospectus_staleness_sensitivity_windows(self):
+        items = pd.DataFrame([
+            {"source_type":"SEC_prospectus_or_related_filing","asof_eligible":True,"evidence_age_days":100,
+             "fundno_key":"1","fund_year":2008,"evidence_event_id":"p1","cik_norm":"0000000001",
+             "series_id_norm":"S1","candidate_class":"unclassified"},
+            {"source_type":"SEC_prospectus_or_related_filing","asof_eligible":True,"evidence_age_days":400,
+             "fundno_key":"2","fund_year":2008,"evidence_event_id":"p2","cik_norm":"0000000002",
+             "series_id_norm":"S2","candidate_class":"unclassified"},
+            {"source_type":"SEC_prospectus_or_related_filing","asof_eligible":True,"evidence_age_days":800,
+             "fundno_key":"3","fund_year":2008,"evidence_event_id":"p3","cik_norm":"0000000003",
+             "series_id_norm":"S3","candidate_class":"unclassified"},
+            {"source_type":"SEC_prospectus_or_related_filing","asof_eligible":False,"evidence_age_days":20,
+             "fundno_key":"4","fund_year":2008,"evidence_event_id":"p4","cik_norm":"0000000004",
+             "series_id_norm":"S4","candidate_class":"active"}
+        ])
+        got = prospectus_staleness_sensitivity(items).set_index("window")
+        self.assertEqual(got.loc["365_days","fund_year_evidence_links"],1)
+        self.assertEqual(got.loc["730_days","fund_year_evidence_links"],2)
+        self.assertEqual(got.loc["1095_days","fund_year_evidence_links"],3)
+        self.assertEqual(got.loc["no_expiry","fund_year_evidence_links"],3)
+        self.assertEqual(got.loc["no_expiry","active_candidate_links"],0)
 
 
 if __name__ == "__main__":
