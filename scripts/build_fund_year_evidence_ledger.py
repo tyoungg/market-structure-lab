@@ -70,7 +70,7 @@ def build(a):
     out=a.out; out.mkdir(parents=True,exist_ok=True)
     fy, p, n, nsar_asof, h = map(read,[a.fund_year_csv,a.prospectus_evidence_csv,a.nsar_evidence_csv,a.nsar_asof_csv,a.nsar_header_matches_csv])
     manual=read(a.manual_adjudications_csv) if a.manual_adjudications_csv else pd.DataFrame(columns=["evidence_kind","cik_norm","series_id_norm","fundno_key","fund_year","accession","item69_coordinate","raw_response","adjudicated_strategy_class","panel_eligible","review_status","rationale"])
-    require(manual,["evidence_kind","cik_norm","series_id_norm","accession","adjudicated_strategy_class","review_status","rationale"],"manual adjudications")
+    require(manual,["evidence_kind","cik_norm","series_id_norm","fundno_key","fund_year","accession","item69_coordinate","raw_response","adjudicated_strategy_class","panel_eligible","review_status","rationale"],"manual adjudications")
     require(fy,["fundno_key","year","series_match_status","matched_series_id","matched_cik","matched_series_name","share_class_ambiguous","link_type","sampled_registry_series_match","indexfund","enhanced_index"],"fund-year")
     require(p,["cik","series_id","series_name","filing_date","form","accession","filing_url","classification","evidence_phrases","evidence_context"],"prospectus")
     require(n,["cik","series_id","index_fund_flag","filing_date","report_date","form","accession","submission_url","answer_filename"],"Item 69")
