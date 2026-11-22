@@ -18,7 +18,7 @@ The operational [C.1 Active-Fund Classification Protocol](https://github.com/tyo
 
 The immediate C.1 classification gate is tracked in [issue #11](https://github.com/tyoungg/market-structure-lab/issues/11), with acceptance criteria requiring a defensible go/no-go decision rather than a forced active-only result.
 
-C.1 remains the gate. N-SAR Item 69 is a useful positive index-fund signal, but N is not an active label and historical as-of coverage is limited. The corrected extraction has 9 Y fund-years and 181 N-not-active fund-years in the deterministic 80-CIK sample; see [Findings and Falsification](Findings-and-Falsification).
+C.1 remains the gate. The [fund-year evidence ledger method and audit](https://github.com/tyoungg/market-structure-lab/blob/RUSSEL_SP/research/FUND_YEAR_EVIDENCE_LEDGER_METHOD.md) now defines the reproducible join from SEC series matches and filing evidence to fund-year rows. N-SAR Item 69 is a useful positive index-fund signal, but N is not an active label and historical as-of coverage is limited. The corrected extraction has 9 Y fund-years and 181 N-not-active fund-years in the deterministic 80-CIK sample; see [Findings and Falsification](Findings-and-Falsification).
 
 C.2 is the core counterfactual and must be run independently against both the S&P 500 and Russell 1000. The Russell 1000 replication is a required primary analysis, not an optional robustness check.
 
