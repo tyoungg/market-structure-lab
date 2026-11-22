@@ -23,7 +23,7 @@ A series/class header is identity evidence, not evidence that the fund is active
 
 ## Bounded test design
 
-Reuse the deterministic 80-CIK sample from the prior SEC historical coverage audit, representing 191 target series in the 1,262-series bridge. For each sampled CIK, query the public SEC submissions history and select at most one NSAR-A/B/AT/BT filing per calendar year from 1994 through 2018, preferring NSAR-B. Retrieve only the bounded SEC submission header, not all exhibits. Match actual header series IDs to target SEC series IDs, recording series names and class IDs where present. Use a 25-minute script deadline and 45-minute job timeout. No raw source files are committed.
+Reuse the deterministic 80-CIK sample from the prior SEC historical coverage audit, representing 191 target series in the 1,262-series bridge. For each sampled CIK, query the public SEC submissions history and select at most one NSAR-A/B/AT/BT filing per calendar year from 1994 through 2018, preferring NSAR-B. Retrieve only the bounded SEC submission header, not all exhibits. Match actual header series IDs to target SEC series IDs, recording series names and class IDs where present. Use a 43-minute script deadline and 60-minute job timeout. The completed run used 38.11 minutes and did not reach its deadline. No raw source files are committed.
 
 This sample is deterministic and not probability-representative. Results are lower-bound coverage diagnostics and must not be extrapolated to all 551 CIKs.
 
@@ -57,3 +57,24 @@ Official sources and examples:
 - SEC, Key to Reading N-SAR Document: https://www.sec.gov/info/edgar/forms/nsarkey.htm
 - Example series-specific Item 69 values: https://www.sec.gov/Archives/edgar/data/1039803/000100472610000036/answer2.txt
 - Example N-SAR Item 69 answer in 2015: https://www.sec.gov/Archives/edgar/data/1039803/000100472615000293/Answer2.txt
+
+
+## Completed header coverage audit (2026-11-22)
+
+The full deterministic sample completed: all 80 of 80 CIKs were processed, with zero submissions-history request failures and zero CIKs left unprocessed. The run selected 1,730 N-SAR filings (at most one per CIK-year) from 1994–2018.
+
+- Target series in sample: 191 across 80 CIKs.
+- Target series found in at least one N-SAR submission header: 162 (84.82%).
+- Registrants with at least one N-SAR filing: 79 of 80.
+- Registrants with at least one target-series header match: 78 of 80.
+- Filing outcomes: 790 target-series matches; 738 headers without series IDs; 131 headers with series IDs but no target match; 71 header retrieval/parse errors.
+- Header-name exact matches: 1,241; target-series records with class IDs in the matched headers: 1,532.
+- 28 target series had an N-SAR header filed before their first observed year.
+
+The as-of annual table is more restrictive than the ever-matched total. It records no target series with a prior N-SAR header for 1994–2006; prior-header coverage begins in 2007 (130 of 167 observed target series; 77.84%), rises to 141/180 (78.33%) in 2008 and 152/191 (79.58%) in 2009. These are identity-coverage rates, not strategy-label coverage. The full annual table is in `nsar_annual_prior_header_coverage.csv` in the run artifact.
+
+The audit completed in 38.11 minutes against a 43-minute script deadline. The 80-CIK manifest contains 80 completed rows, no history errors, and no unprocessed CIKs. The 71 header errors are filing-level outcomes and remain in the denominator; they are not silently treated as no-match evidence.
+
+This is a deterministic lower-bound sample, not a probability sample. Do not extrapolate its coverage rates to the other 471 registrants or infer that missing header evidence indicates non-index status.
+
+- Completed workflow: https://github.com/tyoungg/market-structure-lab/actions/runs/45013756019
