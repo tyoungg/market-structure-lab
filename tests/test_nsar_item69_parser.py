@@ -3,7 +3,8 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from audit_nsar_item69 import parse_item7_item69
+from audit_nsar_item69 import parse_item7_item69, parse_sec_dates
+import pandas as pd
 
 
 class TestNSARItem69(unittest.TestCase):

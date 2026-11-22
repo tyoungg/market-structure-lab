@@ -17,6 +17,11 @@ DELAY, MAX_BYTES = 0.12, 8 * 1024 * 1024
 DEADLINE = None
 
 
+def parse_sec_dates(values):
+    """Parse SEC dates that may mix MM/DD/YYYY and ISO YYYY-MM-DD."""
+    return pd.to_datetime(values, format="mixed", errors="coerce")
+
+
 def make_session():
     email = os.environ.get("SEC_CONTACT_EMAIL", "").strip()
     if not email:
@@ -88,7 +93,7 @@ def extract_answer_body(text):
 def parse_item7_item69(body):
     series_names={}
     flags=[]
-    period=re.search(r"(?im)^\s*000\s+[AB]000000\s+(\d{2}/\d{2}/\d{4})\s*$",body)
+    period=re.search(r"(?im)^\s*000\s+[AB]000000\s+(\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2})\s*$",body)
     report_date=period.group(1) if period else ""
     for line in body.splitlines():
         m=re.match(r"^\s*007\s+C02(\d{2})00\s+(.+?)\s*$",line)
@@ -207,8 +212,8 @@ def main():
     pd.DataFrame(unmatched).to_csv(a.out/"nsar_item69_unmatched.csv",index=False)
     pd.DataFrame(errors).to_csv(a.out/"nsar_item69_errors.csv",index=False)
 
-    ev["filing_date_dt"]=pd.to_datetime(ev.filing_date,errors="coerce")
-    ev["report_date_dt"]=pd.to_datetime(ev.report_date,errors="coerce")
+    ev["filing_date_dt"]=parse_sec_dates(ev.filing_date)
+    ev["report_date_dt"]=parse_sec_dates(ev.report_date)
     fy=fy.copy()
     fy["year_num"]=pd.to_numeric(fy.year,errors="coerce")
     fy["matched_cik_norm"]=fy.matched_cik.astype(str).str.zfill(10)
