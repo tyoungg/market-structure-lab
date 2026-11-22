@@ -1,9 +1,10 @@
 import sys
 import unittest
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from audit_c2_nport_pilot import parse_nport_xml, validate_identity, summarize
+from audit_c2_nport_pilot import parse_nport_xml, validate_identity, summarize, position_identifiers
 
 
 class NportPilotTests(unittest.TestCase):
@@ -86,6 +87,16 @@ class NportPilotTests(unittest.TestCase):
         self.assertEqual(summary["equity_ticker_coverage_pct_of_equity"], 100.0)
         self.assertEqual(summary["equity_cusip_coverage_pct_of_equity"], 100.0)
         self.assertEqual(summary["all_position_pct_net_assets"], 6.0)
+
+    def test_na_identifiers_are_missing_but_raw_values_are_retained(self):
+        node = ET.fromstring(
+            b"<invstOrSec><cusip>000000000</cusip><identifiers>"
+            b"<isin value='N/A'/><other otherDesc='Ticker' value='N/A'/>"
+            b"</identifiers></invstOrSec>"
+        )
+        cusip, isin, ticker, other_json, cusip_raw, isin_raw, ticker_raw = position_identifiers(node)
+        self.assertEqual((cusip, isin, ticker), ("", "", ""))
+        self.assertEqual((cusip_raw, isin_raw, ticker_raw), ("000000000", "N/A", "N/A"))
 
 
 if __name__ == "__main__":
