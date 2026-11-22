@@ -25,10 +25,10 @@ def security_identifier(row: dict) -> str:
     ticker = str(row.get("ticker", "")).strip().upper()
     name = str(row.get("name", "")).strip().upper()
     invalid = {"", "N/A", "NA", "NONE", "XXXX", "000000000"}
-    if cusip not in invalid:
-        return "CUSIP:" + cusip
     if isin not in invalid:
         return "ISIN:" + isin
+    if cusip not in invalid:
+        return "CUSIP:" + cusip
     if ticker not in invalid:
         return "TICKER:" + ticker
     return "NAME:" + re.sub(r"\s+", " ", name)
@@ -352,6 +352,7 @@ def main() -> None:
     status = "calculated" if price_coverage >= MIN_PRICE_COVERAGE else "withheld_price_coverage_below_95pct"
     metrics = {
         "pilot": "Optimum Large Cap Growth Fund vs SPY and IWB",
+        "security_matching_priority": "ISIN, then CUSIP, then ticker, then normalized name",
         "start_date": START_DATE, "end_date": END_DATE,
         "price_source": "Yahoo Finance adjusted close via yfinance",
         "yfinance_version": yfinance_version,
