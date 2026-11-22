@@ -28,7 +28,11 @@ jobs:
           WIKI_PUSH_TOKEN: ${{ secrets.WIKI_PUSH_TOKEN }}
         run: |
           set -euo pipefail
-          git clone "https://x-access-token:${WIKI_PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" wiki-publish
+          # Keep the credential out of the clone URL. This also safely handles
+          # token characters that would otherwise be parsed as URL delimiters.
+          AUTH_HEADER="$(printf 'x-access-token:%s' "$WIKI_PUSH_TOKEN" | base64 -w 0)"
+          git -c http.extraheader="AUTHORIZATION: basic ${AUTH_HEADER}" clone \
+            "https://github.com/${GITHUB_REPOSITORY}.wiki.git" wiki-publish
           rsync -av --exclude=.git docs/wiki/ wiki-publish/
           cd wiki-publish
           git config user.name "github-actions[bot]"
@@ -39,4 +43,4 @@ jobs:
             exit 0
           fi
           git commit -m "Publish Wiki from ${GITHUB_SHA}"
-          git push
+          git -c http.extraheader="AUTHORIZATION: basic ${AUTH_HEADER}" push
