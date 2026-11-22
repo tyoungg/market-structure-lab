@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from build_fund_year_evidence_ledger import dates, item69_candidate, nsar_eligible
+from build_fund_year_evidence_ledger import dates, item69_candidate, nsar_eligible, apply_manual_adjudications
 
 
 class FundYearEvidenceLedgerTests(unittest.TestCase):
@@ -26,6 +26,41 @@ class FundYearEvidenceLedgerTests(unittest.TestCase):
         self.assertFalse(nsar_eligible(pd.Timestamp("2008-01-01"), pd.Timestamp("2007-10-31"), cutoff))
         self.assertFalse(nsar_eligible(pd.Timestamp("2007-12-31"), pd.Timestamp("2006-06-30"), cutoff))
         self.assertFalse(nsar_eligible(pd.Timestamp("2007-12-31"), pd.NaT, cutoff))
+
+    def test_manual_item69_y_adjudication_requires_exact_fund_year_series_and_accession(self):
+        fy = pd.DataFrame([{
+            "fundno_key":"65260","fund_year":2007,"cik_norm":"0000898745","series_id_norm":"S000007016",
+            "nsar_index_fund_status_recomputed":"n_sar_index_fund_yes","latest_nsar_flag":"Y",
+            "latest_nsar_accessions":"0001325358-06-000577","final_class":"unclassified",
+            "candidate_class":"passive_index_candidate","classification_review_status":"pending",
+            "final_class_reason":"pending"
+        }])
+        manual = pd.DataFrame([{
+            "evidence_kind":"nsar_item69_fund_year","fundno_key":"65260","fund_year":"2007",
+            "cik_norm":"0000898745","series_id_norm":"S000007016","accession":"0001325358-06-000577",
+            "raw_response":"Y","item69_coordinate":"001400","adjudicated_strategy_class":"passive_index",
+            "review_status":"confirmed_series_specific_item69_y","rationale":"Exact series identity and positive Item 69 response."
+        }])
+        got = apply_manual_adjudications(fy, manual)
+        self.assertEqual(got.iloc[0].final_class, "passive_index")
+        self.assertEqual(got.iloc[0].manual_adjudication_coordinate, "001400")
+
+    def test_manual_item69_adjudication_rejects_wrong_accession(self):
+        fy = pd.DataFrame([{
+            "fundno_key":"65260","fund_year":2007,"cik_norm":"0000898745","series_id_norm":"S000007016",
+            "nsar_index_fund_status_recomputed":"n_sar_index_fund_yes","latest_nsar_flag":"Y",
+            "latest_nsar_accessions":"0001325358-06-000577","final_class":"unclassified",
+            "candidate_class":"passive_index_candidate","classification_review_status":"pending",
+            "final_class_reason":"pending"
+        }])
+        manual = pd.DataFrame([{
+            "evidence_kind":"nsar_item69_fund_year","fundno_key":"65260","fund_year":"2007",
+            "cik_norm":"0000898745","series_id_norm":"S000007016","accession":"wrong-accession",
+            "raw_response":"Y","item69_coordinate":"001400","adjudicated_strategy_class":"passive_index",
+            "review_status":"confirmed_series_specific_item69_y","rationale":"test"
+        }])
+        with self.assertRaises(ValueError):
+            apply_manual_adjudications(fy, manual)
 
 
 if __name__ == "__main__":
