@@ -2,6 +2,12 @@ name: Publish GitHub Wiki
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - RUSSEL_SP
+    paths:
+      - docs/wiki/**
+      - .github/workflows/publish-wiki.yml
 
 permissions:
   contents: read
