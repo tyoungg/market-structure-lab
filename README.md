@@ -45,3 +45,10 @@ The **Green Score** is calculated as:
 `Green Score = Stock Return - Twin Portfolio Return`
 
 An evolved score can also incorporate factors like valuation expansion, liquidity changes, and momentum persistence.
+
+
+## Research documentation and agents
+
+The governing research specification is in `research/RESEARCH_PROTOCOL.md`. Version-controlled Wiki source pages live in [`docs/wiki/`](docs/wiki/README.md) and can be published to the GitHub Wiki with the **Publish GitHub Wiki** workflow after the Wiki is initialized and the `WIKI_PUSH_TOKEN` Actions secret is configured.
+
+Project-specific GitHub Copilot agents are defined in `.github/agents/`: Research Protocol Guardian, Data Provenance Auditor, Empirical Skeptic, Reproducibility Engineer, and Wiki Curator. Read `.github/copilot-instructions.md` for shared project guardrails.
