@@ -67,7 +67,7 @@ Close an issue only when its technical deliverable is complete and its evidence 
 
 Run [Bootstrap research labels and milestones](https://github.com/tyoungg/market-structure-lab/actions/workflows/bootstrap-research-management.yml) on branch `RUSSEL_SP`. The workflow is idempotent and creates missing repository labels and milestones without changing existing definitions.
 
-GitHub Projects v2 is a user/organization-level resource and is not created by the repository-scoped bootstrap workflow. Create the board from the repository's **Projects** tab, add the repository as a source, and configure the fields/views above. This repository currently has no open issues, so add new work items as discrete tasks are defined rather than generating empty placeholder issues for all eight workstreams.
+GitHub Projects v2 is a user/organization-level resource and is not created by the repository-scoped bootstrap workflow. Create the board from the repository's **Projects** tab, add the repository as a source, and configure the fields/views above. Create issues only for concrete next actions; do not generate empty placeholder issues for all eight workstreams.
 
 ## Guardrails
 

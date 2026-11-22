@@ -25,6 +25,15 @@ Read `research/RESEARCH_PROTOCOL.md` before changing research code, data definit
 - Add regression tests for discovered bugs, especially dates, joins, duplicate keys, and as-of logic.
 - Do not claim tests, workflows, or publication succeeded unless confirmed.
 
+## Issue and project management
+- Use the repository's `Research task` issue template for bounded research, implementation, and audit tasks.
+- Apply one `C.1`–`C.8` workstream label, one evidence-state label, and one task-type label where applicable; use priority labels sparingly.
+- Keep execution status distinct from evidence status. `validated` means the evidence itself has been reviewed, not that automation passed.
+- Use the repository milestones as deliverable gates. Do not close a milestone or issue solely because a workflow succeeded.
+- Keep the GitHub Projects v2 board aligned with repository issues; update its Next action and Evidence status fields when decisions change.
+- Do not create empty placeholder issues for every workstream. Create issues for concrete, bounded next actions with acceptance criteria and falsification checks.
+- See `docs/wiki/Project-Management.md` for the board fields, views, milestones, and label taxonomy.
+
 ## Documentation
 - Canonical Wiki source is `docs/wiki/`; detailed methods and audits stay in `research/`.
 - Publish only verified findings. Label provisional calculations and pending reruns.
