@@ -1,0 +1,85 @@
+name: Build fund-year SEC evidence ledger
+
+on:
+  push:
+    branches:
+      - RUSSEL_SP
+    paths:
+      - ".github/workflows/build_fund_year_evidence_ledger.yml"
+      - "scripts/build_fund_year_evidence_ledger.py"
+      - "tests/test_fund_year_evidence_ledger.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build-ledger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: RUSSEL_SP
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pandas
+      - name: Download bounded SEC identity and filing evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: bounded-historical-sec-coverage
+          repository: tyoungg/market-structure-lab
+          run-id: 44966589936
+          github-token: \${{ secrets.GITHUB_TOKEN }}
+          path: inputs/sec
+      - name: Download N-SAR historical series-header evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: historical-nsar-series-linkage
+          repository: tyoungg/market-structure-lab
+          run-id: 45013756019
+          github-token: \${{ secrets.GITHUB_TOKEN }}
+          path: inputs/nsar_headers
+      - name: Download corrected N-SAR Item 69 evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: historical-nsar-item69
+          repository: tyoungg/market-structure-lab
+          run-id: 45017599142
+          github-token: \${{ secrets.GITHUB_TOKEN }}
+          path: inputs/nsar_item69
+      - name: Validate inputs, compile, and test
+        run: |
+          test -s inputs/sec/sec_historical_coverage_by_fund_year.csv
+          test -s inputs/sec/sec_historical_series_filing_evidence.csv
+          test -s inputs/nsar_headers/nsar_target_series_matches.csv
+          test -s inputs/nsar_item69/nsar_item69_series_evidence.csv
+          test -s inputs/nsar_item69/nsar_item69_fund_year_asof.csv
+          python -m py_compile scripts/build_fund_year_evidence_ledger.py
+          python -m unittest discover -s tests -p 'test_fund_year_evidence_ledger.py' -v
+      - name: Build and audit the fund-year evidence ledger
+        run: |
+          python scripts/build_fund_year_evidence_ledger.py \
+            --fund-year-csv inputs/sec/sec_historical_coverage_by_fund_year.csv \
+            --prospectus-evidence-csv inputs/sec/sec_historical_series_filing_evidence.csv \
+            --nsar-evidence-csv inputs/nsar_item69/nsar_item69_series_evidence.csv \
+            --nsar-asof-csv inputs/nsar_item69/nsar_item69_fund_year_asof.csv \
+            --nsar-header-matches-csv inputs/nsar_headers/nsar_target_series_matches.csv \
+            --nsar-registrant-csv inputs/nsar_item69/nsar_item69_registrant_level.csv \
+            --nsar-unmatched-csv inputs/nsar_item69/nsar_item69_unmatched.csv \
+            --nsar-errors-csv inputs/nsar_item69/nsar_item69_errors.csv \
+            --nsar-api-errors-csv inputs/nsar_headers/nsar_api_errors.csv \
+            --nsar-manifest-csv inputs/nsar_headers/nsar_cik_processing_manifest.csv \
+            --out fund_year_evidence_ledger
+      - name: Upload reproducible ledger and audit outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: fund-year-evidence-ledger
+          path: fund_year_evidence_ledger/**
+          if-no-files-found: error
+          retention-days: 90
