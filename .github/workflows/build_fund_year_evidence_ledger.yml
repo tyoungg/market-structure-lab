@@ -8,6 +8,7 @@ on:
       - ".github/workflows/build_fund_year_evidence_ledger.yml"
       - "scripts/build_fund_year_evidence_ledger.py"
       - "tests/test_fund_year_evidence_ledger.py"
+      - "research/c1_manual_adjudications.csv"
   workflow_dispatch:
 
 permissions:
@@ -50,7 +51,7 @@ jobs:
         with:
           name: historical-nsar-item69
           repository: tyoungg/market-structure-lab
-          run-id: 45017599142
+          run-id: 45026741058
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: inputs/nsar_item69
       - name: Validate inputs, compile, and test
@@ -60,6 +61,7 @@ jobs:
           test -s inputs/nsar_headers/nsar_target_series_matches.csv
           test -s inputs/nsar_item69/nsar_item69_series_evidence.csv
           test -s inputs/nsar_item69/nsar_item69_fund_year_asof.csv
+          test -s research/c1_manual_adjudications.csv
           python -m py_compile scripts/build_fund_year_evidence_ledger.py
           python -m unittest discover -s tests -p 'test_fund_year_evidence_ledger.py' -v
       - name: Build and audit the fund-year evidence ledger
@@ -75,6 +77,7 @@ jobs:
             --nsar-errors-csv inputs/nsar_item69/nsar_item69_errors.csv \
             --nsar-api-errors-csv inputs/nsar_headers/nsar_api_errors.csv \
             --nsar-manifest-csv inputs/nsar_headers/nsar_cik_processing_manifest.csv \
+            --manual-adjudications-csv research/c1_manual_adjudications.csv \
             --out fund_year_evidence_ledger
       - name: Upload reproducible ledger and audit outputs
         uses: actions/upload-artifact@v4
