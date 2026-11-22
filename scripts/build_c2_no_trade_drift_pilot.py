@@ -111,6 +111,33 @@ def decompose_active_share(
     }
 
 
+def missing_return_sensitivity(
+    start_weights: dict[str, float], base_returns: dict[str, float], unpriced_ids: list[str],
+    fund_actual_end: dict[str, float], benchmark_pairs: list[tuple[str, dict[str, float], dict[str, float]]],
+) -> list[dict]:
+    rows = []
+    for scenario, assumed_return in [("minus_100_pct", -1.0), ("zero_return", 0.0), ("plus_100_pct", 1.0)]:
+        scenario_returns = dict(base_returns)
+        for security_id in unpriced_ids:
+            scenario_returns[security_id] = assumed_return
+        drifted = drift_weights(start_weights, scenario_returns)
+        for benchmark_name, benchmark_start, benchmark_end in benchmark_pairs:
+            as_no_trade_end = active_share(drifted, benchmark_end)
+            as_actual_end = active_share(fund_actual_end, benchmark_end)
+            gap_universe = set(drifted) | set(fund_actual_end)
+            gap = 0.5 * sum(abs(fund_actual_end.get(k, 0.0) - drifted.get(k, 0.0)) for k in gap_universe)
+            rows.append({
+                "unpriced_return_scenario": scenario,
+                "assumed_total_return_pct": assumed_return * 100,
+                "benchmark": benchmark_name,
+                "active_share_no_trade_end_vs_end_benchmark_pct": 100 * as_no_trade_end,
+                "active_share_actual_end_pct": 100 * as_actual_end,
+                "actual_portfolio_change_beyond_drift_pp": 100 * (as_actual_end - as_no_trade_end),
+                "actual_vs_no_trade_end_portfolio_gap_pct": 100 * gap,
+            })
+    return rows
+
+
 def yahoo_symbol(ticker: str, isin: str = "") -> str:
     value = ticker.strip().upper()
     # The N-PORT ticker for Japanese listings is often numeric without an exchange suffix.
@@ -295,6 +322,12 @@ def main() -> None:
         decompose_active_share(start_weights, drifted_weights, fund_end_weights,
                                iwb_start_weights, iwb_end_weights, "IWB (Russell 1000 ETF proxy)"),
     ]
+    unpriced_ids = [row["security_id"] for row in price_rows if row["price_status"] == "unpriced_zero_return_assumption"]
+    unpriced_sensitivity = missing_return_sensitivity(
+        start_weights, returns_by_security, unpriced_ids, fund_end_weights,
+        [("SPY (S&P 500 ETF proxy)", spy_start_weights, spy_end_weights),
+         ("IWB (Russell 1000 ETF proxy)", iwb_start_weights, iwb_end_weights)],
+    )
 
     security_rows = []
     for security_id in sorted(set(start_weights) | set(drifted_weights) | set(fund_end_weights)):
@@ -329,12 +362,14 @@ def main() -> None:
         "drift_estimate_status": status,
         "portfolio_metadata": [fund_meta0, fund_meta1, spy_meta0, spy_meta1, iwb_meta0, iwb_meta1],
         "active_share_decomposition": decompositions if status == "calculated" else [],
+        "unpriced_return_sensitivity": unpriced_sensitivity if status == "calculated" else [],
         "interpretation": "Single-fund, three-month public-data pilot. Active Share uses common-equity weights normalized to the equity sleeve. Decomposition is descriptive, not causal. ETF holdings are benchmark proxies, not official index files.",
     }
 
     write_csv(out / "security_total_returns.csv", price_audit)
     write_csv(out / "fund_security_drift.csv", security_rows)
     write_csv(out / "active_share_decomposition.csv", decompositions if status == "calculated" else [])
+    write_csv(out / "unpriced_return_sensitivity.csv", unpriced_sensitivity if status == "calculated" else [])
     (out / "c2_no_trade_drift_metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
 
     lines = [
@@ -368,7 +403,8 @@ def main() -> None:
         lines.append("| Withheld | — | — | — | — | — | — | — | — |")
     lines += [
         "",
-        "The unpriced positions are retained in the starting portfolio with a zero-return assumption and reported explicitly. Do not interpret the portfolio-change component as pure manager trading: it can include flows, corporate actions, derivative/cash changes, and data/reporting differences.",
+        "The unpriced positions are retained in the starting portfolio with a zero-return assumption and reported explicitly. See unpriced_return_sensitivity.csv for -100%, 0%, and +100% total-return assumptions on those positions.",
+        "Do not interpret the portfolio-change component as pure manager trading: it can include flows, corporate actions, derivative/cash changes, and data/reporting differences.",
     ]
     (out / "C2_NO_TRADE_DRIFT_PILOT.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(json.dumps({"status": status, "price_coverage_pct": 100 * price_coverage,
