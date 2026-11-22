@@ -1,0 +1,72 @@
+name: Historical N-SAR Item 69 index-fund flags
+
+on:
+  push:
+    branches:
+      - RUSSEL_SP
+    paths:
+      - ".github/workflows/audit_nsar_item69.yml"
+      - "scripts/audit_nsar_item69.py"
+      - "tests/test_nsar_item69_parser.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  nsar-item69:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: RUSSEL_SP
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pandas requests
+      - name: Download bounded N-SAR header audit
+        uses: actions/download-artifact@v4
+        with:
+          name: historical-nsar-series-linkage
+          repository: tyoungg/market-structure-lab
+          run-id: 44976888836
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: nsar_headers
+      - name: Download prior SEC fund-year and series crosswalk
+        uses: actions/download-artifact@v4
+        with:
+          name: bounded-historical-sec-coverage
+          repository: tyoungg/market-structure-lab
+          run-id: 44966589936
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: prior_sec_coverage
+      - name: Validate parser and inputs
+        run: |
+          python -m py_compile scripts/audit_nsar_item69.py
+          python -m unittest discover -s tests -p 'test_nsar_item69_parser.py'
+          test -s nsar_headers/nsar_filing_headers.csv
+          test -s prior_sec_coverage/sec_historical_coverage_by_fund_year.csv
+          test -s prior_sec_coverage/sec_historical_coverage_by_series.csv
+      - name: Extract series-specific N-SAR Item 69 flags
+        env:
+          SEC_CONTACT_EMAIL: ${{ secrets.SEC_CONTACT_EMAIL }}
+        run: |
+          mkdir -p nsar_item69_outputs
+          timeout 30m python scripts/audit_nsar_item69.py \
+            --headers-csv nsar_headers/nsar_filing_headers.csv \
+            --fund-year-csv prior_sec_coverage/sec_historical_coverage_by_fund_year.csv \
+            --series-csv prior_sec_coverage/sec_historical_coverage_by_series.csv \
+            --out nsar_item69_outputs \
+            --max-runtime-minutes 25
+      - name: Upload derived Item 69 audit outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: historical-nsar-item69
+          path: nsar_item69_outputs/**
+          if-no-files-found: error
+          retention-days: 30
