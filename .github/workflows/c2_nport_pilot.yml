@@ -9,6 +9,8 @@ on:
       - ".github/workflows/c2_nport_pilot.yml"
       - "scripts/audit_c2_nport_pilot.py"
       - "tests/test_c2_nport_pilot.py"
+      - "scripts/build_c2_no_trade_drift_pilot.py"
+      - "tests/test_c2_no_trade_drift_pilot.py"
       - "research/C2_NPORT_PILOT_PROTOCOL.md"
 
 permissions:
@@ -27,10 +29,12 @@ jobs:
           cache: "pip"
 
       - name: Install dependencies
-        run: python -m pip install --upgrade pip requests
+        run: python -m pip install --upgrade pip requests pandas yfinance
 
-      - name: Validate N-PORT parser
-        run: python -m unittest discover -s tests -p "test_c2_nport_pilot.py" -v
+      - name: Validate N-PORT parser and no-trade formulas
+        run: |
+          python -m unittest discover -s tests -p "test_c2_nport_pilot.py" -v
+          python -m unittest discover -s tests -p "test_c2_no_trade_drift_pilot.py" -v
 
       - name: Download and validate frozen SEC N-PORT reports
         env:
@@ -38,10 +42,18 @@ jobs:
         run: |
           timeout 20m python scripts/audit_c2_nport_pilot.py --out c2_nport_pilot
 
-      - name: Upload C2 N-PORT acquisition artifact
+      - name: Calculate no-trade drift and Active Share decomposition
+        run: |
+          timeout 20m python scripts/build_c2_no_trade_drift_pilot.py \
+            --input c2_nport_pilot \
+            --out c2_no_trade_drift
+
+      - name: Upload C2 N-PORT and no-trade drift artifact
         uses: actions/upload-artifact@v4
         with:
-          name: c2-nport-acquisition-pilot
-          path: c2_nport_pilot/**
+          name: c2-no-trade-drift-pilot
+          path: |
+            c2_nport_pilot/**
+            c2_no_trade_drift/**
           if-no-files-found: error
           retention-days: 30
