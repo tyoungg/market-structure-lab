@@ -12,7 +12,7 @@ The first public-data no-trade drift pilot completed. Six SEC N-PORT-P filings (
 
 The calculation used common-equity weights normalized within each equity sleeve, aggregated duplicate CUSIPs, and grew the June 30 fund holdings using dividend- and split-adjusted security returns. It then compared the drifted portfolio with actual September 30 holdings and with both benchmark ETF proxies.
 
-The pilot passed its 95% price-coverage gate: **99.923363% of starting equity value** had endpoint prices. One listed ticker (EXAS) and two non-ticker positions (ABIOMED CVR and Magic Leap) were retained with a zero-return assumption. Together they represent **0.076637%** of starting equity value. The result is therefore calculated, but this residual assumption is disclosed and should be tested in a sensitivity run before expanding the sample.
+The pilot passed its 95% price-coverage gate: **99.923363% of starting equity value** had endpoint prices. One listed ticker (EXAS) and two non-ticker positions (ABIOMED CVR and Magic Leap) were retained with a zero-return assumption. Together they represent **0.076637%** of starting equity value. An explicit -100%/0%/+100% sensitivity shows that this assumption changes no-trade Active Share by no more than 0.015 percentage points and the actual-versus-no-trade portfolio gap by no more than 0.054 points.
 
 ## Active Share decomposition
 
@@ -32,6 +32,18 @@ All values are percentages of the common-equity sleeve. Components are percentag
 
 The decomposition is ordered: first grow the fund's June holdings by their security returns against the frozen June benchmark; next substitute the September benchmark weights; finally compare the actual September fund portfolio with the no-trade portfolio. The three components reconcile exactly to the actual Active Share change.
 
+## Unpriced-position sensitivity
+
+All three unpriced starting positions were assigned the same hypothetical total return in each scenario. The baseline remains zero return.
+
+| Assumed return | SPY no-trade AS at end | IWB no-trade AS at end | SPY portfolio-change component | IWB portfolio-change component | Actual-vs-no-trade gap |
+|---|---:|---:|---:|---:|---:|
+| -100% | 50.010% | 52.966% | -0.376 pp | -0.166 pp | 13.173% |
+| 0% (baseline) | 50.012% | 52.952% | -0.378 pp | -0.152 pp | 13.200% |
+| +100% | 50.014% | 52.954% | -0.380 pp | -0.154 pp | 13.227% |
+
+Across these extreme assumptions, the no-trade Active Share range is 0.004 percentage points for SPY and 0.014 points for IWB. The actual-versus-no-trade portfolio gap spans 0.053 points. The unpriced-position assumption is therefore immaterial to the headline pilot result at this sample size and interval.
+
 ## Interpretation
 
 1. **Fund price drift barely changed Active Share in this quarter.** The no-trade portfolio's Active Share against the frozen benchmark moved by approximately -0.005 percentage points for SPY and +0.006 points for IWB.
@@ -50,4 +62,4 @@ The decomposition is ordered: first grow the fund's June holdings by their secur
 
 ## Next research step
 
-Run a predeclared multi-fund cohort across several consecutive quarter transitions. Select funds based on documented active strategies and N-PORT availability, not on observed results or survival. Retain the same data-quality gates, benchmark-proxy caveats, and no-trade decomposition. Add an explicit sensitivity for the small unpriced position weight before scaling.
+Run a predeclared multi-fund cohort across several consecutive quarter transitions. Select funds based on documented active strategies and N-PORT availability, not on observed results or survival. Retain the same data-quality gates, benchmark-proxy caveats, no-trade decomposition, and unpriced-position sensitivity before scaling.
