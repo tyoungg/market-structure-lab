@@ -67,6 +67,7 @@ The corrected Item 69 artifact retains `item69_coordinate` and `all_item69_coord
 - `fund_year_evidence_annual_coverage.csv` — annual denominators, identity coverage, evidence counts, and final class counts.
 - `prospectus_candidate_review_queue.csv` — five automated candidates with manual strategy decisions and panel-eligibility status.
 - `c1_manual_adjudications.csv` — reviewer decision register for five prospectus candidates and nine Item 69 fund-years.
+- `prospectus_staleness_sensitivity.csv` — Tier 1 coverage under 365-, 730-, 1,095-day, and no-expiry scenarios; see [the sensitivity protocol](PROSPECTUS_STALENESS_SENSITIVITY_PROTOCOL.md).
 - `nsar_registrant_level_unassigned.csv` — registrant-level answers, not assigned to series.
 - `nsar_unmatched_item7_evidence.csv` — 882 unmatched or ambiguous Item 007 mappings.
 - `nsar_item69_retrieval_errors.csv` and `nsar_header_api_errors.csv` — source retrieval/processing errors.
@@ -78,7 +79,7 @@ The corrected Item 69 artifact retains `item69_coordinate` and `all_item69_coord
 1. Rebuild and independently audit the evidence ledger using the corrected Item 69 artifact and manual adjudication register.
 2. Obtain and review effective dates for strategy documents where available; do not backdate filings.
 3. Predeclare prospectus staleness windows and run sensitivity tables.
-4. Quantify how much of the historical panel remains unclassified under stricter identity and evidence requirements.
+4. Quantify how much of the historical panel remains unclassified under stricter identity and evidence requirements, including the predeclared prospectus staleness scenarios.
 5. Decide whether the public evidence supports a valid active-only panel; otherwise document a C.1 no-go.
 
 
