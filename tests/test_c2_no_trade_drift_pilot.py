@@ -14,6 +14,39 @@ class NoTradeDriftTests(unittest.TestCase):
         self.assertIn("start_date", params)
         self.assertIn("end_date", params)
 
+    def test_individual_fallback_uses_requested_date_window(self):
+        import types
+        import pandas as pd
+        from unittest.mock import patch
+        from build_c2_no_trade_drift_pilot import download_total_returns
+
+        calls = []
+
+        def fake_download(**kwargs):
+            calls.append(kwargs)
+            if len(calls) == 1:
+                return pd.DataFrame(
+                    {"Close": [100.0]},
+                    index=pd.to_datetime(["2025-10-01"]),
+                )
+            return pd.DataFrame(
+                {"Close": [100.0, 110.0]},
+                index=pd.to_datetime(["2025-09-30", "2025-12-31"]),
+            )
+
+        fake_yfinance = types.SimpleNamespace(download=fake_download, __version__="test")
+        with patch.dict("sys.modules", {"yfinance": fake_yfinance}), \\
+             patch("build_c2_no_trade_drift_pilot.time.sleep"):
+            prices, audit, version = download_total_returns(
+                ["TEST"], {}, start_date="2025-09-30", end_date="2025-12-31"
+            )
+
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[1]["start"], "2025-09-30")
+        self.assertEqual(calls[1]["end"], "2026-01-01")
+        self.assertAlmostEqual(prices["TEST"]["total_return"], 0.10)
+        self.assertEqual(version, "test")
+
     def test_active_share(self):
         a = {"CUSIP:111111111": 0.6, "CUSIP:222222222": 0.4}
         b = {"CUSIP:111111111": 0.4, "CUSIP:222222222": 0.6}

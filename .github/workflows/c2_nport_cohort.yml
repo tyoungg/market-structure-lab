@@ -11,6 +11,8 @@ on:
       - "scripts/audit_c2_nport_pilot.py"
       - "scripts/map_c2_cohort_identifiers.py"
       - "scripts/build_c2_cohort_no_trade_drift.py"
+      - "scripts/build_c2_no_trade_drift_pilot.py"
+      - "tests/test_c2_no_trade_drift_pilot.py"
       - "tests/test_c2_nport_pilot.py"
       - "tests/test_c2_nport_cohort.py"
       - "tests/test_c2_identifier_mapping.py"

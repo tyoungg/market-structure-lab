@@ -225,7 +225,7 @@ def download_total_returns(tickers: list[str], ticker_isins: dict[str, str] = No
         for attempt in range(3):
             try:
                 data = yf.download(
-                    tickers=yahoo, start=PRICE_START, end=PRICE_END_EXCLUSIVE,
+                    tickers=yahoo, start=start_date, end=end_exclusive,
                     auto_adjust=True, actions=False, progress=False, threads=False, timeout=30,
                 )
                 close = _extract_close(data, yahoo, 1)
@@ -233,7 +233,7 @@ def download_total_returns(tickers: list[str], ticker_isins: dict[str, str] = No
                     series = pd.to_numeric(close, errors="coerce").dropna()
                     dates = pd.to_datetime(series.index).date
                     by_date = {d.isoformat(): float(v) for d, v in zip(dates, series.values)}
-                    p0, p1 = by_date.get(START_DATE), by_date.get(END_DATE)
+                    p0, p1 = by_date.get(start_date), by_date.get(end_date)
                     if p0 and p1 and p0 > 0 and p1 > 0:
                         info = {"yahoo_symbol": yahoo, "start_adj_close": p0, "end_adj_close": p1,
                                 "total_return": p1 / p0 - 1.0, "status": "priced_individual_fallback"}
