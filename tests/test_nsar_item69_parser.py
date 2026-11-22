@@ -25,8 +25,10 @@ class TestNSARItem69(unittest.TestCase):
         names, flags, report_date = parse_item7_item69(body)
         self.assertEqual(report_date, "12/31/2008")
         self.assertEqual(names, {"01": "Example Index Fund", "03": "Example Active Fund"})
-        self.assertEqual([(x["series_ordinal"], x["value"], x["scope"]) for x in flags],
-                         [("01", "Y", "series"), ("03", "N", "series"), ("00", "N", "registrant")])
+        self.assertEqual([(x["coordinate"], x["series_ordinal"], x["value"], x["scope"]) for x in flags],
+                         [("000100", "01", "Y", "series"),
+                          ("000300", "03", "N", "series"),
+                          ("000000", "00", "N", "registrant")])
 
     def test_semiannual_report_date(self):
         _, _, report_date = parse_item7_item69("000 A000000 05/31/2008\n069 000100 Y")
