@@ -403,7 +403,25 @@ def main() -> None:
         lines.append("| Withheld | — | — | — | — | — | — | — | — |")
     lines += [
         "",
-        "The unpriced positions are retained in the starting portfolio with a zero-return assumption and reported explicitly. See unpriced_return_sensitivity.csv for -100%, 0%, and +100% total-return assumptions on those positions.",
+        "## Unpriced-position return sensitivity",
+        "",
+        "| Assumed return on all unpriced starting positions | Benchmark proxy | No-trade AS at end vs. end benchmark | Actual AS at end | Portfolio-change component (pp) | Actual-vs-no-trade gap (%) |",
+        "|---|---|---:|---:|---:|---:|",
+    ]
+    if status == "calculated":
+        for x in unpriced_sensitivity:
+            lines.append(
+                f"| {x['assumed_total_return_pct']:.0f}% | {x['benchmark']} | "
+                f"{x['active_share_no_trade_end_vs_end_benchmark_pct']:.3f}% | "
+                f"{x['active_share_actual_end_pct']:.3f}% | "
+                f"{x['actual_portfolio_change_beyond_drift_pp']:.3f} | "
+                f"{x['actual_vs_no_trade_end_portfolio_gap_pct']:.3f} |"
+            )
+    else:
+        lines.append("| Not calculated | — | — | — | — | — |")
+    lines += [
+        "",
+        "The unpriced positions are retained in the starting portfolio with a zero-return assumption in the baseline and reported explicitly. The sensitivity table applies -100%, 0%, and +100% total returns to those positions.",
         "Do not interpret the portfolio-change component as pure manager trading: it can include flows, corporate actions, derivative/cash changes, and data/reporting differences.",
     ]
     (out / "C2_NO_TRADE_DRIFT_PILOT.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
