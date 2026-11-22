@@ -123,7 +123,7 @@ If a gate fails, publish the acquisition/coverage audit only and state why the d
 
 ## 8. First no-trade drift result
 
-The end-to-end run [45029952352](https://github.com/tyoungg/market-structure-lab/actions/runs/45029952352) completed successfully and uploaded artifact [14757665853](https://github.com/tyoungg/market-structure-lab/actions/runs/45029952352/artifacts/14757665853). The generated report is version-controlled at [`C2_NO_TRADE_DRIFT_PILOT_REPORT.md`](C2_NO_TRADE_DRIFT_PILOT_REPORT.md).
+The end-to-end run [45030339928](https://github.com/tyoungg/market-structure-lab/actions/runs/45030339928) completed successfully, passed all 12 unit tests (five parser tests and seven no-trade/sensitivity tests), and uploaded artifact [14757716120](https://github.com/tyoungg/market-structure-lab/actions/runs/45030339928/artifacts/14757716120). The generated report is version-controlled at [`C2_NO_TRADE_DRIFT_PILOT_REPORT.md`](C2_NO_TRADE_DRIFT_PILOT_REPORT.md).
 
 The price coverage gate passed: **99.923363%** of starting equity value had adjusted endpoint prices. One listed ticker (EXAS) and two non-ticker positions (ABIOMED CVR and Magic Leap) were carried at zero return. Their combined starting weight is **0.076637%** of the equity sleeve. This is disclosed in the output; it is not silently imputed as observed performance.
 
@@ -141,7 +141,9 @@ The price coverage gate passed: **99.923363%** of starting equity value had adju
 
 The decomposition is ordered: fund price drift against the frozen June benchmark, then benchmark-weight changes, then actual portfolio change beyond no-trade drift. The components reconcile exactly. The price-drift component is negligible in this interval; most of the measured Active Share decline comes from benchmark weight changes. The actual fund portfolio differs from the no-trade portfolio by 13.2% one-way, but this is not pure manager turnover or a causal trading estimate.
 
-Yahoo Finance adjusted close via `yfinance 1.8.0` is an exploratory public price source. The package is not affiliated with or endorsed by Yahoo; Yahoo's data terms apply. The 2025 pilot is not pooled with the historical TR/CRSP panel.
+The unpriced-position sensitivity assigns -100%, 0%, and +100% returns to EXAS, ABIOMED CVR, and Magic Leap. Across these extremes, no-trade Active Share varies by only 0.004 percentage points against SPY and 0.014 points against IWB; the actual-versus-no-trade portfolio gap varies by 0.053 points. The zero-return baseline is not driving the result.
+
+Yahoo Finance adjusted close via pinned `yfinance 1.8.0` is an exploratory public price source. The package is not affiliated with or endorsed by Yahoo; Yahoo's data terms apply. The 2025 pilot is not pooled with the historical TR/CRSP panel.
 
 ## 7. Limitations
 
