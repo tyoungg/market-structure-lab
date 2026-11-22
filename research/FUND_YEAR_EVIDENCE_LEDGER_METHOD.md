@@ -21,7 +21,7 @@ The workflow downloads these frozen run artifacts rather than re-scraping SEC so
 
 ## Evidence tiers and temporal rules
 
-- **Tier 1:** prospectus and related filing evidence. Filing date must precede January 1 of the fund-year. Effective dates are absent from the current source artifact and remain a documented limitation. No universal staleness expiry is invented; age is retained and bucketed for later predeclared sensitivity analysis.
+- **Tier 1:** prospectus and related filing evidence. Filing date must precede January 1 of the fund-year. Effective-date metadata is not captured systematically in the source artifact; dates visible in primary filings are recorded in the manual register. No universal staleness expiry is invented; age is retained and evaluated under predeclared sensitivity windows.
 - **Tier 2:** series-specific N-SAR Item 69 responses. Both filing and report dates must precede the January 1 cutoff, and report age must be 0–548 days. `Y` is a positive index-fund candidate. `N` means not reported as an index fund and is not active evidence.
 - **Tier 3:** N-SAR SEC-HEADER series identity matches. These establish historical series identity only, not investment strategy.
 
@@ -51,11 +51,11 @@ The 855 as-of eligible evidence-event links comprise 30 prospectus filing-event 
 
 The corrected Item 69 panel reconciles exactly to 9 `Y` fund-years, 181 `N`-not-active fund-years, 1,238 sampled fund-years without a recent prior N-SAR, and 20,852 rows outside the deterministic N-SAR sample. The last category also contains fund-years for which no unique sampled series linkage is available; it is not a representative coverage rate.
 
-The five automated prospectus candidates are manually adjudicated in `c1_manual_adjudications.csv`: two are plausible active value strategies, one is enhanced-index-like, and two are rejected/unclassified because of series-context mismatch. All five filings are in 2009 and none is eligible under the January 1 information cutoff for the 1980–2009 fund-year panel.
+The five automated phrase candidates are manually adjudicated separately: two are plausible active value strategies, one is enhanced-index-like, and two are rejected/unclassified because of series-context mismatch. All five filings are too late or context-invalid to label the observed panel. Direct review of all 30 as-of prospectus fund-year links across 14 series confirms active strategies for all 30 rows.
 
 ## Classification boundary
 
-The adjudication promotes nine fund-years (three exact SEC series across 2007–2009) to `passive_index`. Their SEC header series IDs/names and Item 007 names agree, and the original Item 69 coordinates contain `Y` in the contemporaneous answer.fil. The 181 Item 69 `N` rows remain unclassified and are not active evidence. The five prospectus candidates have documented strategy dispositions, but none is time-eligible for this panel. The remaining 22,271 fund-years remain unclassified; no active-only panel is created or validated.
+The adjudication promotes 30 fund-years across 14 SEC series to `other_active_style` based on direct review of contemporaneous, as-of prospectus sections. It also promotes nine fund-years (three exact SEC series across 2007–2009) to `passive_index` based on series-specific Item 69 Y responses. The 181 Item 69 N rows remain unclassified and are not active evidence. The remaining 22,241 fund-years remain unclassified. The 30 active rows are only 0.135% of the panel and are clustered in 2007–2009; no representative active-only panel is validated.
 
 The corrected Item 69 artifact retains `item69_coordinate` and `all_item69_coordinates` for all 409 series-level evidence rows. The nine adjudicated fund-years use coordinates `001400`, `002400`, and `004100` across the 2006, 2007, and 2008 filings. The coordinate is preserved from the original response, not reconstructed.
 
@@ -65,8 +65,8 @@ The corrected Item 69 artifact retains `item69_coordinate` and `all_item69_coord
 - `fund_year_evidence_items.csv` — long evidence table with raw response/text, accession, URL, temporal eligibility, and evidence age.
 - `series_evidence_inventory.csv` — source inventory by SEC series and evidence tier.
 - `fund_year_evidence_annual_coverage.csv` — annual denominators, identity coverage, evidence counts, and final class counts.
-- `prospectus_candidate_review_queue.csv` — five automated candidates with manual strategy decisions and panel-eligibility status.
-- `c1_manual_adjudications.csv` — reviewer decision register for five prospectus candidates and nine Item 69 fund-years.
+- `prospectus_candidate_review_queue.csv` — five automated phrase candidates plus 14 manually reviewed as-of prospectus series, with strategy decisions and panel-eligibility status.
+- `c1_manual_adjudications.csv` — reviewer decision register for five automated candidates, 14 as-of prospectus series, 30 prospectus fund-years, and nine Item 69 fund-years.
 - `prospectus_staleness_sensitivity.csv` — Tier 1 coverage under 365-, 730-, 1,095-day, and no-expiry scenarios; see [the sensitivity protocol](PROSPECTUS_STALENESS_SENSITIVITY_PROTOCOL.md).
 - `nsar_registrant_level_unassigned.csv` — registrant-level answers, not assigned to series.
 - `nsar_unmatched_item7_evidence.csv` — 882 unmatched or ambiguous Item 007 mappings.
@@ -76,15 +76,12 @@ The corrected Item 69 artifact retains `item69_coordinate` and `all_item69_coord
 
 ## Next C.1 work
 
-1. Rebuild and independently audit the evidence ledger using the corrected Item 69 artifact and manual adjudication register.
-2. Obtain and review effective dates for strategy documents where available; do not backdate filings.
-3. Predeclare prospectus staleness windows and run sensitivity tables.
-4. Quantify how much of the historical panel remains unclassified under stricter identity and evidence requirements, including the predeclared prospectus staleness scenarios.
-5. Decide whether the public evidence supports a valid active-only panel; otherwise document a C.1 no-go.
+1. Complete the reproducible ledger build with all 30 active prospectus adjudications and nine Item 69 passive adjudications.
+2. Review the resulting age-sensitivity output and effective-date caveats; do not backdate filings.
+3. Assess whether additional prospectus coverage can materially expand the 30-row active sample beyond 2007–2009.
+4. Decide whether the current public evidence supports any inferential use of an active-only panel; otherwise record a C.1 no-go for the main analysis.
 
 
 ## Canonical reproducibility result
 
-GitHub Actions run [45027763626](https://github.com/tyoungg/market-structure-lab/actions/runs/45027763626) completed successfully on `RUSSEL_SP`. The workflow downloaded the bounded SEC, N-SAR header, and corrected Item 69 artifacts; all five unit tests passed; the builder applied the manual adjudication register; and the derived bundle uploaded as `fund-year-evidence-ledger` (artifact ID `14756178395`).
-
-The audited output contains 22,280 unique fund-year rows, 17,302 linked evidence-event rows, 855 as-of-eligible evidence links, zero N-SAR reconciliation mismatches, zero missing Item 69 coordinates across the 409 source evidence rows, nine manually adjudicated `passive_index` fund-years, and zero active fund-years. All five prospectus candidates have documented dispositions and none is eligible for the observed panel. The artifact is the canonical reproducible output.
+Latest canonical adjudicated build is pending after the full 30-row active prospectus review was added. The preceding successful build [45027763626](https://github.com/tyoungg/market-structure-lab/actions/runs/45027763626) validated the corrected Item 69 coordinates and nine passive-index adjudications. The current workflow adds the 30 active prospectus fund-years, tests the accession/as-of guardrails, and recalculates the staleness sensitivity table; replace this note with the new successful run and artifact after verification.
