@@ -38,7 +38,7 @@ def validate_manifest(specs: list[dict]) -> None:
         dates = sorted(x["report_date"] for x in specs if x["entity"] == entity)
         if dates != EXPECTED_DATES:
             raise ValueError(f"{entity}: expected report dates {EXPECTED_DATES}, got {dates}")
-    if len({(x["entity"], x["report_date"]) for x in specs}) != 16:
+    if len({(x["entity"], x["report_date"]) for x in specs}) != 24:
         raise ValueError("Duplicate entity/report-date rows in manifest")
 
 

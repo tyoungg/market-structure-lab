@@ -43,7 +43,7 @@ jobs:
           python -m unittest discover -s tests -p "test_c2_identifier_mapping.py" -v
           python -m unittest discover -s tests -p "test_c2_cohort_drift.py" -v
 
-      - name: Download and validate 16 frozen SEC N-PORT reports
+      - name: Download and validate 24 frozen SEC N-PORT reports
         env:
           SEC_CONTACT_EMAIL: ${{ secrets.SEC_CONTACT_EMAIL }}
         run: |

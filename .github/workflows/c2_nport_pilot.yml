@@ -6,11 +6,8 @@ on:
     branches:
       - RUSSEL_SP
     paths:
-      - ".github/workflows/c2_nport_pilot.yml"
       - "scripts/audit_c2_nport_pilot.py"
       - "tests/test_c2_nport_pilot.py"
-      - "scripts/build_c2_no_trade_drift_pilot.py"
-      - "tests/test_c2_no_trade_drift_pilot.py"
       - "research/C2_NPORT_PILOT_PROTOCOL.md"
 
 permissions:
