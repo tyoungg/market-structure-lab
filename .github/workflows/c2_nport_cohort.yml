@@ -1,4 +1,5 @@
 name: C2 Multi-Fund SEC N-PORT Cohort Acquisition
+# Trigger C2 validation for the dated Optimum portfolio-manager roster comparison (2026-11-23).
 
 on:
   workflow_dispatch:
