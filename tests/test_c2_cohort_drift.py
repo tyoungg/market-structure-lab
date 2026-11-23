@@ -58,10 +58,16 @@ class C2CohortDriftTests(unittest.TestCase):
         register = load_fund_strategy_flags(register_path)
         self.assertEqual(len(register), 6)
         optimum = flatten_strategy_flags(register["Optimum Large Cap Growth Fund"])
-        self.assertTrue(optimum["manager_change_within_window"])
-        self.assertEqual(optimum["manager_change_effective_date"], "2025-12-01")
+        self.assertFalse(optimum["manager_change_within_window"])
+        self.assertEqual(optimum["manager_change_effective_date"], "")
+        self.assertFalse(optimum["investment_manager_name_changed_within_window"])
+        self.assertTrue(optimum["manager_ownership_or_control_change_within_window"])
+        self.assertTrue(optimum["advisory_agreement_replaced_within_window"])
+        self.assertEqual(optimum["advisory_agreement_change_effective_date"], "2025-12-01")
         self.assertTrue(optimum["subadvisers_continued"])
         self.assertFalse(optimum["subadviser_allocation_continuity_established"])
+        self.assertTrue(optimum["published_aggregate_subadviser_allocation_stable"])
+        self.assertFalse(optimum["day_to_day_portfolio_management_change_established"])
         jpm_growth = flatten_strategy_flags(register["JPMorgan Large Cap Growth Fund"])
         jpm_value = flatten_strategy_flags(register["JPMorgan Large Cap Value Fund"])
         for flags in (jpm_growth, jpm_value):
@@ -86,7 +92,8 @@ class C2CohortDriftTests(unittest.TestCase):
         self.assertEqual(len(funds), 6)
         self.assertEqual(set(benchmarks), {"SPY", "IWB"})
         self.assertEqual(set(flags), set(funds))
-        self.assertEqual(flags["Optimum Large Cap Growth Fund"]["manager_change_effective_date"], "2025-12-01")
+        self.assertFalse(flags["Optimum Large Cap Growth Fund"]["manager_change_within_window"])
+        self.assertEqual(flags["Optimum Large Cap Growth Fund"]["advisory_agreement_change_effective_date"], "2025-12-01")
 
     def test_yahoo_quote_currency_is_explicit_for_japanese_listing(self):
         self.assertEqual(yahoo_quote_currency("6861.T"), "JPY")

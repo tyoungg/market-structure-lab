@@ -64,9 +64,9 @@ jobs:
 
       - name: Audit Optimum three-filing holdings and published sub-adviser allocations
         run: |
-          timeout 5m python scripts/audit_optimum_manager_transition.py \\
-            --input c2_nport_cohort \\
-            --out c2_nport_cohort \\
+          timeout 5m python scripts/audit_optimum_manager_transition.py \
+            --input c2_nport_cohort \
+            --out c2_nport_cohort \
             --allocations research/OPTIMUM_SUBADVISER_ALLOCATIONS_2025.csv
 
       - name: Map cohort securities with N-PORT tickers and OpenFIGI
