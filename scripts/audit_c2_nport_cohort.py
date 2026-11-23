@@ -10,6 +10,7 @@ import os
 import re
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 
 from audit_c2_nport_pilot import download_xml, parse_nport_xml, summarize, validate_identity, write_csv
 
@@ -42,6 +43,19 @@ def validate_manifest(specs: list[dict], expected_dates: list[str] | None = None
             raise ValueError(f"{entity}: expected report dates {expected_dates}, got {dates}")
     if len({(x["entity"], x["report_date"]) for x in specs}) != expected_rows:
         raise ValueError("Duplicate entity/report-date rows in manifest")
+    for spec in specs:
+        accession = spec['accession']
+        if re.fullmatch(r'\d{10}-\d{2}-\d{6}', accession):
+            expected_path = (
+                f"/Archives/edgar/data/{int(spec['cik'])}/"
+                f"{accession.replace('-', '')}/primary_doc.xml"
+            )
+            actual_path = urlparse(spec['url']).path
+            if actual_path != expected_path:
+                raise ValueError(
+                    f"{spec['entity']} {spec['report_date']}: SEC XML URL path "
+                    f"does not match CIK/accession; expected {expected_path}, got {actual_path}"
+                )
 
 
 def main() -> None:

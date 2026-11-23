@@ -61,6 +61,12 @@ class C2CohortManifestTests(unittest.TestCase):
         validate_manifest(rows, ["2026-03-31", "2026-06-30"])
         self.assertEqual(len(rows), 16)
 
+    def test_repository_2026_h1_manifest_has_valid_sec_archive_paths(self):
+        manifest_path = Path(__file__).resolve().parents[1] / "research" / "C2_COHORT_MANIFEST_2026_H1.csv"
+        rows = read_manifest(manifest_path)
+        validate_manifest(rows, ["2026-03-31", "2026-06-30"])
+        self.assertEqual(len(rows), 16)
+
     def test_wrong_date_fails(self):
         rows = sample_manifest()
         rows[0]["report_date"] = "2025-07-31"
