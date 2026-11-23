@@ -58,6 +58,21 @@ class OptimumTransitionTests(unittest.TestCase):
         self.assertTrue(flat["published_aggregate_subadviser_allocation_stable"])
         self.assertFalse(flat["day_to_day_portfolio_management_change_established"])
 
+    def test_dated_portfolio_manager_roster_comparison(self):
+        roster = pd.read_csv(ROOT/"research"/"OPTIMUM_PORTFOLIO_MANAGER_ROSTER_COMPARISON_2025_2026.csv")
+        self.assertEqual(len(roster), 6)
+        self.assertEqual(roster["portfolio_manager"].nunique(), 6)
+        self.assertTrue((roster["fund_start_date"].notna()).all())
+        self.assertTrue(roster["roster_comparison"].str.contains("Same person").all())
+        bourke = roster.loc[roster["portfolio_manager"].str.startswith("Jeff Bourke")].iloc[0]
+        self.assertIn("Vice President, Portfolio Manager", bourke["pre_transition_title_as_of_2025_03_31"])
+        self.assertIn("Vice President, Senior Portfolio Manager", bourke["post_transition_title_as_of_2026_03_31"])
+        flags = json.loads((ROOT/"research"/"C2_COHORT_FUND_FLAGS.json").read_text())
+        optimum = flags["funds"]["Optimum Large Cap Growth Fund"]
+        self.assertTrue(optimum["named_portfolio_manager_roster_unchanged_in_reviewed_filings"])
+        self.assertTrue(optimum["portfolio_manager_responsibility_descriptions_consistent_in_reviewed_filings"])
+        self.assertFalse(optimum["day_to_day_portfolio_management_change_established"])
+
     def test_real_run21_optimum_counts_and_composition_metrics(self):
         path=Path("/mnt/data/c2run21/nport_cohort_common_equity.csv")
         if not path.exists(): self.skipTest("Run #21 artifact not mounted")

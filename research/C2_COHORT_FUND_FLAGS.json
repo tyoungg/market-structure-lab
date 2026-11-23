@@ -14,7 +14,7 @@
       "strategy_group": "growth",
       "strategy_flexibility_flag": false,
       "strategy_change_identified_in_review": false,
-      "strategy_change_review_status": "DMC remained the named investment manager; its advisory agreement was replaced and ultimate ownership/control changed effective 2025-12-01. Continuing sub-advisers and stable published aggregate sleeve allocations; day-to-day decision continuity not established.",
+      "strategy_change_review_status": "DMC remained the named investment manager; its advisory agreement was replaced and ultimate ownership/control changed effective 2025-12-01. The six disclosed sub-adviser portfolio managers and their stated sleeve responsibilities match between March 31, 2025 and March 31, 2026 filings, except Jeff Bourke's title was updated. This supports roster continuity but day-to-day decision continuity remains not established.",
       "manager_change_within_window": false,
       "manager_change_effective_date": "",
       "manager_change_from": "",
@@ -31,7 +31,7 @@
         "NOMURA_ULTIMATE_CONTROL_CHANGE_2025_12_01",
         "SUBADVISERS_CONTINUED_PUBLISHED_SPLIT_STABLE"
       ],
-      "notes": "DMC remained the named investment manager. Following Nomura's acquisition of the relevant Macquarie asset-management business, DMC became a series of Nomura Investment Management Business Trust; the prior advisory agreement automatically terminated and a new DMC agreement became effective 2025-12-01. American Century and Los Angeles Capital continued under new agreements. Official published aggregate allocation weights were 48.51%/51.49% on 2025-09-30 and 48.44%/51.56% on 2025-12-31. This does not establish unchanged security-level sleeve holdings, personnel, processes, or day-to-day decisions.",
+      "notes": "DMC remained the named investment manager. Following Nomura's acquisition of the relevant Macquarie asset-management business, DMC became a series of Nomura Investment Management Business Trust; the prior advisory agreement automatically terminated and a new DMC agreement became effective 2025-12-01. American Century and Los Angeles Capital continued under new agreements. Official published aggregate allocation weights were 48.51%/51.49% on 2025-09-30 and 48.44%/51.56% on 2025-12-31. This does not establish unchanged security-level sleeve holdings, personnel, processes, or day-to-day decisions. Dated March 31, 2025 versus March 31, 2026 prospectus/SAI comparison: all six disclosed sub-adviser portfolio managers remain listed with the same fund start dates; Jeff Bourke's title changes from Vice President, Portfolio Manager to Vice President, Senior Portfolio Manager. The disclosed day-to-day sleeve responsibility descriptions remain materially consistent. This is documentary roster continuity only; actual day-to-day decision continuity remains not established.",
       "investment_manager_name": "Delaware Management Company",
       "investment_manager_name_changed_within_window": false,
       "manager_ownership_or_control_change_within_window": true,
@@ -44,7 +44,14 @@
       "published_aggregate_subadviser_allocation_stable": true,
       "published_subadviser_allocation_start_date": "2025-09-30",
       "published_subadviser_allocation_end_date": "2025-12-31",
-      "day_to_day_portfolio_management_change_established": false
+      "day_to_day_portfolio_management_change_established": false,
+      "named_portfolio_manager_roster_unchanged_in_reviewed_filings": true,
+      "portfolio_manager_roster_comparison_as_of_dates": [
+        "2025-03-31",
+        "2026-03-31"
+      ],
+      "portfolio_manager_roster_change_established": false,
+      "portfolio_manager_responsibility_descriptions_consistent_in_reviewed_filings": true
     },
     "Fidelity Contrafund": {
       "strategy_classification": "Flexible growth/value",

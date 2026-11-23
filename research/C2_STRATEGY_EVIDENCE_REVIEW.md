@@ -111,6 +111,33 @@ The reproducible implementation is in scripts/audit_optimum_manager_transition.p
 - [May 19, 2025 prospectus supplement and objective disclosure](https://www.sec.gov/Archives/edgar/data/872323/000110465925050332/R2.htm)
 - [2025 shareholder-report material-change disclosure](https://www.sec.gov/Archives/edgar/data/872323/000110465925117601/tm2528754d1_ncsr.htm)
 
+## Dated portfolio-manager roster and responsibility comparison
+
+The March 31, 2025 prospectus/SAI disclosure (pre-transition) and the March 31, 2026 prospectus/SAI disclosure (post-transition) list the same six portfolio managers for the two Optimum Large Cap Growth Fund sub-adviser sleeves. All six retain the same stated fund start dates. The filings continue to assign day-to-day management of each sleeve to the respective sub-adviser teams.
+
+| Sub-adviser | Portfolio manager | 2025 title | 2026 title | Fund start | Comparison |
+|---|---|---|---|---|---|
+| American Century | Keith Lee, CFA | SVP; Senior PM; Co-CIO, Global Growth Equity | Same | July 2022 | Unchanged |
+| American Century | Jeff Bourke, CFA | VP; Portfolio Manager | VP; Senior Portfolio Manager | July 2022 | Title updated; same manager |
+| American Century | Tong Li | Portfolio Manager; Senior Quantitative Analyst | Same | July 2024 | Unchanged |
+| Los Angeles Capital | Hal W. Reynolds, CFA | Vice Chair; Senior Portfolio Manager | Same | January 2023 | Unchanged |
+| Los Angeles Capital | Daniel Arche, CFA | Director, Portfolio Strategy; Senior Portfolio Manager | Same | January 2023 | Unchanged |
+| Los Angeles Capital | Daniel E. Allen, CFA | CEO; Senior Portfolio Manager | Same | January 2023 | Unchanged |
+
+The responsibility descriptions also remain materially consistent. American Century's three named managers are described as primarily responsible for day-to-day management of its portion. Los Angeles Capital's three named managers are described as primarily responsible for its portion; the filing continues to describe Reynolds as overseeing the investment process, Arche as managing accounts under the firm's process and risk parameters, and Allen as a senior Portfolio Management team member and Investment Committee member.
+
+The manager-level governance description remains consistent in substance: DMC has overall responsibility for general management, including selecting sub-advisers and monitoring their investment activity. The legal entity's trust affiliation changes from Macquarie Investment Management Business Trust to Nomura Investment Management Business Trust, but DMC remains the named investment manager.
+
+**Interpretation:** this is positive documentary evidence of continuity in the disclosed sub-adviser portfolio-manager roster and stated role allocation across the transition. It is not proof that there were no temporary or unreported personnel changes, that actual responsibilities were performed identically, or that security-level decisions and trading processes were unchanged. The SAI's other-accounts tables are firm/manager-level snapshots with changed account counts and assets; they do not identify Optimum-specific decisions and should not be treated as direct evidence of continuity or discontinuity.
+
+The formal flag therefore remains **day-to-day portfolio management change: not established**. A roster match is evidence about named personnel and disclosed responsibilities, not a substitute for trade-level or internal process records.
+
+Reproducible row-level comparison: `research/OPTIMUM_PORTFOLIO_MANAGER_ROSTER_COMPARISON_2025_2026.csv`.
+
+Sources:
+- [Pre-transition prospectus/SAI, dated July 31, 2025; manager and portfolio-manager disclosures](https://www.sec.gov/Archives/edgar/data/1227523/000114544325000218/oft-20250331.htm)
+- [Post-transition prospectus/SAI, dated July 31, 2026; manager and portfolio-manager disclosures](https://www.sec.gov/Archives/edgar/data/1227523/000113322826010974/noft-efp26595_485bpos.htm)
+
 ## Review status
 
 **Documentary strategy classification:** completed for the six-fund C.2 cohort.  
