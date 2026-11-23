@@ -29,7 +29,7 @@ def sample_manifest(dates=("2025-06-30", "2025-09-30", "2025-12-31")):
         ("SPY","benchmark_sp500","0000884394","","SPDR S&P 500 ETF Trust"),
         ("IWB","benchmark_russell1000","0001100663","S000004347","iShares Russell 1000 ETF"),
     ]:
-        for date in ("2025-06-30", "2025-09-30", "2025-12-31"):
+        for date in dates:
             rows.append({
                 "entity":entity,"role":role,"style_bucket":"","report_date":date,
                 "cik":cik,"series_id":series,"series_name":name,
