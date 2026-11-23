@@ -1,5 +1,5 @@
 name: C2 Multi-Fund SEC N-PORT Cohort Acquisition
-# C2 validation: preserve the 2025 baseline and add a separate 2026 H1 replication window.
+# C2 validation: preserve the 2025 baseline and add a separate 2026 H1 replication window; manifest validation checks SEC accession paths.
 
 on:
   workflow_dispatch:
