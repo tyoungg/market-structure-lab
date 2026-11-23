@@ -1,0 +1,6 @@
+fundno_key,later_series_names,screen_earlier_year_count,triage_status,event_type,additional_fund_years_promoted,identity_mapping_requirement
+29224,"Legg Mason ClearBridge Small Cap Growth Fund | Legg Mason Partners Small Cap Growth Fund II",8,high_priority_documented_event_mapping_pending,multiple_predecessors_absorbed_and_survivor_registrant_transfer,0,"Map every quarterly name/ticker/date to predecessor series and surviving series; test overlap with both acquired funds"
+15501,Morgan Stanley Focus Growth Fund,20,documented_event_not_linked_to_screen_history,predecessor_growth_fund_absorbed_by_focus_growth,0,"Determine whether prior fundno observations are continuing Focus Growth/American Opportunities or acquired Morgan Stanley Growth"
+11304,Sentinel Sustainable Growth Opportunities Fund,9,excluded_same_series_change,name_and_portfolio_manager_change,0,"Retain as same-series strategy/management event only"
+18680,Eaton Vance Dividend Builder Fund,6,excluded_same_series_change,name_and_investment_policy_change,0,"Retain as same-series mandate change only"
+3519,Evergreen Enhanced S&P 500 Fund,8,excluded_same_series_change,name_and_investment_strategy_change,0,"Retain as same-series strategy/style transition; assess enhanced-index classification separately"
