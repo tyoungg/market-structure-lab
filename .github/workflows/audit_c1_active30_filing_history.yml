@@ -1,0 +1,63 @@
+name: Independent C1 active-30 SEC filing-history audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - RUSSEL_SP
+    paths:
+      - ".github/workflows/audit_c1_active30_filing_history.yml"
+      - "scripts/audit_c1_active30_filing_history.py"
+      - "tests/test_c1_active30_filing_history.py"
+      - "research/c1_manual_adjudications.csv"
+
+permissions:
+  contents: read
+
+jobs:
+  c1-active30-filing-history:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      SEC_CONTACT_EMAIL: ${{ secrets.SEC_CONTACT_EMAIL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: RUSSEL_SP
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install requests pypdf
+      - name: Compile and test audit logic
+        run: |
+          python -m py_compile scripts/audit_c1_active30_filing_history.py
+          python -m unittest discover -s tests -p "test_c1_active30_filing_history.py" -v
+      - name: Retrieve full relevant EDGAR filing histories for the 14 target series
+        run: |
+          timeout 60m python scripts/audit_c1_active30_filing_history.py \
+            --manual-csv research/c1_manual_adjudications.csv \
+            --out c1_active30_audit
+          test -s c1_active30_audit/c1_active30_document_inventory.csv
+          test -s c1_active30_audit/c1_active30_fund_year_candidates.csv
+          test -s c1_active30_audit/c1_active30_asof_summary.csv
+          test -s c1_active30_audit/c1_active30_series_coverage.csv
+          test -s c1_active30_audit/c1_active30_audit_metrics.json
+          python - <<'PY'
+          import json
+          m = json.load(open("c1_active30_audit/c1_active30_audit_metrics.json"))
+          assert m["ciks_processed"] == m["target_unique_ciks"] == 9, m
+          assert not m["series_without_documents"], m
+          assert not m["fund_years_without_candidate_documents"], m
+          assert m["retrieval_errors"] == 0, m
+          PY
+      - name: Upload independent C1 filing-history audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: c1-active30-independent-filing-history
+          path: c1_active30_audit/**
+          if-no-files-found: error
+          retention-days: 90
