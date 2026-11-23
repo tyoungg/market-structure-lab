@@ -16,7 +16,7 @@
 
 The ledger contains 30 as-of prospectus fund-year/evidence links across 14 distinct series. The automated phrase/context extractor marked these links unclassified, so each primary prospectus was reviewed directly. The review confirmed discretionary security selection, fundamental or quantitative research, and manager-set portfolio weights. Index references in several prospectuses define a market-cap universe or performance comparator; they do not describe index replication.
 
-| Series | Fundno | Fund-years | Filing date | Manual strategy decision |
+| Series | Fundno | Fund-years | Original evidence filing date | Manual strategy decision |
 |---|---:|---|---|---|
 | Dreyfus S&P STARS Fund | 1366 | 2008–2009 | 2007-07-27 | Active stock selection based on S&P STARS analyst ratings |
 | Dreyfus S&P STARS Opportunities Fund | 64960 | 2008–2009 | 2007-07-27 | Active STARS selection and shorting strategy |
@@ -55,7 +55,7 @@ All 30 rows are adjudicated `other_active_style`. No row is assigned to `active_
 - Touchstone's prospectus is dated May 1, 2007.
 - Optimum's prospectus is dated July 29, 2007; the small/mid strategy/name change is effective January 1, 2008.
 - Dreyfus's 2007 prospectus is filed July 27, 2007 and identifies the two STARS funds.
-- Calvert's November 4, 2008 filing is marked effective immediately and incorporates the October 31, 2008 prospectus; the fund commenced operations December 12, 2008.
+- Calvert's November 4, 2008 filing is marked effective immediately and incorporates the October 31, 2008 prospectus; the fund commenced operations December 12, 2008. The later 497 prospectus filed December 9, 2008 (dated December 12) documents the Everest Fund reorganization and is the latest as-of base prospectus for the 2009 row.
 
 Where an explicit effective date is not stated, the register retains the filing/prospectus date and does not invent an effective date.
 
@@ -92,9 +92,11 @@ Primary SEC filings:
 - [2007 N-SAR-B, accession 0001325358-07-000557](https://www.sec.gov/Archives/edgar/data/898745/000132535807000557/0001325358-07-000557.txt)
 - [2008 N-SAR-B, accession 0001325358-08-000661](https://www.sec.gov/Archives/edgar/data/898745/000132535808000661/0001325358-08-000661.txt)
 
-## 4. Prospectus-age sensitivity
+## 4. Original selected-source prospectus-age sensitivity
 
-The no-expiry rule remains the primary evidence ledger. The 1-, 2-, and 3-year windows are sensitivity filters applied after manual strategy adjudication; they do not create a strategy class.
+The table below reports the age of the **original selected evidence links** in the adjudication register. It is not the age of the latest available as-of prospectus. The independent full-history audit found a later applicable base prospectus for every fund-year: **30/30 were filed within 365 days** of the January 1 cutoff. See [Independent C.1 audit of the 30 adjudications](C1_ACTIVE30_INDEPENDENT_AUDIT.md).
+
+The no-expiry rule remains the primary evidence ledger. The 1-, 2-, and 3-year windows below are sensitivity filters applied to the original selected source links after manual strategy adjudication; they do not create a strategy class.
 
 | Maximum filing age | Prospectus fund-year links retained | Manually confirmed active links |
 |---|---:|---:|
@@ -106,6 +108,8 @@ The no-expiry rule remains the primary evidence ledger. The 1-, 2-, and 3-year w
 The 1-year and 2-year filters reduce the active sample substantially. The 3-year and no-expiry results coincide because the oldest as-of prospectus evidence in this bounded set is 1,042 days old. No evidence is backdated: each fund-year link still requires a filing before its January 1 cutoff.
 
 ## 5. C.1 implication
+
+The independent filing-history audit upheld all 30 active labels, found 14/14 target series and 30/30 name-matched as-of document candidates, and identified newer base prospectuses within 365 days for all 30 fund-years. It also identified a Calvert/Everest predecessor-series recovery candidate; that candidate is not yet added to the adjudicated register. See [the independent audit report](C1_ACTIVE30_INDEPENDENT_AUDIT.md).
 
 The evidence ledger now has 30 active fund-years, nine passive-index fund-years, and 22,241 unclassified fund-years. The 30 active rows represent 14 funds but are concentrated entirely in 2007–2009. They are a useful manually validated seed set for diagnostics, not a representative active-only historical panel.
 

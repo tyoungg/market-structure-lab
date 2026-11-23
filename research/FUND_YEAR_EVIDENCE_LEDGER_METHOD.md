@@ -49,7 +49,7 @@ The initial local build produced:
 
 The 855 as-of eligible evidence-event links comprise 30 prospectus filing-event links, 266 Item 69 response links, and 559 historical header-identity links. These are event links, not 855 distinct fund-years.
 
-The corrected Item 69 panel reconciles exactly to 9 `Y` fund-years, 181 `N`-not-active fund-years, 1,238 sampled fund-years without a recent prior N-SAR, and 20,852 rows outside the deterministic N-SAR sample. The last category also contains fund-years for which no unique sampled series linkage is available; it is not a representative coverage rate.
+The corrected Item 69 panel reconciles exactly to 9 `Y` fund-years, 181 `N` responses (not positive index evidence and still unclassified), 1,238 sampled fund-years without a recent prior N-SAR, and 20,852 rows outside the deterministic N-SAR sample. The last category also contains fund-years for which no unique sampled series linkage is available; it is not a representative coverage rate.
 
 The five automated phrase candidates are manually adjudicated separately: two are plausible active value strategies, one is enhanced-index-like, and two are rejected/unclassified because of series-context mismatch. All five filings are too late or context-invalid to label the observed panel. Direct review of all 30 as-of prospectus fund-year links across 14 series confirms active strategies for all 30 rows.
 
@@ -74,16 +74,22 @@ The corrected Item 69 artifact retains `item69_coordinate` and `all_item69_coord
 - `nsar_item69_coordinate_gap.csv` — only source rows with genuinely missing coordinates; expected to be empty after the corrected extraction.
 - `fund_year_evidence_ledger_metrics.json` and `FUND_YEAR_EVIDENCE_LEDGER_AUDIT.md` — machine-readable and human-readable audit summaries.
 
+## Independent audit update
+
+The 30 active prospectus fund-year labels and their 14 series-level source links have now been independently audited; see [C1_ACTIVE30_INDEPENDENT_AUDIT.md](C1_ACTIVE30_INDEPENDENT_AUDIT.md). All 30 active labels were upheld. The full filing-history scan found a later as-of base prospectus within 365 days for every row. This differs from the original selected-source age sensitivity below: the original 13/25/30 counts remain valid for the original selected evidence links, but do not describe the latest available prospectus.
+
+The audit also clarifies that the 23/30 `share_class_ambiguous` flags in this seed set indicate multiple classes within one unique SEC series, not multiple competing portfolio series. A Calvert/Everest predecessor-successor lineage is a candidate for additional recovery and remains outside the adjudicated 30 pending a separate historical-series check.
+
 ## Next C.1 work
 
-1. Independently audit the 30 active prospectus fund-year labels and their 14 series-level source links.
-2. Review the resulting age-sensitivity output and effective-date caveats; do not backdate filings.
-3. Assess whether additional prospectus coverage can materially expand the 30-row active sample beyond 2007–2009.
-4. Decide whether the current public evidence supports any inferential use of an active-only panel; otherwise record a C.1 no-go for the main analysis.
+1. Audit predecessor/successor and historical-series recoveries, starting with Everest/Calvert `fundno 53752`; do not silently backdate the successor series.
+2. Assess whether additional contemporaneous prospectus coverage can materially expand the active sample beyond 2007–2009.
+3. Preserve the distinction between original selected-source age sensitivity and latest-available prospectus age.
+4. Decide whether the public evidence supports any inferential use of an active-only panel; otherwise retain the C.1 no-go for the main historical analysis.
 
 
 ## Canonical reproducibility result
 
 The latest canonical adjudicated build is [run 45028704608](https://github.com/tyoungg/market-structure-lab/actions/runs/45028704608), artifact `fund-year-evidence-ledger` (artifact ID `14757095448`). All eight unit tests passed; the workflow downloaded all pinned source artifacts, applied 30 active prospectus fund-year decisions and nine Item 69 passive-index decisions, validated the accession/as-of guardrails, and uploaded the reproducible output.
 
-The final artifact contains 22,280 fund-year rows: 30 `other_active_style`, nine `passive_index`, and 22,241 `unclassified`. The 30 active rows span 14 series and only 2007–2009. Item 69 coordinates are present in all 409 source evidence rows; N-SAR status reconciliation mismatches are zero. Prospectus-age sensitivity retains 13 active links at 365 days, 25 at 730 days, and 30 at 1,095 days or no expiry. The 30-row active subset is a manually reviewed seed set, not a representative active-only panel.
+The final artifact contains 22,280 fund-year rows: 30 `other_active_style`, nine `passive_index`, and 22,241 `unclassified`. The 30 active rows span 14 series and only 2007–2009. Item 69 coordinates are present in all 409 source evidence rows; N-SAR status reconciliation mismatches are zero. The original selected-source age sensitivity retains 13 active links at 365 days, 25 at 730 days, and 30 at 1,095 days or no expiry. The independent full-history audit found a later as-of base prospectus within 365 days for all 30 active fund-years; see `C1_ACTIVE30_INDEPENDENT_AUDIT.md`. The 30-row active subset remains a manually reviewed seed set, not a representative active-only panel.
