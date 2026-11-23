@@ -20,7 +20,7 @@ These findings do not invalidate the mechanical calculation. They do limit claim
 
 | Fund | Evidence-based strategy classification | Principal documented approach | Change or qualification relevant to C.2 |
 |---|---|---|---|
-| Optimum Large Cap Growth Fund | Growth | At least 80% in large-cap equities defined by reference to the Russell 1000 Growth universe. Two sub-advisers: American Century uses bottom-up fundamental growth/momentum analysis; Los Angeles Capital uses a quantitative expected-return and portfolio-optimization process. | Manager changed effective 2025-12-01 from Delaware Management Company to Nomura Investment Management Business Trust. American Century and Los Angeles Capital continued under new agreements effective the same date. Treat this as a within-window governance/advisory break, not proof of a changed investment objective. |
+| Optimum Large Cap Growth Fund | Growth | At least 80% in large-cap equities defined by reference to the Russell 1000 Growth universe. Two sub-advisers: American Century uses bottom-up fundamental growth/momentum analysis; Los Angeles Capital uses a quantitative expected-return and portfolio-optimization process. | DMC remained the named investment manager; its advisory agreement was replaced and its ultimate ownership/control changed following the Nomura acquisition, effective 2025-12-01. American Century and Los Angeles Capital continued under new agreements. Published aggregate sub-adviser allocations remained nearly unchanged; day-to-day decision continuity is not established. |
 | Fidelity Contrafund | Flexible growth/value; not a pure growth bucket | Capital appreciation; normally common stocks; invests in companies whose value the adviser believes is not fully recognized; domestic and foreign issuers; may invest in growth, value, or both; fundamental issuer analysis. | The March 1, 2025 summary prospectus supports a flexible style classification. Do not force the fund into the growth bucket solely because of its name or historical reputation. No investment-strategy change was identified in the contemporaneous prospectus materials reviewed here. |
 | JPMorgan Large Cap Growth Fund | Growth | At least 80% in large, well-established companies referenced to the Russell 1000 Growth universe; fundamental bottom-up selection emphasizing positive price momentum and attractive fundamentals. | Shareholders approved a change to non-diversified status; effective 2025-03-05. This preceded both C.2 endpoints. The change permits greater issuer concentration and should be recorded when comparing to prior periods. |
 | JPMorgan Large Cap Value Fund | Value | At least 80% in large-company equity securities referenced to the Russell 1000 Value universe; primarily common stocks; fundamental research, valuation rankings, intrinsic-value assessment, and stock selection. | The 2025 shareholder report records non-diversified status effective 2025-03-05. This preceded both C.2 endpoints and changes the legal concentration framework relative to earlier periods. |
@@ -40,18 +40,53 @@ These are documentary strategy groupings, not Morningstar style-box classificati
 ## Implications for interpreting the C.2 results
 
 - Keep all six funds in the predeclared feasibility cohort. Do not silently reselect or remove a fund after seeing the results.
-- Mark Optimum Large Cap Growth as having a within-window investment-manager/advisory-agreement transition on December 1, 2025. Its sub-advisers continued, but the available documents do not establish unchanged sub-adviser allocations or unchanged day-to-day decisions.
+- Do not mark Optimum as a change in the named investment manager: DMC remained the manager. Record the December 1, 2025 advisory-agreement replacement and change in ultimate ownership/control separately. American Century and Los Angeles Capital continued, and published aggregate allocation weights were stable; this does not establish unchanged day-to-day portfolio decisions.
 - Mark both JPMorgan funds as non-diversified from March 5, 2025. This is a pre-window structural change, not a September–December change.
 - Do not call Contrafund or Magellan “blend” without qualification. “Flexible growth/value” is more faithful to their prospectuses.
 - Keep the portfolio-change residual descriptive. It is not a causal estimate of manager trading and may reflect flows, corporate actions, manager/adviser changes, derivatives/cash, and reporting differences.
 - The review does not satisfy a broader historical strategy-continuity audit. Before making longer-horizon comparisons, obtain earlier prospectuses and dated supplements for each fund and record manager/sub-adviser allocation changes.
+
+
+## Optimum three-filing holdings and allocation review
+
+The frozen C.2 N-PORT cohort contains Optimum common-equity snapshots for June 30, September 30, and December 31, 2025. Weights below are normalized to the common-equity sleeve.
+
+| Filing date | Common-equity positions | Equity sleeve (% NAV) | Top 5 (% equity) | Top 10 (% equity) | Top 20 (% equity) |
+|---|---:|---:|---:|---:|---:|
+| 2025-06-30 | 126 | 99.50 | 41.94 | 57.99 | 71.23 |
+| 2025-09-30 | 117 | 99.83 | 42.89 | 59.29 | 71.69 |
+| 2025-12-31 | 118 | 99.96 | 42.07 | 58.33 | 70.74 |
+
+| Interval | Continuing securities | Added at later snapshot | Absent at later snapshot | One-way composition distance (pp) |
+|---|---:|---:|---:|---:|
+| June 30 → September 30 | 97 | 20 | 29 | 16.93 |
+| September 30 → December 31 | 89 | 29 | 28 | 14.56 |
+
+The one-way composition distance is one-half the sum of absolute changes in normalized security weights. It is not turnover: market movements, fund flows, corporate actions, and other events can change weights without trades. Added/absent means only present/absent at the two filing dates. The September-to-December interval shows less aggregate endpoint weight movement than June-to-September; there is no obvious portfolio concentration reset at December 31.
+
+Official Optimum monthly allocation disclosures list the following sub-adviser weights (including securities, cash, and other assets managed in each sleeve):
+
+| Month-end | American Century | Delaware Management Company | Los Angeles Capital |
+|---|---:|---:|---:|
+| 2025-08-31 | 48.87% | 0.00% | 51.13% |
+| 2025-09-30 | 48.51% | 0.00% | 51.49% |
+| 2025-10-31 | 48.79% | 0.00% | 51.21% |
+| 2025-11-30 | 48.65% | 0.00% | 51.35% |
+| 2025-12-31 | 48.44% | 0.00% | 51.56% |
+
+From September 30 to December 31, American Century changed by -0.07 percentage points and Los Angeles Capital by +0.07 points. DMC's 0.00% in this table is its sub-adviser sleeve allocation, not its role as investment manager.
+
+The holdings filings do not identify which sub-adviser managed each security, trade dates, quantities bought or sold, or the decision-maker. They cannot establish whether any observed change was caused by the transaction, nor whether day-to-day portfolio management changed or remained unchanged. December 31 is a month-end snapshot 30 days after the agreement's effective date, not a daily record of the transition period.
+
+The reproducible implementation is in scripts/audit_optimum_manager_transition.py; the source snapshot is research/OPTIMUM_SUBADVISER_ALLOCATIONS_2025.csv; generated outputs are included in the C.2 workflow artifact. The allocation snapshot was retrieved from the official Optimum fund page on 2026-11-23.
 
 ## Primary SEC sources
 
 ### Optimum Large Cap Growth Fund
 - [March 31, 2025 prospectus strategy disclosure](https://www.sec.gov/Archives/edgar/data/1227523/000114544325000218/R6.htm)
 - [June 18, 2025 supplement describing the proposed Nomura transaction and new advisory agreements](https://www.sec.gov/Archives/edgar/data/1227523/000113743925000743/oft06182025497.htm)
-- [December 9, 2025 definitive information statement: manager change and continuation of American Century and Los Angeles Capital](https://www.sec.gov/Archives/edgar/data/1227523/000207184425000626/optimum12092025def14c.htm)
+- [December 9, 2025 definitive information statement: DMC remains the named manager; new DMC advisory agreement and continuing sub-advisers](https://www.sec.gov/Archives/edgar/data/1227523/000207184425000626/optimum12092025def14c.htm)
+- [Official Optimum Large Cap Growth Fund page and monthly sub-adviser allocation history](https://www.optimummutualfunds.com/products/optimum-large-cap-growth-fund)
 - [November 25, 2025 supplement recording shareholder approval of the new investment advisory agreement](https://www.sec.gov/Archives/edgar/data/1227523/000207184425000534/oft49711252025.htm)
 
 ### Fidelity Contrafund
@@ -79,6 +114,6 @@ These are documentary strategy groupings, not Morningstar style-box classificati
 ## Review status
 
 **Documentary strategy classification:** completed for the six-fund C.2 cohort.  
-**Within-window structural change identified:** Optimum Large Cap Growth manager/advisory agreement effective December 1, 2025.  
+**Within-window structural change identified:** Optimum's DMC advisory agreement was replaced and DMC's ultimate ownership/control changed effective December 1, 2025; DMC remained the named investment manager.  
 **Pre-window structural changes identified:** JPMorgan Large Cap Growth and JPMorgan Large Cap Value non-diversified status effective March 5, 2025.  
-**Not established:** complete historical continuity of each fund's portfolio managers, sub-adviser allocations, or day-to-day investment process.
+**Not established:** complete historical continuity of each fund's portfolio managers, security-level sub-adviser sleeves, or day-to-day investment process. For Optimum, the published aggregate sub-adviser allocation split is stable across September–December 2025, but that does not establish unchanged security-level decisions.

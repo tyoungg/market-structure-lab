@@ -102,12 +102,18 @@ def build_attribution(
 
         flag_columns = [
             "strategy_classification", "strategy_group", "manager_change_within_window",
-            "manager_change_effective_date", "non_diversified_status",
+            "manager_change_effective_date", "advisory_agreement_replaced_within_window",
+            "advisory_agreement_change_effective_date", "manager_ownership_or_control_change_within_window",
+            "day_to_day_portfolio_management_change_established", "published_aggregate_subadviser_allocation_stable",
+            "non_diversified_status",
             "non_diversified_effective_date", "fee_limit_change_effective_date",
             "structural_change_flag_ids",
         ]
         flags = {key: clean_flag(decomposition.get(key, "")) for key in flag_columns}
-        for key in ("manager_change_within_window", "non_diversified_status"):
+        for key in ("manager_change_within_window", "advisory_agreement_replaced_within_window",
+                    "manager_ownership_or_control_change_within_window",
+                    "day_to_day_portfolio_management_change_established",
+                    "published_aggregate_subadviser_allocation_stable", "non_diversified_status"):
             flags[key] = flag_is_true(flags.get(key, False))
         for sid, value in contribution.items():
             rows.append({
@@ -197,8 +203,10 @@ def write_report(summary: pd.DataFrame, output: Path, end_date: str) -> None:
     ]
     for r in summary.itertuples():
         context = str(r.strategy_classification or "")
-        if flag_is_true(r.manager_change_within_window):
-            context += f"; manager transition {r.manager_change_effective_date}"
+        if flag_is_true(getattr(r, "advisory_agreement_replaced_within_window", False)):
+            context += f"; DMC advisory agreement/ownership transition {r.advisory_agreement_change_effective_date}; sub-advisers continued, published split stable"
+        elif flag_is_true(r.manager_change_within_window):
+            context += f"; named manager change {r.manager_change_effective_date}"
         elif flag_is_true(r.non_diversified_status) and str(r.non_diversified_effective_date):
             context += f"; non-diversified since {r.non_diversified_effective_date}"
         elif str(r.fee_limit_change_effective_date):
@@ -241,9 +249,8 @@ def write_report(summary: pd.DataFrame, output: Path, end_date: str) -> None:
         "of why a fund held a security or changed its weight. N-PORT endpoint differences may reflect "
         "flows, corporate actions, cash/derivatives, reporting differences, and other effects. "
         "Keep each fund's reviewed strategy and structural flags attached to the results. "
-        "In particular, Optimum's December 1, 2025 manager transition falls within the observation window; "
-        "the two JPMorgan funds' non-diversified status changes predate it; Oakmark's flag is a fee-limit "
-        "change, not an identified strategy change.",
+        "In particular, Optimum's December 1, 2025 event was a DMC advisory-agreement replacement and ultimate-ownership/control change, not a change in the named investment manager; American Century and Los Angeles Capital continued and published aggregate sleeve allocations were stable. "
+        "The two JPMorgan funds' non-diversified status changes predate the observation window; Oakmark's flag is a fee-limit change, not an identified strategy change.",
         "",
         "The full security-level rows are in `c2_cohort_security_residual_attribution.csv`; "
         "the machine-readable pair summaries are in `c2_cohort_security_residual_summary.csv`.",

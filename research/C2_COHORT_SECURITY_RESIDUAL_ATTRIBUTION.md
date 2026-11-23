@@ -22,7 +22,7 @@ Positive contributions increase the residual; negative contributions reduce it. 
 | JPMorgan Large Cap Value Fund | Value; non-diversified since 2025-03-05 | SPY | 140 | +14.786 | -15.795 | -1.008 | 23.1% |
 | Oakmark Fund | Value; R6 fee-limit change 2025-10-01 | IWB | 57 | +6.584 | -5.654 | +0.929 | 47.8% |
 | Oakmark Fund | Value; R6 fee-limit change 2025-10-01 | SPY | 57 | +6.582 | -5.431 | +1.151 | 47.8% |
-| Optimum Large Cap Growth Fund | Growth; manager transition 2025-12-01 | IWB | 146 | +4.800 | -5.944 | -1.144 | 27.1% |
+| Optimum Large Cap Growth Fund | Growth; DMC advisory-agreement/ownership transition 2025-12-01; sub-advisers continued; published split stable | IWB | 146 | +4.800 | -5.944 | -1.144 | 27.1% |
 | Optimum Large Cap Growth Fund | Growth; manager transition 2025-12-01 | SPY | 146 | +5.065 | -6.098 | -1.033 | 26.7% |
 
 ## What stands out
@@ -133,6 +133,6 @@ Reconciliation: security contributions -1.033320767 pp; reported residual -1.033
 
 ## Interpretation cautions
 
-This is a security-level decomposition of the Active Share residual, not a causal explanation of why a fund held a security or changed its weight. N-PORT endpoint differences may reflect flows, corporate actions, cash/derivatives, reporting differences, and other effects. Keep each fund's reviewed strategy and structural flags attached to the results. In particular, Optimum's December 1, 2025 manager transition falls within the observation window; the two JPMorgan funds' non-diversified status changes predate it; Oakmark's flag is a fee-limit change, not an identified strategy change.
+This is a security-level decomposition of the Active Share residual, not a causal explanation of why a fund held a security or changed its weight. N-PORT endpoint differences may reflect flows, corporate actions, cash/derivatives, reporting differences, and other effects. Keep each fund's reviewed strategy and structural flags attached to the results. In particular, Optimum's December 1, 2025 event was a DMC advisory-agreement replacement and ultimate-ownership/control change, not a change in the named investment manager. American Century and Los Angeles Capital continued under new agreements, and the published aggregate sleeve split was stable; day-to-day decision continuity is not established. The two JPMorgan funds' non-diversified status changes predate the observation window; Oakmark's flag is a fee-limit change, not an identified strategy change.
 
 The full security-level rows are in `c2_cohort_security_residual_attribution.csv`; the machine-readable pair summaries are in `c2_cohort_security_residual_summary.csv`.

@@ -13,14 +13,19 @@ on:
       - "scripts/build_c2_cohort_no_trade_drift.py"
       - "scripts/build_c2_no_trade_drift_pilot.py"
       - "scripts/build_c2_security_residual_attribution.py"
+      - "scripts/audit_optimum_manager_transition.py"
       - "tests/test_c2_no_trade_drift_pilot.py"
       - "tests/test_c2_nport_pilot.py"
       - "tests/test_c2_nport_cohort.py"
       - "tests/test_c2_identifier_mapping.py"
       - "tests/test_c2_cohort_drift.py"
       - "tests/test_c2_security_residual_attribution.py"
+      - "tests/test_optimum_manager_transition.py"
       - "research/C2_COHORT_MANIFEST.csv"
       - "research/C2_COHORT_SELECTION_PROTOCOL.md"
+      - "research/C2_COHORT_FUND_FLAGS.json"
+      - "research/C2_STRATEGY_EVIDENCE_REVIEW.md"
+      - "research/OPTIMUM_SUBADVISER_ALLOCATIONS_2025.csv"
 
 permissions:
   contents: read
@@ -47,6 +52,7 @@ jobs:
           python -m unittest discover -s tests -p "test_c2_identifier_mapping.py" -v
           python -m unittest discover -s tests -p "test_c2_cohort_drift.py" -v
           python -m unittest discover -s tests -p "test_c2_security_residual_attribution.py" -v
+          python -m unittest discover -s tests -p "test_optimum_manager_transition.py" -v
 
       - name: Download and validate 24 frozen SEC N-PORT reports
         env:
@@ -55,6 +61,13 @@ jobs:
           timeout 20m python scripts/audit_c2_nport_cohort.py \
             --manifest research/C2_COHORT_MANIFEST.csv \
             --out c2_nport_cohort
+
+      - name: Audit Optimum three-filing holdings and published sub-adviser allocations
+        run: |
+          timeout 5m python scripts/audit_optimum_manager_transition.py \\
+            --input c2_nport_cohort \\
+            --out c2_nport_cohort \\
+            --allocations research/OPTIMUM_SUBADVISER_ALLOCATIONS_2025.csv
 
       - name: Map cohort securities with N-PORT tickers and OpenFIGI
         env:

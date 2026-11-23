@@ -78,8 +78,21 @@ def flatten_strategy_flags(flags: dict) -> dict:
         "manager_change_effective_date": flags.get("manager_change_effective_date", ""),
         "manager_change_from": flags.get("manager_change_from", ""),
         "manager_change_to": flags.get("manager_change_to", ""),
+        "investment_manager_name": flags.get("investment_manager_name", ""),
+        "investment_manager_name_changed_within_window": bool(flags.get("investment_manager_name_changed_within_window", False)),
+        "manager_ownership_or_control_change_within_window": bool(flags.get("manager_ownership_or_control_change_within_window", False)),
+        "manager_ownership_or_control_change_effective_date": flags.get("manager_ownership_or_control_change_effective_date", ""),
+        "manager_ownership_or_control_from": flags.get("manager_ownership_or_control_from", ""),
+        "manager_ownership_or_control_to": flags.get("manager_ownership_or_control_to", ""),
+        "advisory_agreement_replaced_within_window": bool(flags.get("advisory_agreement_replaced_within_window", False)),
+        "advisory_agreement_change_effective_date": flags.get("advisory_agreement_change_effective_date", ""),
         "subadvisers_continued": flags.get("subadvisers_continued", ""),
         "subadviser_allocation_continuity_established": flags.get("subadviser_allocation_continuity_established", ""),
+        "published_subadviser_allocation_history_available": bool(flags.get("published_subadviser_allocation_history_available", False)),
+        "published_aggregate_subadviser_allocation_stable": bool(flags.get("published_aggregate_subadviser_allocation_stable", False)),
+        "published_subadviser_allocation_start_date": flags.get("published_subadviser_allocation_start_date", ""),
+        "published_subadviser_allocation_end_date": flags.get("published_subadviser_allocation_end_date", ""),
+        "day_to_day_portfolio_management_change_established": bool(flags.get("day_to_day_portfolio_management_change_established", False)),
         "non_diversified_status": bool(flags.get("non_diversified_status", False)),
         "non_diversified_effective_date": flags.get("non_diversified_effective_date", ""),
         "non_diversified_change_pre_window": bool(flags.get("non_diversified_change_pre_window", False)),
@@ -337,17 +350,19 @@ def main() -> None:
         "",
         "Strategy classifications below follow the contemporaneous documentary review; they are descriptive groups, not Morningstar style boxes.",
         "",
-        "| Fund | Strategy group | Manager change in window | Non-diversified effective | Other structural flags |",
-        "|---|---|---|---|---|",
+        "| Fund | Strategy group | Named manager changed | Advisory agreement effective | Day-to-day change established | Non-diversified effective | Other structural flags |",
+        "|---|---|---|---|---|---|---|",
     ]
     for flag in strategy_flag_rows:
         other = flag["structural_change_flag_ids"] or "None identified in reviewed materials"
-        manager = flag["manager_change_effective_date"] or "No"
+        manager = "Yes" if flag["manager_change_within_window"] else "No"
+        agreement = flag.get("advisory_agreement_change_effective_date", "") or "No"
+        day_to_day = "Yes" if flag.get("day_to_day_portfolio_management_change_established", False) else "Not established"
         nondiv = flag["non_diversified_effective_date"] or "No"
-        lines.append(f"| {flag['entity']} | {flag['strategy_classification']} | {manager} | {nondiv} | {other} |")
+        lines.append(f"| {flag['entity']} | {flag['strategy_classification']} | {manager} | {agreement} | {day_to_day} | {nondiv} | {other} |")
     lines += [
         "",
-        "Optimum Large Cap Growth's manager changed from Delaware Management Company to Nomura Investment Management Business Trust effective 2025-12-01. American Century and Los Angeles Capital continued as sub-advisers under new agreements; unchanged allocations and day-to-day decisions are not established.",
+        "Optimum: Delaware Management Company remained the named investment manager. Its prior advisory agreement was automatically terminated following Nomura's acquisition, and a new DMC agreement became effective 2025-12-01; DMC's ultimate ownership/control changed. American Century and Los Angeles Capital continued under new agreements. Published aggregate sub-adviser allocations were stable from 2025-09-30 to 2025-12-31 (48.51%/51.49% to 48.44%/51.56%); unchanged security-level sleeve holdings and day-to-day decisions are not established.",
         "",
         "Both JPMorgan funds became non-diversified effective 2025-03-05, before this September–December observation window.",
         "",
