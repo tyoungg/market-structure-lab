@@ -154,7 +154,7 @@ def extract_dates(text: str) -> tuple[str, str, str]:
 def extract_series_ids_from_submission_header(text: str) -> set[str]:
     """Read series IDs only from SEC-HEADER, never from document body text."""
     header = re.split(r"(?i)<DOCUMENT>", text or "", maxsplit=1)[0]
-    return set(re.findall(r"\\bS\\d{9}\\b", header))
+    return set(re.findall(r"\bS\d{9}\b", header))
 
 
 def extract_submission_header(text: str) -> list[dict[str, str]]:
