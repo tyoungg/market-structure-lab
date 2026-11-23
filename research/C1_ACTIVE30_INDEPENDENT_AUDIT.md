@@ -93,7 +93,7 @@ The 2010 SEC series/class crosswalk's `share_class_ambiguous` flag is not eviden
 
 Sources: [Everest SEC series/class filing index](https://www.sec.gov/Archives/edgar/data/743773/000074377308000005/0000743773-08-000005-index.html), [Calvert December 12, 2008 prospectus](https://www.sec.gov/Archives/edgar/data/1438390/000143839008000021/csf497efiled120808.htm).
 
-This creates a **recovery candidate**, not an automatic addition to the 30: Notre Dame `fundno 53752` has predecessor Everest observations in 2007 and a mixed predecessor/successor lineage during 2008. The 2006 and 2007 Everest prospectuses describe an active value strategy. Before promoting additional fund-years, separately verify the historical predecessor series header and the 2007/2008 as-of filings, and split the 2008 lineage at December 12. Do not silently treat the successor SEC series as if it existed before that date.
+**Follow-up disposition:** the bounded predecessor/successor audit now supports two additional active fund-year lineage observations for Notre Dame `fundno 53752`: 2007 (Everest predecessor) and 2008 (mixed Everest/Calvert transition year). The 2009 Calvert successor observation is already in the original 30. The 2008 row must be split by actual quarter-end date at the December 12 reorganization; do not assign all four observations to Calvert's successor series. The two recoveries are documented separately and are not yet integrated into the canonical evidence ledger. See [C.1 predecessor/successor recovery audit](C1_PREDECESSOR_SUCCESSOR_RECOVERY_AUDIT.md) and its recovery register.
 
 ## C.1 decision
 

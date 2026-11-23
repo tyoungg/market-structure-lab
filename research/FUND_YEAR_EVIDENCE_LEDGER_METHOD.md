@@ -78,14 +78,14 @@ The corrected Item 69 artifact retains `item69_coordinate` and `all_item69_coord
 
 The 30 active prospectus fund-year labels and their 14 series-level source links have now been independently audited; see [C1_ACTIVE30_INDEPENDENT_AUDIT.md](C1_ACTIVE30_INDEPENDENT_AUDIT.md). All 30 active labels were upheld. The full filing-history scan found a later as-of base prospectus within 365 days for every row. This differs from the original selected-source age sensitivity below: the original 13/25/30 counts remain valid for the original selected evidence links, but do not describe the latest available prospectus.
 
-The audit also clarifies that the 23/30 `share_class_ambiguous` flags in this seed set indicate multiple classes within one unique SEC series, not multiple competing portfolio series. A Calvert/Everest predecessor-successor lineage is a candidate for additional recovery and remains outside the adjudicated 30 pending a separate historical-series check.
+The audit also clarifies that the 23/30 `share_class_ambiguous` flags in this seed set indicate multiple classes within one unique SEC series, not multiple competing portfolio series. A separate bounded audit has now verified the Everest-to-Calvert lineage for fundno 53752 and supports two additional active lineage-years (2007 and 2008); the 2008 row is a mixed-series transition year. These recoveries remain outside the canonical 30-row register pending explicit lineage-layer integration. See [C.1 predecessor/successor recovery audit](C1_PREDECESSOR_SUCCESSOR_RECOVERY_AUDIT.md).
 
 ## Next C.1 work
 
-1. Audit predecessor/successor and historical-series recoveries, starting with Everest/Calvert `fundno 53752`; do not silently backdate the successor series.
-2. Assess whether additional contemporaneous prospectus coverage can materially expand the active sample beyond 2007–2009.
-3. Preserve the distinction between original selected-source age sensitivity and latest-available prospectus age.
-4. Decide whether the public evidence supports any inferential use of an active-only panel; otherwise retain the C.1 no-go for the main historical analysis.
+1. **Completed bounded recovery:** Everest/Calvert supports two additional active lineage-years; keep the 2008 mixed-series status explicit and do not backdate Calvert's successor ID.
+2. Review the 64-fundno identity-discontinuity screen as a candidate queue only; the screen is not evidence that all candidates are mergers or active funds.
+3. Integrate the two recovered years through a predecessor/successor lineage layer and rerun the ledger tests before changing canonical counts.
+4. Preserve the distinction between original selected-source age sensitivity and latest-available prospectus age; retain the C.1 no-go for population-level active-only inference.
 
 
 ## Canonical reproducibility result
