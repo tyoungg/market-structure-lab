@@ -1,14 +1,40 @@
 import sys
 import unittest
+from unittest.mock import Mock, patch
 from pathlib import Path
 
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from map_c2_cohort_identifiers import build_security_universe, select_ticker, valid
+from map_c2_cohort_identifiers import build_security_universe, map_batch, select_ticker, valid
 
 
 class C2IdentifierMappingTests(unittest.TestCase):
+    @patch("map_c2_cohort_identifiers.time.sleep")
+    @patch("map_c2_cohort_identifiers.requests.post")
+    def test_openfigi_connection_error_retries_then_succeeds(self, post, sleep):
+        success = Mock()
+        success.status_code = 200
+        success.json.return_value = [{"data": [{"ticker": "AAPL"}]}]
+        post.side_effect = [
+            __import__("requests").exceptions.ConnectionError("remote disconnected"),
+            success,
+        ]
+        result = map_batch([{"idType": "ID_ISIN", "idValue": "US0378331005"}])
+        self.assertEqual(result, success.json.return_value)
+        self.assertEqual(post.call_count, 2)
+        sleep.assert_called_once_with(1)
+
+    @patch("map_c2_cohort_identifiers.time.sleep")
+    @patch("map_c2_cohort_identifiers.requests.post")
+    def test_openfigi_transport_retries_are_bounded(self, post, sleep):
+        import requests
+        post.side_effect = requests.exceptions.ConnectionError("remote disconnected")
+        with self.assertRaisesRegex(RuntimeError, "transport retries exhausted"):
+            map_batch([{"idType": "ID_ISIN", "idValue": "US0378331005"}])
+        self.assertEqual(post.call_count, 5)
+        self.assertEqual([c.args[0] for c in sleep.call_args_list], [1, 2, 4, 8])
+
     def test_placeholder_identifiers_are_invalid(self):
         for value in ("", "N/A", "NA", "NONE", "XXXX", "000000000"):
             self.assertFalse(valid(value))

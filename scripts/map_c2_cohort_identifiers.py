@@ -155,21 +155,34 @@ def map_batch(jobs: list[dict], api_key: str = "") -> list[dict]:
     headers = {"Content-Type": "application/json"}
     if api_key:
         headers["X-OPENFIGI-APIKEY"] = api_key
+    last_error = None
     for attempt in range(5):
-        response = requests.post(OPENFIGI_URL, headers=headers, json=jobs, timeout=60)
+        try:
+            response = requests.post(OPENFIGI_URL, headers=headers, json=jobs, timeout=60)
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+            # OpenFIGI occasionally closes idle/pooled connections without an HTTP
+            # response. Treat this as transient transport failure, not bad data.
+            last_error = exc
+            if attempt < 4:
+                time.sleep(2 ** attempt)
+                continue
+            raise RuntimeError("OpenFIGI transport retries exhausted") from exc
         if response.status_code == 429:
             wait = float(response.headers.get("retry-after", "60"))
             time.sleep(max(wait, 1.0))
             continue
         if response.status_code in {500, 502, 503, 504}:
-            time.sleep(2 ** attempt)
-            continue
+            last_error = RuntimeError(f"OpenFIGI transient HTTP {response.status_code}")
+            if attempt < 4:
+                time.sleep(2 ** attempt)
+                continue
+            break
         response.raise_for_status()
         payload = response.json()
         if not isinstance(payload, list) or len(payload) != len(jobs):
             raise ValueError(f"Unexpected OpenFIGI response length: expected {len(jobs)}")
         return payload
-    raise RuntimeError("OpenFIGI request retries exhausted")
+    raise RuntimeError("OpenFIGI request retries exhausted") from last_error
 
 
 def run_mapping(universe: list[dict], api_key: str = "") -> tuple[list[dict], list[dict]]:
