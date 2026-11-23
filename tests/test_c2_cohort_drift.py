@@ -6,7 +6,10 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-from build_c2_cohort_no_trade_drift import coverage_gate_pass, flatten_strategy_flags, load_fund_strategy_flags, portfolio
+from build_c2_cohort_no_trade_drift import (
+    coverage_gate_pass, flatten_strategy_flags, load_fund_strategy_flags,
+    portfolio, prepare_fund_strategy_flags,
+)
 from build_c2_no_trade_drift_pilot import (
     active_share, decompose_active_share, drift_weights,
     local_return_to_usd, yahoo_quote_currency,
@@ -73,6 +76,17 @@ class C2CohortDriftTests(unittest.TestCase):
             flatten_strategy_flags(register["Fidelity Contrafund"])["strategy_classification"],
             "Flexible growth/value",
         )
+
+    def test_strategy_flags_are_resolved_before_entity_output_rows(self):
+        register = load_fund_strategy_flags(ROOT / "research" / "C2_COHORT_FUND_FLAGS.json")
+        entities = sorted(list(register) + ["SPY", "IWB"])
+        roles = {fund: "fund" for fund in register}
+        roles.update({"SPY": "benchmark_sp500", "IWB": "benchmark_russell1000"})
+        funds, benchmarks, flags = prepare_fund_strategy_flags(entities, roles, register)
+        self.assertEqual(len(funds), 6)
+        self.assertEqual(set(benchmarks), {"SPY", "IWB"})
+        self.assertEqual(set(flags), set(funds))
+        self.assertEqual(flags["Optimum Large Cap Growth Fund"]["manager_change_effective_date"], "2025-12-01")
 
     def test_yahoo_quote_currency_is_explicit_for_japanese_listing(self):
         self.assertEqual(yahoo_quote_currency("6861.T"), "JPY")

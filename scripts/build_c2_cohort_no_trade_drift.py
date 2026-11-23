@@ -90,6 +90,20 @@ def flatten_strategy_flags(flags: dict) -> dict:
     }
 
 
+def prepare_fund_strategy_flags(entities: list[str], roles: dict[str, str],
+                                strategy_register: dict[str, dict]) -> tuple[list[str], list[str], dict[str, dict]]:
+    """Resolve fund/benchmark roles and reviewed flags before any output rows are built."""
+    fund_entities = [entity for entity in entities if roles[entity] == "fund"]
+    benchmark_entities = [entity for entity in entities if str(roles[entity]).startswith("benchmark_")]
+    missing = sorted(set(fund_entities) - set(strategy_register))
+    if missing:
+        raise ValueError(f"Missing reviewed strategy flags for cohort funds: {missing}")
+    flags_by_entity = {
+        fund: flatten_strategy_flags(strategy_register[fund]) for fund in fund_entities
+    }
+    return fund_entities, benchmark_entities, flags_by_entity
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", default="c2_nport_cohort")
@@ -114,6 +128,9 @@ def main() -> None:
 
     entities = sorted(holdings.loc[holdings["report_date"].eq(args.start_date), "entity"].unique())
     roles = holdings.groupby("entity")["role"].first().to_dict()
+    fund_entities, benchmark_entities, fund_flags_by_entity = prepare_fund_strategy_flags(
+        entities, roles, strategy_register
+    )
     portfolios: dict[tuple[str, str], pd.DataFrame] = {}
     portfolio_meta = []
     for entity in entities:
@@ -195,14 +212,6 @@ def main() -> None:
         })
 
     coverage_by_entity = {x["entity"]: x for x in coverage_rows}
-    fund_entities = [x for x in entities if roles[x] == "fund"]
-    benchmark_entities = [x for x in entities if str(roles[x]).startswith("benchmark_")]
-    missing_strategy_flags = sorted(set(fund_entities) - set(strategy_register))
-    if missing_strategy_flags:
-        raise ValueError(f"Missing reviewed strategy flags for cohort funds: {missing_strategy_flags}")
-    fund_flags_by_entity = {
-        fund: flatten_strategy_flags(strategy_register[fund]) for fund in fund_entities
-    }
     strategy_flag_rows = [
         {"entity": fund, "role": "fund", **fund_flags_by_entity[fund]}
         for fund in fund_entities
