@@ -8,13 +8,13 @@
 
 ## 1. Purpose
 
-The single-fund Optimum Large Cap Growth pilot established that SEC N-PORT holdings, security identifiers, adjusted-price returns, and the no-trade Active Share decomposition can be joined reproducibly. The next test is whether the same pipeline works across multiple managers and style buckets.
+The single-fund Optimum Large Cap Growth pilot established that SEC N-PORT holdings, security identifiers, adjusted-price returns, and the no-trade Active Share decomposition can be joined reproducibly. The next test is whether the same pipeline works across multiple managers and strategy groups.
 
 This cohort is a **purposive feasibility sample**, not a random or representative sample of the active-fund universe. It is not intended to support population-wide inference.
 
 ## 2. Predeclared cohort
 
-| Fund | SEC CIK | Series ID | Provisional style bucket | Selection rationale |
+| Fund | SEC CIK | Series ID | Provisional strategy group | Selection rationale |
 |---|---|---|---|---|
 | Optimum Large Cap Growth Fund | 0001227523 | S000002422 | Growth | Existing C.1-linked pilot fund; large-cap growth mandate |
 | Fidelity Contrafund | 0000024238 | S000006037 | Flexible growth/value | Large diversified active growth-oriented fund |
@@ -23,7 +23,7 @@ This cohort is a **purposive feasibility sample**, not a random or representativ
 | Fidelity Magellan Fund | 0000061397 | S000007112 | Flexible growth/value | Diversified active capital-appreciation mandate |
 | Oakmark Fund | 0000872323 | S000002758 | Value | Active value-oriented large-company fund |
 
-The style buckets are manual research groupings based on contemporaneous prospectuses and strategy descriptions. They are not Morningstar style-box classifications. The documentary review is recorded in `C2_STRATEGY_EVIDENCE_REVIEW.md`; machine-readable flags are maintained in `C2_COHORT_FUND_FLAGS.json` and propagated into each cohort artifact.
+The strategy groups are manual research groupings based on contemporaneous prospectuses and strategy descriptions. They are not Morningstar style-box classifications. The documentary review is recorded in `C2_STRATEGY_EVIDENCE_REVIEW.md`; machine-readable flags are maintained in `C2_COHORT_FUND_FLAGS.json` and propagated into each cohort artifact.
 
 ## 3. Strategy evidence references
 
@@ -78,7 +78,7 @@ Raw SEC XML files are not committed to the repository.
 Do not calculate pooled cohort results until:
 
 - all 24 N-PORT filings pass date and identity validation;
-- all six candidate funds have reviewed strategy evidence and provisional style buckets are confirmed or corrected;
+- all six candidate funds have reviewed strategy evidence and reviewed strategy groups are confirmed or corrected;
 - common-equity holdings reconcile to reported values;
 - duplicate CUSIPs are aggregated;
 - security identifier and price coverage is reported fund by fund;
@@ -90,7 +90,7 @@ The same equity-only Active Share formula, no-trade total-return drift, ordered 
 ## 8. Interpretation limits
 
 - Six purposively selected funds do not represent the active-fund population.
-- Growth/value/blend buckets are descriptive controls, not a formal style taxonomy.
+- Growth, value, and flexible growth/value groups are descriptive controls, not a formal style taxonomy.
 - SPY and IWB are ETF holdings proxies, not official index constituent/weight files.
 - Yahoo Finance adjusted prices remain an exploratory public price source.
 - This 2025 cohort remains separate from the historical 1979–2023 TR/CRSP panel until a valid fund/provider bridge is established.

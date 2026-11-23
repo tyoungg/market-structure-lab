@@ -12,10 +12,10 @@ def sample_manifest():
     rows = []
     funds = [
         ("Optimum Large Cap Growth Fund", "growth", "0001227523", "S000002422"),
-        ("Fidelity Contrafund", "growth", "0000024238", "S000006037"),
+        ("Fidelity Contrafund", "flexible_growth_value", "0000024238", "S000006037"),
         ("JPMorgan Large Cap Growth Fund", "growth", "0000763852", "S000003856"),
         ("JPMorgan Large Cap Value Fund", "value", "0000763852", "S000003857"),
-        ("Fidelity Magellan Fund", "blend", "0000061397", "S000007112"),
+        ("Fidelity Magellan Fund", "flexible_growth_value", "0000061397", "S000007112"),
         ("Oakmark Fund", "value", "0000872323", "S000002758"),
     ]
     for entity, style, cik, series in funds:
@@ -43,6 +43,18 @@ class C2CohortManifestTests(unittest.TestCase):
         rows = sample_manifest()
         validate_manifest(rows)
         self.assertEqual(len(rows), 24)
+
+    def test_repository_manifest_uses_reviewed_flexible_growth_value_groups(self):
+        manifest_path = Path(__file__).resolve().parents[1] / "research" / "C2_COHORT_MANIFEST.csv"
+        rows = read_manifest(manifest_path)
+        validate_manifest(rows)
+        groups = {
+            entity: {row["style_bucket"] for row in rows if row["entity"] == entity}
+            for entity in ("Fidelity Contrafund", "Fidelity Magellan Fund")
+        }
+        self.assertEqual(groups["Fidelity Contrafund"], {"flexible_growth_value"})
+        self.assertEqual(groups["Fidelity Magellan Fund"], {"flexible_growth_value"})
+        self.assertNotIn("blend", {row["style_bucket"] for row in rows})
 
     def test_wrong_date_fails(self):
         rows = sample_manifest()

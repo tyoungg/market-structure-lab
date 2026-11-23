@@ -88,7 +88,7 @@ def main() -> None:
     funds = sorted({x["entity"] for x in specs if x["role"] == "fund"})
     benchmarks = sorted({x["entity"] for x in specs if x["role"].startswith("benchmark_")})
     metrics = {
-        "cohort": "six active-management candidates across growth, value, and blend buckets",
+        "cohort": "six active-management candidates across growth, value, and flexible growth/value strategy groups",
         "holdings_dates": EXPECTED_DATES,
         "fund_count": len(funds),
         "benchmark_count": len(benchmarks),
@@ -111,7 +111,7 @@ def main() -> None:
         "",
         f"Validated {len(summaries)} of {len(specs)} frozen SEC N-PORT-P filings for {len(funds)} candidate funds and {len(benchmarks)} ETF benchmark proxies.",
         "",
-        "| Entity | Style bucket | Report date | Positions | Common equity | Equity weight (% NAV) | Ticker coverage (% equity) | CUSIP coverage (% equity) | ISIN coverage (% equity) |",
+        "| Entity | Reviewed strategy group | Report date | Positions | Common equity | Equity weight (% NAV) | Ticker coverage (% equity) | CUSIP coverage (% equity) | ISIN coverage (% equity) |",
         "|---|---|---|---:|---:|---:|---:|---:|---:|",
     ]
     for x in summaries:
@@ -124,6 +124,8 @@ def main() -> None:
         )
     lines += [
         "",
+        "The manifest `style_bucket` field retains its legacy name; fund values are documentary strategy groups, not Morningstar style boxes.",
+        "Fidelity Contrafund and Fidelity Magellan are flexible growth/value funds, not conventional blend funds.",
         "This is an acquisition/identity audit only. It does not classify the funds as active, calculate Active Share, or calculate no-trade drift.",
         "Review prospectus strategy evidence and per-fund identifier/price coverage before proceeding.",
     ]
