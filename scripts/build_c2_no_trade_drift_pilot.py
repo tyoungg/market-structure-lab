@@ -166,6 +166,38 @@ def _extract_close(data: pd.DataFrame, ticker: str, requested_count: int) -> pd.
     return None
 
 
+def yahoo_quote_currency(yahoo_symbol: str) -> str:
+    """Return the quote currency implied by the selected Yahoo listing.
+
+    The current mapper selects U.S. composite/OTC USD listings, plus numeric
+    Japanese local listings represented by the .T suffix. Unknown suffixes
+    are deliberately not assumed to be USD.
+    """
+    value = str(yahoo_symbol or "").strip().upper()
+    if "." not in value:
+        return "USD"
+    suffix = value.rsplit(".", 1)[1]
+    return {"T": "JPY"}.get(suffix, "UNSUPPORTED")
+
+
+def local_return_to_usd(local_return: float, currency: str,
+                        fx_start: float | None = None,
+                        fx_end: float | None = None) -> float:
+    """Convert a local-currency security return to USD total return.
+
+    JPY=X is quoted as JPY per USD. Therefore USD value is local price
+    divided by JPY-per-USD, and the return multiplier is FX_start / FX_end.
+    """
+    currency = str(currency).upper()
+    if currency == "USD":
+        return float(local_return)
+    if currency == "JPY":
+        if fx_start is None or fx_end is None or fx_start <= 0 or fx_end <= 0:
+            raise ValueError("Valid JPY-per-USD endpoint rates are required")
+        return (1.0 + float(local_return)) * (float(fx_start) / float(fx_end)) - 1.0
+    raise ValueError(f"Unsupported quote currency: {currency}")
+
+
 def download_total_returns(tickers: list[str], ticker_isins: dict[str, str] = None,
                            start_date: str = START_DATE, end_date: str = END_DATE) -> tuple[dict, list[dict], str]:
     import yfinance as yf
@@ -251,6 +283,97 @@ def download_total_returns(tickers: list[str], ticker_isins: dict[str, str] = No
             existing["status"] = "missing_exact_endpoint_price"
             existing["fallback_error"] = last_error
             audit_by_ticker[original] = existing
+    audit = [audit_by_ticker[ticker] for ticker in unique]
+
+    # Convert non-USD local listing returns to USD. At present the identifier
+    # mapper emits .T only for Japanese local listings; unknown suffixes fail
+    # closed rather than being silently treated as USD.
+    currencies = {ticker: yahoo_quote_currency(symbol_map[ticker]) for ticker in unique}
+    fx_cache = {}
+    for currency in sorted(set(currencies.values()) - {"USD", "UNSUPPORTED"}):
+        if currency == "JPY":
+            fx_symbol = "JPY=X"  # JPY per USD
+            fx_data = pd.DataFrame()
+            fx_error = ""
+            for attempt in range(3):
+                try:
+                    fx_data = yf.download(
+                        tickers=fx_symbol, start=start_date, end=end_exclusive,
+                        auto_adjust=True, actions=False, progress=False,
+                        threads=False, timeout=30,
+                    )
+                    if not fx_data.empty:
+                        break
+                    fx_error = "empty FX response"
+                except Exception as exc:
+                    fx_error = repr(exc)
+                time.sleep(2 ** attempt)
+            fx_close = _extract_close(fx_data, fx_symbol, 1)
+            fx_by_date = {}
+            if fx_close is not None:
+                fx_series = pd.to_numeric(fx_close, errors="coerce").dropna()
+                fx_dates = pd.to_datetime(fx_series.index).date
+                fx_by_date = {d.isoformat(): float(v) for d, v in zip(fx_dates, fx_series.values)}
+            fx_cache[currency] = {
+                "fx_symbol": fx_symbol,
+                "fx_start_rate": fx_by_date.get(start_date),
+                "fx_end_rate": fx_by_date.get(end_date),
+                "fx_error": fx_error,
+                "fx_quote_convention": "JPY per USD",
+            }
+        else:
+            fx_cache[currency] = {"fx_error": f"No FX conversion configured for {currency}"}
+
+    audit_by_ticker = {row["ticker"]: row for row in audit}
+    for original in unique:
+        currency = currencies[original]
+        row = audit_by_ticker[original]
+        row["quote_currency"] = currency
+        if currency == "USD":
+            row["local_total_return"] = row.get("total_return", "")
+            row["usd_conversion_status"] = "not_required_usd_listing"
+            continue
+        if currency == "UNSUPPORTED":
+            prices.pop(original, None)
+            row["status"] = "unsupported_quote_currency"
+            row["usd_conversion_status"] = "unsupported_quote_currency"
+            row["local_total_return"] = row.get("total_return", "")
+            row["total_return"] = ""
+            continue
+
+        fx = fx_cache.get(currency, {})
+        row.update({k: v for k, v in fx.items() if k != "fx_error"})
+        if original not in prices:
+            row["usd_conversion_status"] = "not_attempted_local_price_missing"
+            row["local_total_return"] = ""
+            row["fx_error"] = fx.get("fx_error", "")
+            continue
+        local_return = float(prices[original]["total_return"])
+        fx_start, fx_end = fx.get("fx_start_rate"), fx.get("fx_end_rate")
+        if fx_start is None or fx_end is None or fx_start <= 0 or fx_end <= 0:
+            prices.pop(original, None)
+            row["status"] = "missing_fx_endpoint_price"
+            row["usd_conversion_status"] = "missing_fx_endpoint_price"
+            row["local_total_return"] = local_return
+            row["total_return"] = ""
+            row["fx_error"] = fx.get("fx_error", "")
+            continue
+        usd_return = local_return_to_usd(local_return, currency, fx_start, fx_end)
+        prices[original].update({
+            "quote_currency": currency,
+            "local_total_return": local_return,
+            "fx_symbol": fx.get("fx_symbol", ""),
+            "fx_start_rate": fx_start,
+            "fx_end_rate": fx_end,
+            "fx_quote_convention": fx.get("fx_quote_convention", ""),
+            "total_return": usd_return,
+            "usd_conversion_status": "converted_to_usd",
+        })
+        row["local_total_return"] = local_return
+        row["total_return"] = usd_return
+        row["usd_conversion_status"] = "converted_to_usd"
+        row["fx_error"] = ""
+
     audit = [audit_by_ticker[ticker] for ticker in unique]
     return prices, audit, getattr(yf, "__version__", "unknown")
 

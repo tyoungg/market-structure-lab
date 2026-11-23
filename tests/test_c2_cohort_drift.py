@@ -7,7 +7,10 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from build_c2_cohort_no_trade_drift import coverage_gate_pass, portfolio
-from build_c2_no_trade_drift_pilot import active_share, decompose_active_share, drift_weights
+from build_c2_no_trade_drift_pilot import (
+    active_share, decompose_active_share, drift_weights,
+    local_return_to_usd, yahoo_quote_currency,
+)
 
 
 class C2CohortDriftTests(unittest.TestCase):
@@ -46,6 +49,23 @@ class C2CohortDriftTests(unittest.TestCase):
         self.assertTrue(coverage_gate_pass(0.95))
         self.assertTrue(coverage_gate_pass(0.951))
         self.assertFalse(coverage_gate_pass(0.949999))
+
+    def test_yahoo_quote_currency_is_explicit_for_japanese_listing(self):
+        self.assertEqual(yahoo_quote_currency("6861.T"), "JPY")
+        self.assertEqual(yahoo_quote_currency("AAPL"), "USD")
+        self.assertEqual(yahoo_quote_currency("ABC.XY"), "UNSUPPORTED")
+
+    def test_jpy_local_return_is_converted_to_usd_with_correct_fx_direction(self):
+        # Local stock rises 10%; JPY weakens from 150 to 155 per USD.
+        usd_return = local_return_to_usd(0.10, "JPY", 150.0, 155.0)
+        self.assertAlmostEqual(usd_return, (1.10 * 150.0 / 155.0) - 1.0, places=12)
+        self.assertAlmostEqual(local_return_to_usd(0.10, "USD"), 0.10, places=12)
+
+    def test_non_usd_conversion_fails_closed_without_fx_endpoints(self):
+        with self.assertRaises(ValueError):
+            local_return_to_usd(0.10, "JPY", 150.0, None)
+        with self.assertRaises(ValueError):
+            local_return_to_usd(0.10, "EUR", 1.08, 1.10)
 
     def test_no_trade_weights_sum_to_one_and_decomposition_reconciles(self):
         start = {"A": 0.6, "B": 0.4}

@@ -99,3 +99,12 @@ The same equity-only Active Share formula, no-trade total-return drift, ordered 
 ## 9. Second-quarter transition pre-registration
 
 The extension adds the 2025-12-31 filings for the same eight entities. The next calculation is explicitly the 2025-09-30 to 2025-12-31 transition; it does not reselect funds, alter benchmark proxies, or pool the two quarterly transitions before examining each separately. The mapping universe is constructed from 2025-09-30 common-equity holdings only, and all price returns use exact 2025-09-30 and 2025-12-31 adjusted-close endpoints. Each entity retains its own 95% mapping and price coverage gates. Missing or ambiguous mappings remain unresolved rather than being filled by ticker guesses.
+
+
+## 10. Quote-currency and FX treatment
+
+The cohort price pipeline treats a Yahoo symbol without an exchange suffix as a USD listing because the mapping stage selects U.S. composite or U.S. OTC quote variants. Numeric Japanese N-PORT tickers with Japanese ISINs are represented as Yahoo `.T` listings and are explicitly classified as JPY. Their local-currency total returns are converted to USD using Yahoo `JPY=X`, quoted as JPY per USD:
+
+`USD return = (1 + local return) × (JPY-per-USD at start / JPY-per-USD at end) − 1`.
+
+The FX endpoints must match the holdings transition dates. A security with a local price but missing FX endpoints is not counted as priced for the 95% gate. Unsupported Yahoo exchange suffixes fail closed and are not assumed to be USD. Local return, FX symbol, FX endpoint rates, quote currency, and conversion status are retained in the audit outputs. The current mapper emits only the Japanese `.T` local suffix in addition to USD listings; any expansion to other local markets requires an explicit currency and FX-pair rule plus tests before use.

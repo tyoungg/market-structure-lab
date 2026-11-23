@@ -131,6 +131,12 @@ def main() -> None:
                 "start_weight_pct_equity": 100.0 * weight,
                 "total_return_pct": 100.0 * ret, "price_status": status,
                 "yahoo_symbol": price.get("yahoo_symbol", "") if price else "",
+                "quote_currency": price.get("quote_currency", "USD" if price and "." not in str(price.get("yahoo_symbol", "")) else "") if price else "",
+                "local_total_return_pct": 100.0 * float(price.get("local_total_return", price.get("total_return", 0.0))) if price else "",
+                "fx_symbol": price.get("fx_symbol", "") if price else "",
+                "fx_start_rate": price.get("fx_start_rate", "") if price else "",
+                "fx_end_rate": price.get("fx_end_rate", "") if price else "",
+                "usd_conversion_status": price.get("usd_conversion_status", "not_required_usd_listing") if price else "",
                 "start_adj_close": price.get("start_adj_close", "") if price else "",
                 "end_adj_close": price.get("end_adj_close", "") if price else "",
             })
@@ -221,6 +227,9 @@ def main() -> None:
         "start_date": args.start_date, "end_date": args.end_date,
         "funds": fund_entities, "benchmark_proxies": benchmark_entities,
         "price_source": "Yahoo Finance auto-adjusted close via yfinance",
+        "return_currency": "USD",
+        "quote_currency_policy": "No Yahoo suffix is treated as USD because the mapper selects U.S. composite/OTC USD listings; .T is JPY and converted with JPY=X quoted as JPY per USD; unknown suffixes are excluded from price coverage.",
+        "fx_source": "Yahoo Finance JPY=X endpoint rates; USD return = (1 + local return) * (JPY_per_USD_start / JPY_per_USD_end) - 1.",
         "yfinance_version": yfinance_version, "pandas_version": pd.__version__,
         "price_download_timestamp_utc": datetime.now(timezone.utc).isoformat(),
         "price_coverage_gate_pct": 100.0 * MIN_PRICE_COVERAGE,
@@ -232,7 +241,9 @@ def main() -> None:
         "unpriced_return_sensitivity": sensitivity_rows,
         "interpretation": (
             "Common-equity sleeves are normalized to 100%. No-trade fund weights grow starting holdings "
-            "by auto-adjusted Yahoo prices from the exact start date to exact end date. Price coverage "
+            "by auto-adjusted Yahoo prices from the exact start date to exact end date, converted "
+            "to USD when a supported non-USD listing is priced. Quote currency and FX conversion are audited; "
+            "unsupported currencies or missing FX endpoints are not counted as priced. Price coverage "
             "must clear 95% separately for each fund and benchmark ETF proxy. ETF holdings are proxies, "
             "not official index constituent files. The portfolio-change residual is descriptive, not "
             "causal or synonymous with manager trading; flows, corporate actions, cash/derivatives, and "
@@ -241,6 +252,8 @@ def main() -> None:
     }
     write_csv(out / "c2_cohort_price_coverage_by_entity.csv", coverage_rows)
     write_csv(out / "c2_cohort_security_total_returns.csv", price_audit)
+    write_csv(out / "c2_cohort_fx_conversion_audit.csv",
+              [row for row in price_audit if row.get("quote_currency", "USD") != "USD"])
     write_csv(out / "c2_cohort_entity_security_prices.csv", price_rows)
     write_csv(out / "c2_cohort_fund_security_drift.csv", drift_rows)
     write_csv(out / "c2_cohort_active_share_decomposition.csv", decompositions)
