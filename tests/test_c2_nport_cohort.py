@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from audit_c2_nport_cohort import read_manifest, validate_manifest
 
 
-def sample_manifest():
+def sample_manifest(dates=("2025-06-30", "2025-09-30", "2025-12-31")):
     rows = []
     funds = [
         ("Optimum Large Cap Growth Fund", "growth", "0001227523", "S000002422"),
@@ -19,7 +19,7 @@ def sample_manifest():
         ("Oakmark Fund", "value", "0000872323", "S000002758"),
     ]
     for entity, style, cik, series in funds:
-        for date in ("2025-06-30", "2025-09-30", "2025-12-31"):
+        for date in dates:
             rows.append({
                 "entity":entity,"role":"fund","style_bucket":style,"report_date":date,
                 "cik":cik,"series_id":series,"series_name":entity,
@@ -55,6 +55,11 @@ class C2CohortManifestTests(unittest.TestCase):
         self.assertEqual(groups["Fidelity Contrafund"], {"flexible_growth_value"})
         self.assertEqual(groups["Fidelity Magellan Fund"], {"flexible_growth_value"})
         self.assertNotIn("blend", {row["style_bucket"] for row in rows})
+
+    def test_valid_two_date_extension_manifest(self):
+        rows = sample_manifest(("2026-03-31", "2026-06-30"))
+        validate_manifest(rows, ["2026-03-31", "2026-06-30"])
+        self.assertEqual(len(rows), 16)
 
     def test_wrong_date_fails(self):
         rows = sample_manifest()

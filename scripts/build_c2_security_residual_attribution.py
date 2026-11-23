@@ -178,7 +178,7 @@ def build_attribution(
     return attribution, summary
 
 
-def write_report(summary: pd.DataFrame, output: Path, end_date: str) -> None:
+def write_report(summary: pd.DataFrame, output: Path, start_date: str, end_date: str) -> None:
     lines = [
         "# C.2 Security-Level Attribution of the Active Share Residual",
         "",
@@ -208,9 +208,15 @@ def write_report(summary: pd.DataFrame, output: Path, end_date: str) -> None:
         elif flag_is_true(r.manager_change_within_window):
             context += f"; named manager change {r.manager_change_effective_date}"
         elif flag_is_true(r.non_diversified_status) and str(r.non_diversified_effective_date):
-            context += f"; non-diversified since {r.non_diversified_effective_date}"
+            timing = "pre-window" if str(r.non_diversified_effective_date) < start_date else "within-window"
+            context += f"; non-diversified since {r.non_diversified_effective_date} ({timing})"
         elif str(r.fee_limit_change_effective_date):
-            context += f"; R6 fee-limit change {r.fee_limit_change_effective_date}"
+            timing = "pre-window" if str(r.fee_limit_change_effective_date) < start_date else "within-window"
+            context += f"; R6 fee-limit change {r.fee_limit_change_effective_date} ({timing})"
+        elif str(getattr(r, "manager_ownership_or_control_change_effective_date", "")):
+            event_date = str(r.manager_ownership_or_control_change_effective_date)
+            timing = "pre-window" if event_date < start_date else "within-window"
+            context += f"; ownership/control transition {event_date} ({timing})"
         lines.append(
             f"| {r.fund} | {context} | {r.benchmark_entity} | {r.security_count} | "
             f"{r.positive_contributions_sum_pp:+.3f} | {r.negative_contributions_sum_pp:+.3f} | "
@@ -249,8 +255,7 @@ def write_report(summary: pd.DataFrame, output: Path, end_date: str) -> None:
         "of why a fund held a security or changed its weight. N-PORT endpoint differences may reflect "
         "flows, corporate actions, cash/derivatives, reporting differences, and other effects. "
         "Keep each fund's reviewed strategy and structural flags attached to the results. "
-        "In particular, Optimum's December 1, 2025 event was a DMC advisory-agreement replacement and ultimate-ownership/control change, not a change in the named investment manager; American Century and Los Angeles Capital continued and published aggregate sleeve allocations were stable. "
-        "The two JPMorgan funds' non-diversified status changes predate the observation window; Oakmark's flag is a fee-limit change, not an identified strategy change.",
+        "Structural events effective before the start date remain contextual history, not within-window changes. The date relationship is shown in each fund's context row. Do not infer a causal effect from a pre-window legal or fee event.",
         "",
         "The full security-level rows are in `c2_cohort_security_residual_attribution.csv`; "
         "the machine-readable pair summaries are in `c2_cohort_security_residual_summary.csv`.",
@@ -262,6 +267,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", default="c2_nport_cohort")
     parser.add_argument("--out", default="c2_nport_cohort")
+    parser.add_argument("--start-date", default="2025-09-30")
     parser.add_argument("--end-date", default="2025-12-31")
     args = parser.parse_args()
     source, output = Path(args.input), Path(args.out)
@@ -272,7 +278,7 @@ def main() -> None:
     attribution, summary = build_attribution(holdings, drift, decompositions, args.end_date)
     attribution.to_csv(output / "c2_cohort_security_residual_attribution.csv", index=False)
     summary.to_csv(output / "c2_cohort_security_residual_summary.csv", index=False)
-    write_report(summary, output / "C2_COHORT_SECURITY_RESIDUAL_ATTRIBUTION.md", args.end_date)
+    write_report(summary, output / "C2_COHORT_SECURITY_RESIDUAL_ATTRIBUTION.md", args.start_date, args.end_date)
     print(summary[[
         "fund", "benchmark_entity", "net_residual_pp", "reconciliation_error_pp",
         "top10_absolute_contributions_share_pct",

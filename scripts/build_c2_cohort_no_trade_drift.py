@@ -123,6 +123,8 @@ def main() -> None:
     parser.add_argument("--out", default="c2_nport_cohort")
     parser.add_argument("--start-date", default=START_DATE)
     parser.add_argument("--end-date", default=END_DATE)
+    parser.add_argument("--flags", default="research/C2_COHORT_FUND_FLAGS.json",
+                        help="Reviewed strategy/structural flag register for this observation window")
     args = parser.parse_args()
     source, out = Path(args.input), Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -130,8 +132,7 @@ def main() -> None:
     holdings = pd.read_csv(source / "nport_cohort_common_equity.csv", dtype=str).fillna("")
     mapping = pd.read_csv(source / "c2_security_identifier_map.csv", dtype=str).fillna("")
     mapping_coverage = pd.read_csv(source / "c2_identifier_mapping_coverage_by_entity.csv", dtype=str).fillna("")
-    strategy_register_path = Path(__file__).resolve().parents[1] / "research" / "C2_COHORT_FUND_FLAGS.json"
-    strategy_register = load_fund_strategy_flags(strategy_register_path)
+    strategy_register = load_fund_strategy_flags(Path(args.flags))
     required = {"security_id", "mapped_ticker", "mapping_status"}
     if not required.issubset(mapping.columns):
         raise ValueError(f"Mapping file missing columns: {sorted(required - set(mapping.columns))}")
@@ -362,13 +363,16 @@ def main() -> None:
         lines.append(f"| {flag['entity']} | {flag['strategy_classification']} | {manager} | {agreement} | {day_to_day} | {nondiv} | {other} |")
     lines += [
         "",
-        "Optimum: Delaware Management Company remained the named investment manager. Its prior advisory agreement was automatically terminated following Nomura's acquisition, and a new DMC agreement became effective 2025-12-01; DMC's ultimate ownership/control changed. American Century and Los Angeles Capital continued under new agreements. Published aggregate sub-adviser allocations were stable from 2025-09-30 to 2025-12-31 (48.51%/51.49% to 48.44%/51.56%); unchanged security-level sleeve holdings and day-to-day decisions are not established.",
+        "## Fund-specific documentary context",
         "",
-        "Both JPMorgan funds became non-diversified effective 2025-03-05, before this September–December observation window.",
+    ]
+    for flag in strategy_flag_rows:
+        note = flag.get("strategy_change_review_status", "").strip()
+        if note:
+            lines.append(f"- **{flag['entity']}:** {note}")
+    lines += [
         "",
-        "Oakmark's R6 expense-limitation reduction effective 2025-10-01 is a fee change, not an identified investment-strategy change.",
-        "",
-        "Fidelity Contrafund and Fidelity Magellan are classified as flexible growth/value, not conventional blend funds.",
+        "The flag register is specific to this observation window. Structural events effective before the start date remain contextual history and are not treated as within-window changes.",
         "",
         "## Active Share decomposition",
         "",

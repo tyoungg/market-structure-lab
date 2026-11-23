@@ -14,7 +14,7 @@ from pathlib import Path
 from audit_c2_nport_pilot import download_xml, parse_nport_xml, summarize, validate_identity, write_csv
 
 
-EXPECTED_DATES = ["2025-06-30", "2025-09-30", "2025-12-31"]
+DEFAULT_EXPECTED_DATES = ["2025-06-30", "2025-09-30", "2025-12-31"]
 
 
 def read_manifest(path: Path) -> list[dict]:
@@ -27,18 +27,20 @@ def read_manifest(path: Path) -> list[dict]:
     return rows
 
 
-def validate_manifest(specs: list[dict]) -> None:
-    if len(specs) != 24:
-        raise ValueError(f"Expected 24 filing rows, found {len(specs)}")
+def validate_manifest(specs: list[dict], expected_dates: list[str] | None = None) -> None:
+    expected_dates = sorted(expected_dates or DEFAULT_EXPECTED_DATES)
     funds = sorted({x["entity"] for x in specs if x["role"] == "fund"})
     benchmarks = sorted({x["entity"] for x in specs if x["role"].startswith("benchmark_")})
+    expected_rows = (len(funds) + len(benchmarks)) * len(expected_dates)
+    if len(specs) != expected_rows:
+        raise ValueError(f"Expected {expected_rows} filing rows for {len(expected_dates)} dates, found {len(specs)}")
     if len(funds) != 6 or benchmarks != ["IWB", "SPY"]:
         raise ValueError(f"Unexpected cohort composition: funds={funds}, benchmarks={benchmarks}")
     for entity in funds + benchmarks:
         dates = sorted(x["report_date"] for x in specs if x["entity"] == entity)
-        if dates != EXPECTED_DATES:
-            raise ValueError(f"{entity}: expected report dates {EXPECTED_DATES}, got {dates}")
-    if len({(x["entity"], x["report_date"]) for x in specs}) != 24:
+        if dates != expected_dates:
+            raise ValueError(f"{entity}: expected report dates {expected_dates}, got {dates}")
+    if len({(x["entity"], x["report_date"]) for x in specs}) != expected_rows:
         raise ValueError("Duplicate entity/report-date rows in manifest")
 
 
@@ -46,14 +48,19 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest", default="research/C2_COHORT_MANIFEST.csv")
     parser.add_argument("--out", default="c2_nport_cohort")
+    parser.add_argument("--expected-dates", default=",".join(DEFAULT_EXPECTED_DATES),
+                        help="Comma-separated exact report dates expected for every entity")
     args = parser.parse_args()
+    expected_dates = sorted(x.strip() for x in args.expected_dates.split(",") if x.strip())
+    if not expected_dates:
+        raise ValueError("--expected-dates must contain at least one date")
 
     email = os.environ.get("SEC_CONTACT_EMAIL", "").strip()
     if not email or "@" not in email:
         raise RuntimeError("SEC_CONTACT_EMAIL must be set to a valid contact email")
 
     specs = read_manifest(Path(args.manifest))
-    validate_manifest(specs)
+    validate_manifest(specs, expected_dates)
     out = Path(args.out)
     raw_dir = out / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
@@ -89,7 +96,7 @@ def main() -> None:
     benchmarks = sorted({x["entity"] for x in specs if x["role"].startswith("benchmark_")})
     metrics = {
         "cohort": "six active-management candidates across growth, value, and flexible growth/value strategy groups",
-        "holdings_dates": EXPECTED_DATES,
+        "holdings_dates": expected_dates,
         "fund_count": len(funds),
         "benchmark_count": len(benchmarks),
         "report_count": len(summaries),
@@ -109,7 +116,7 @@ def main() -> None:
     lines = [
         "# C.2 Multi-Fund N-PORT Acquisition Audit",
         "",
-        f"Validated {len(summaries)} of {len(specs)} frozen SEC N-PORT-P filings for {len(funds)} candidate funds and {len(benchmarks)} ETF benchmark proxies.",
+        f"Validated {len(summaries)} of {len(specs)} frozen SEC N-PORT-P filings for {len(funds)} candidate funds and {len(benchmarks)} ETF benchmark proxies on {len(expected_dates)} report dates.",
         "",
         "| Entity | Reviewed strategy group | Report date | Positions | Common equity | Equity weight (% NAV) | Ticker coverage (% equity) | CUSIP coverage (% equity) | ISIN coverage (% equity) |",
         "|---|---|---|---:|---:|---:|---:|---:|---:|",

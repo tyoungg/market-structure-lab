@@ -1,0 +1,17 @@
+entity,role,style_bucket,report_date,cik,series_id,series_name,accession,url
+Optimum Large Cap Growth Fund,fund,growth,2026-03-31,0001227523,S000002422,Optimum Large Cap Growth Fund,0000940400-26-022036,https://www.sec.gov/Archives/edgar/data/1227523/000094040026022036/primary_doc.xml
+Fidelity Contrafund,fund,flexible_growth_value,2026-03-31,0000024238,S000006037,Fidelity Contrafund,0000035402-26-003312,https://www.sec.gov/Archives/edgar/data/24238/000003540226003312/primary_doc.xml
+JPMorgan Large Cap Growth Fund,fund,growth,2026-03-31,0000763852,S000003856,JPMorgan Large Cap Growth Fund,0002071691-26-012787,https://www.sec.gov/Archives/edgar/data/763852/000207169126012787/primary_doc.xml
+JPMorgan Large Cap Value Fund,fund,value,2026-03-31,0000763852,S000003857,JPMorgan Large Cap Value Fund,0002071691-26-012780,https://www.sec.gov/Archives/edgar/data/763852/000207169126012780/primary_doc.xml
+Fidelity Magellan Fund,fund,flexible_growth_value,2026-03-31,0000061397,S000007112,Fidelity Magellan Fund,0000035402-26-003389,https://www.sec.gov/Archives/edgar/data/61397/000003540226003389/primary_doc.xml
+Oakmark Fund,fund,value,2026-03-31,0000872323,S000002758,Oakmark Fund,0001410368-26-055168,https://www.sec.gov/Archives/edgar/data/872323/000141036826055168/primary_doc.xml
+SPY,benchmark_sp500,,2026-03-31,0000884394,,SPDR S&P 500 ETF Trust,0001410368-26-055357,https://www.sec.gov/Archives/edgar/data/884394/000141036826055357/primary_doc.xml
+IWB,benchmark_russell1000,,2026-03-31,0001100663,S000004347,iShares Russell 1000 ETF,0001004726-26-003726,https://www.sec.gov/Archives/edgar/data/1100663/000100472626003726/primary_doc.xml
+Optimum Large Cap Growth Fund,fund,growth,2026-06-30,0001227523,S000002422,Optimum Large Cap Growth Fund,0000940400-26-034439,https://www.sec.gov/Archives/edgar/data/1227523/000094040026034439/primary_doc.xml
+Fidelity Contrafund,fund,flexible_growth_value,2026-06-30,0000024238,S000006037,Fidelity Contrafund,0000035402-26-005386,https://www.sec.gov/Archives/edgar/data/24238/000003540226005386/primary_doc.xml
+JPMorgan Large Cap Growth Fund,fund,growth,2026-06-30,0000763852,S000003856,JPMorgan Large Cap Growth Fund,0002071691-26-021085,https://www.sec.gov/Archives/edgar/data/763852/000207169126021085/primary_doc.xml
+JPMorgan Large Cap Value Fund,fund,value,2026-06-30,0000763852,S000003857,JPMorgan Large Cap Value Fund,0002071691-26-021111,https://www.sec.gov/Archives/edgar/data/763852/000207169126021111/primary_doc.xml
+Fidelity Magellan Fund,fund,flexible_growth_value,2026-06-30,0000061397,S000007112,Fidelity Magellan Fund,0000035402-26-005477,https://www.sec.gov/Archives/edgar/data/61397/000003540226005477/primary_doc.xml
+Oakmark Fund,fund,value,2026-06-30,0000872323,S000002758,Oakmark Fund,0001410368-26-086656,https://www.sec.gov/Archives/edgar/data/872323/000141036826086656/primary_doc.xml
+SPY,benchmark_sp500,,2026-06-30,0000884394,,SPDR S&P 500 ETF Trust,0001410368-26-089410,https://www.sec.gov/Archives/edgar/data/884394/000141036826089410/primary_doc.xml
+IWB,benchmark_russell1000,,2026-06-30,0001100663,S000004347,iShares Russell 1000 ETF,0001004726-26-007016,https://www.sec.gov/Archives/edgar/data/1100663/0001004726007016/primary_doc.xml

@@ -1,5 +1,5 @@
 name: C2 Multi-Fund SEC N-PORT Cohort Acquisition
-# Trigger C2 validation for the dated Optimum portfolio-manager roster comparison (2026-11-23).
+# C2 validation: preserve the 2025 baseline and add a separate 2026 H1 replication window.
 
 on:
   workflow_dispatch:
@@ -27,6 +27,8 @@ on:
       - "research/C2_COHORT_FUND_FLAGS.json"
       - "research/C2_STRATEGY_EVIDENCE_REVIEW.md"
       - "research/OPTIMUM_SUBADVISER_ALLOCATIONS_2025.csv"
+      - "research/C2_COHORT_MANIFEST_2026_H1.csv"
+      - "research/C2_COHORT_FUND_FLAGS_2026_H1.json"
 
 permissions:
   contents: read
@@ -94,10 +96,47 @@ jobs:
             --out c2_nport_cohort \
             --end-date 2025-12-31
 
+      - name: Download and validate 16 frozen SEC N-PORT reports for 2026 H1
+        env:
+          SEC_CONTACT_EMAIL: ${{ secrets.SEC_CONTACT_EMAIL }}
+        run: |
+          timeout 15m python scripts/audit_c2_nport_cohort.py \
+            --manifest research/C2_COHORT_MANIFEST_2026_H1.csv \
+            --out c2_nport_cohort_2026_h1 \
+            --expected-dates 2026-03-31,2026-06-30
+
+      - name: Map 2026 H1 cohort securities with N-PORT tickers and OpenFIGI
+        env:
+          OPENFIGI_API_KEY: ${{ secrets.OPENFIGI_API_KEY }}
+        run: |
+          timeout 20m python scripts/map_c2_cohort_identifiers.py \
+            --input c2_nport_cohort_2026_h1 \
+            --out c2_nport_cohort_2026_h1 \
+            --start-date 2026-03-31
+
+      - name: Calculate 2026 H1 six-fund no-trade drift and Active Share decompositions
+        run: |
+          timeout 30m python scripts/build_c2_cohort_no_trade_drift.py \
+            --input c2_nport_cohort_2026_h1 \
+            --out c2_nport_cohort_2026_h1 \
+            --start-date 2026-03-31 \
+            --end-date 2026-06-30 \
+            --flags research/C2_COHORT_FUND_FLAGS_2026_H1.json
+
+      - name: Attribute 2026 H1 Active Share residual to individual securities
+        run: |
+          timeout 5m python scripts/build_c2_security_residual_attribution.py \
+            --input c2_nport_cohort_2026_h1 \
+            --out c2_nport_cohort_2026_h1 \
+            --start-date 2026-03-31 \
+            --end-date 2026-06-30
+
       - name: Upload C2 acquisition, mapping, drift, and security attribution artifact
         uses: actions/upload-artifact@v4
         with:
           name: c2-multifund-nport-cohort
-          path: c2_nport_cohort/**
+          path: |
+            c2_nport_cohort/**
+            c2_nport_cohort_2026_h1/**
           if-no-files-found: error
           retention-days: 30

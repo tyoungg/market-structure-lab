@@ -108,3 +108,10 @@ The cohort price pipeline treats a Yahoo symbol without an exchange suffix as a 
 `USD return = (1 + local return) × (JPY-per-USD at start / JPY-per-USD at end) − 1`.
 
 The FX endpoints must match the holdings transition dates. A security with a local price but missing FX endpoints is not counted as priced for the 95% gate. Unsupported Yahoo exchange suffixes fail closed and are not assumed to be USD. Local return, FX symbol, FX endpoint rates, quote currency, and conversion status are retained in the audit outputs. The current mapper emits only the Japanese `.T` local suffix in addition to USD listings; any expansion to other local markets requires an explicit currency and FX-pair rule plus tests before use.
+
+
+## 11. 2026 H1 replication window
+
+The next replication uses the same six funds and the same SPY/IWB ETF proxies, with frozen report dates **2026-03-31 and 2026-06-30**. The exact 16 filings are listed in C2_COHORT_MANIFEST_2026_H1.csv; the two endpoints are independently validated by repPdDate, CIK, series ID, and series name. SEC filing-index records show that the March endpoint was filed May 26–29, 2026 and the June endpoint August 24–28, 2026.
+
+This is a separate interval, not pooled with the 2025 September–December calculation. It uses a separate identifier map, price coverage calculation, no-trade baseline, and structural-flag register. The 2025 Optimum advisory-agreement/ownership transition, JPMorgan non-diversified status changes, and Oakmark fee-limit change all predate the 2026 H1 window and must not be described as within-window events. The same six-fund purposive-sample limitation remains. The 2026 H1 period is a replication of the measurement method, not a population-representative estimate.
