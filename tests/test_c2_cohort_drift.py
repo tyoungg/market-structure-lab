@@ -6,7 +6,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-from build_c2_cohort_no_trade_drift import coverage_gate_pass, portfolio
+from build_c2_cohort_no_trade_drift import coverage_gate_pass, flatten_strategy_flags, load_fund_strategy_flags, portfolio
 from build_c2_no_trade_drift_pilot import (
     active_share, decompose_active_share, drift_weights,
     local_return_to_usd, yahoo_quote_currency,
@@ -49,6 +49,30 @@ class C2CohortDriftTests(unittest.TestCase):
         self.assertTrue(coverage_gate_pass(0.95))
         self.assertTrue(coverage_gate_pass(0.951))
         self.assertFalse(coverage_gate_pass(0.949999))
+
+    def test_strategy_register_has_all_six_cohort_funds_and_structural_flags(self):
+        register_path = ROOT / "research" / "C2_COHORT_FUND_FLAGS.json"
+        register = load_fund_strategy_flags(register_path)
+        self.assertEqual(len(register), 6)
+        optimum = flatten_strategy_flags(register["Optimum Large Cap Growth Fund"])
+        self.assertTrue(optimum["manager_change_within_window"])
+        self.assertEqual(optimum["manager_change_effective_date"], "2025-12-01")
+        self.assertTrue(optimum["subadvisers_continued"])
+        self.assertFalse(optimum["subadviser_allocation_continuity_established"])
+        jpm_growth = flatten_strategy_flags(register["JPMorgan Large Cap Growth Fund"])
+        jpm_value = flatten_strategy_flags(register["JPMorgan Large Cap Value Fund"])
+        for flags in (jpm_growth, jpm_value):
+            self.assertTrue(flags["non_diversified_status"])
+            self.assertEqual(flags["non_diversified_effective_date"], "2025-03-05")
+            self.assertTrue(flags["non_diversified_change_pre_window"])
+        self.assertEqual(
+            flatten_strategy_flags(register["Fidelity Magellan Fund"])["strategy_classification"],
+            "Flexible growth/value",
+        )
+        self.assertEqual(
+            flatten_strategy_flags(register["Fidelity Contrafund"])["strategy_classification"],
+            "Flexible growth/value",
+        )
 
     def test_yahoo_quote_currency_is_explicit_for_japanese_listing(self):
         self.assertEqual(yahoo_quote_currency("6861.T"), "JPY")

@@ -58,6 +58,38 @@ def coverage_gate_pass(priced_weight_fraction: float, threshold: float = MIN_PRI
     return float(priced_weight_fraction) >= float(threshold)
 
 
+def load_fund_strategy_flags(path: Path) -> dict[str, dict]:
+    """Load the reviewed, versioned fund strategy/structural-change register."""
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if payload.get("schema_version") != 1 or not isinstance(payload.get("funds"), dict):
+        raise ValueError("Unsupported or malformed C2 fund strategy-flags register")
+    return payload["funds"]
+
+
+def flatten_strategy_flags(flags: dict) -> dict:
+    """Stable scalar columns for CSV outputs; preserve unknowns as empty values."""
+    return {
+        "strategy_classification": flags.get("strategy_classification", ""),
+        "strategy_group": flags.get("strategy_group", ""),
+        "strategy_flexibility_flag": bool(flags.get("strategy_flexibility_flag", False)),
+        "strategy_change_identified_in_review": bool(flags.get("strategy_change_identified_in_review", False)),
+        "strategy_change_review_status": flags.get("strategy_change_review_status", ""),
+        "manager_change_within_window": bool(flags.get("manager_change_within_window", False)),
+        "manager_change_effective_date": flags.get("manager_change_effective_date", ""),
+        "manager_change_from": flags.get("manager_change_from", ""),
+        "manager_change_to": flags.get("manager_change_to", ""),
+        "subadvisers_continued": flags.get("subadvisers_continued", ""),
+        "subadviser_allocation_continuity_established": flags.get("subadviser_allocation_continuity_established", ""),
+        "non_diversified_status": bool(flags.get("non_diversified_status", False)),
+        "non_diversified_effective_date": flags.get("non_diversified_effective_date", ""),
+        "non_diversified_change_pre_window": bool(flags.get("non_diversified_change_pre_window", False)),
+        "fee_limit_change_effective_date": flags.get("fee_limit_change_effective_date", ""),
+        "fee_change_is_strategy_change": flags.get("fee_change_is_strategy_change", ""),
+        "structural_change_flag_ids": "|".join(flags.get("structural_change_flag_ids", [])),
+        "strategy_evidence_review": "research/C2_STRATEGY_EVIDENCE_REVIEW.md",
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", default="c2_nport_cohort")
@@ -71,6 +103,8 @@ def main() -> None:
     holdings = pd.read_csv(source / "nport_cohort_common_equity.csv", dtype=str).fillna("")
     mapping = pd.read_csv(source / "c2_security_identifier_map.csv", dtype=str).fillna("")
     mapping_coverage = pd.read_csv(source / "c2_identifier_mapping_coverage_by_entity.csv", dtype=str).fillna("")
+    strategy_register_path = Path(__file__).resolve().parents[1] / "research" / "C2_COHORT_FUND_FLAGS.json"
+    strategy_register = load_fund_strategy_flags(strategy_register_path)
     required = {"security_id", "mapped_ticker", "mapping_status"}
     if not required.issubset(mapping.columns):
         raise ValueError(f"Mapping file missing columns: {sorted(required - set(mapping.columns))}")
@@ -139,6 +173,7 @@ def main() -> None:
                 "usd_conversion_status": price.get("usd_conversion_status", "not_required_usd_listing") if price else "",
                 "start_adj_close": price.get("start_adj_close", "") if price else "",
                 "end_adj_close": price.get("end_adj_close", "") if price else "",
+                **fund_flags_by_entity.get(entity, {}),
             })
         coverage = priced_weight
         returns_by_entity[entity] = returns
@@ -146,6 +181,7 @@ def main() -> None:
         mapping_coverage_fraction = mapping_coverage_by_entity.get(entity, 0.0)
         coverage_rows.append({
             "entity": entity, "role": roles[entity],
+            **fund_flags_by_entity.get(entity, {}),
             "ticker_mapping_coverage_pct_starting_equity": 100.0 * mapping_coverage_fraction,
             "mapping_coverage_gate_pass": coverage_gate_pass(mapping_coverage_fraction),
             "starting_unique_securities": int(len(frame)),
@@ -161,6 +197,16 @@ def main() -> None:
     coverage_by_entity = {x["entity"]: x for x in coverage_rows}
     fund_entities = [x for x in entities if roles[x] == "fund"]
     benchmark_entities = [x for x in entities if str(roles[x]).startswith("benchmark_")]
+    missing_strategy_flags = sorted(set(fund_entities) - set(strategy_register))
+    if missing_strategy_flags:
+        raise ValueError(f"Missing reviewed strategy flags for cohort funds: {missing_strategy_flags}")
+    fund_flags_by_entity = {
+        fund: flatten_strategy_flags(strategy_register[fund]) for fund in fund_entities
+    }
+    strategy_flag_rows = [
+        {"entity": fund, "role": "fund", **fund_flags_by_entity[fund]}
+        for fund in fund_entities
+    ]
     decompositions, sensitivity_rows, drift_rows = [], [], []
     for fund in fund_entities:
         f0, f1 = portfolios[(fund, args.start_date)], portfolios[(fund, args.end_date)]
@@ -182,6 +228,7 @@ def main() -> None:
                 "no_trade_end_weight_pct_equity": 100.0 * no_trade.get(sid, 0.0),
                 "actual_end_weight_pct_equity": 100.0 * actual_end.get(sid, 0.0),
                 "price_status": "priced" if sid not in unpriced_by_entity[fund] else "unpriced_zero_return_assumption",
+                **fund_flags_by_entity[fund],
             })
         for benchmark in benchmark_entities:
             b0, b1 = portfolios[(benchmark, args.start_date)], portfolios[(benchmark, args.end_date)]
@@ -198,6 +245,7 @@ def main() -> None:
                     f"{benchmark} ({roles[benchmark]} ETF proxy)",
                 )
                 result.update({"fund": fund, "benchmark_entity": benchmark, "calculation_status": "calculated",
+                               **fund_flags_by_entity[fund],
                                "fund_price_coverage_pct": coverage_by_entity[fund]["price_coverage_pct_starting_equity"],
                                "benchmark_price_coverage_pct": coverage_by_entity[benchmark]["price_coverage_pct_starting_equity"]})
                 decompositions.append(result)
@@ -213,6 +261,7 @@ def main() -> None:
                     "fund": fund, "benchmark_entity": benchmark,
                     "benchmark": f"{benchmark} ({roles[benchmark]} ETF proxy)",
                     "calculation_status": "withheld_price_coverage_below_95pct",
+                    **fund_flags_by_entity[fund],
                     "fund_price_coverage_pct": coverage_by_entity[fund]["price_coverage_pct_starting_equity"],
                     "benchmark_price_coverage_pct": coverage_by_entity[benchmark]["price_coverage_pct_starting_equity"],
                 })
@@ -226,6 +275,8 @@ def main() -> None:
         "study": "C.2 six-fund no-trade drift cohort",
         "start_date": args.start_date, "end_date": args.end_date,
         "funds": fund_entities, "benchmark_proxies": benchmark_entities,
+        "strategy_review": "research/C2_STRATEGY_EVIDENCE_REVIEW.md",
+        "fund_strategy_and_structural_flags": strategy_flag_rows,
         "price_source": "Yahoo Finance auto-adjusted close via yfinance",
         "return_currency": "USD",
         "quote_currency_policy": "No Yahoo suffix is treated as USD because the mapper selects U.S. composite/OTC USD listings; .T is JPY and converted with JPY=X quoted as JPY per USD; unknown suffixes are excluded from price coverage.",
@@ -250,6 +301,7 @@ def main() -> None:
             "reporting differences may contribute."
         ),
     }
+    write_csv(out / "c2_cohort_fund_strategy_flags.csv", strategy_flag_rows)
     write_csv(out / "c2_cohort_price_coverage_by_entity.csv", coverage_rows)
     write_csv(out / "c2_cohort_security_total_returns.csv", price_audit)
     write_csv(out / "c2_cohort_fx_conversion_audit.csv",
@@ -272,6 +324,28 @@ def main() -> None:
         lines.append(f"| {row['entity']} | {row['role']} | {row['ticker_mapping_coverage_pct_starting_equity']:.3f} | {row['price_coverage_pct_starting_equity']:.3f} | {'PASS' if row['mapping_coverage_gate_pass'] else 'FAIL'} | {'PASS' if row['price_gate_pass'] else 'FAIL'} | {row['unpriced_starting_equity_weight_pct']:.3f} |")
     lines += [
         "",
+        "## Fund strategy and structural-change flags",
+        "",
+        "Strategy classifications below follow the contemporaneous documentary review; they are descriptive groups, not Morningstar style boxes.",
+        "",
+        "| Fund | Strategy group | Manager change in window | Non-diversified effective | Other structural flags |",
+        "|---|---|---|---|---|",
+    ]
+    for flag in strategy_flag_rows:
+        other = flag["structural_change_flag_ids"] or "None identified in reviewed materials"
+        manager = flag["manager_change_effective_date"] or "No"
+        nondiv = flag["non_diversified_effective_date"] or "No"
+        lines.append(f"| {flag['entity']} | {flag['strategy_classification']} | {manager} | {nondiv} | {other} |")
+    lines += [
+        "",
+        "Optimum Large Cap Growth's manager changed from Delaware Management Company to Nomura Investment Management Business Trust effective 2025-12-01. American Century and Los Angeles Capital continued as sub-advisers under new agreements; unchanged allocations and day-to-day decisions are not established.",
+        "",
+        "Both JPMorgan funds became non-diversified effective 2025-03-05, before this September–December observation window.",
+        "",
+        "Oakmark's R6 expense-limitation reduction effective 2025-10-01 is a fee change, not an identified investment-strategy change.",
+        "",
+        "Fidelity Contrafund and Fidelity Magellan are classified as flexible growth/value, not conventional blend funds.",
+        "",
         "## Active Share decomposition",
         "",
         "| Fund | Benchmark ETF proxy | Status | AS start (%) | AS actual end (%) | Fund price drift (pp) | Benchmark weight change (pp) | Portfolio change beyond drift (pp) | Reconciliation error (pp) |",
@@ -285,6 +359,8 @@ def main() -> None:
     lines += [
         "",
         "## Interpretation limits",
+        "",
+        "The cohort is a purposive six-fund feasibility sample, not a representative active-fund sample. Strategy and structural-change flags are carried into the CSV and JSON outputs; downstream analyses should retain them and avoid treating the portfolio-change residual as a stable-manager trading measure.",
         "",
         "All portfolios are normalized to their reported common-equity sleeves. SPY and IWB are ETF holding proxies, not official S&P 500 or Russell 1000 constituent files. The portfolio-change residual is not a causal estimate of manager trading; it may reflect flows, corporate actions, cash or derivatives, and reporting differences. Unpriced start holdings remain in the baseline at zero return and are tested at -100%, 0%, and +100% where the fund/benchmark pair clears the price gate.",
     ]

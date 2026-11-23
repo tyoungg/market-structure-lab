@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "review_id": "C2_STRATEGY_EVIDENCE_REVIEW_2026-11-23",
+  "review_date": "2026-11-23",
+  "observation_window": {
+    "start_date": "2025-09-30",
+    "end_date": "2025-12-31"
+  },
+  "evidence_file": "research/C2_STRATEGY_EVIDENCE_REVIEW.md",
+  "classification_note": "Documentary strategy groups, not Morningstar style boxes or proof of realized portfolio exposures.",
+  "funds": {
+    "Optimum Large Cap Growth Fund": {
+      "strategy_classification": "Growth",
+      "strategy_group": "growth",
+      "strategy_flexibility_flag": false,
+      "strategy_change_identified_in_review": false,
+      "strategy_change_review_status": "No investment-objective change identified; manager/advisory structure changed within window.",
+      "manager_change_within_window": true,
+      "manager_change_effective_date": "2025-12-01",
+      "manager_change_from": "Delaware Management Company",
+      "manager_change_to": "Nomura Investment Management Business Trust",
+      "subadvisers_continued": true,
+      "subadviser_allocation_continuity_established": false,
+      "non_diversified_status": false,
+      "non_diversified_effective_date": "",
+      "non_diversified_change_pre_window": false,
+      "fee_limit_change_effective_date": "",
+      "fee_change_is_strategy_change": "",
+      "structural_change_flag_ids": [
+        "MANAGER_CHANGE_2025_12_01",
+        "SUBADVISERS_CONTINUED_ALLOCATION_UNVERIFIED"
+      ],
+      "notes": "American Century and Los Angeles Capital continued under new sub-advisory agreements; unchanged allocations and day-to-day decisions are not established."
+    },
+    "Fidelity Contrafund": {
+      "strategy_classification": "Flexible growth/value",
+      "strategy_group": "flexible_growth_value",
+      "strategy_flexibility_flag": true,
+      "strategy_change_identified_in_review": false,
+      "strategy_change_review_status": "No investment-strategy change identified in reviewed contemporaneous materials.",
+      "manager_change_within_window": false,
+      "manager_change_effective_date": "",
+      "manager_change_from": "",
+      "manager_change_to": "",
+      "subadvisers_continued": "",
+      "subadviser_allocation_continuity_established": "",
+      "non_diversified_status": false,
+      "non_diversified_effective_date": "",
+      "non_diversified_change_pre_window": false,
+      "fee_limit_change_effective_date": "",
+      "fee_change_is_strategy_change": "",
+      "structural_change_flag_ids": [],
+      "notes": "Prospectus permits growth, value, or both; do not classify as pure growth or conventional blend."
+    },
+    "JPMorgan Large Cap Growth Fund": {
+      "strategy_classification": "Growth",
+      "strategy_group": "growth",
+      "strategy_flexibility_flag": false,
+      "strategy_change_identified_in_review": false,
+      "strategy_change_review_status": "Non-diversified legal status changed before the observation window; growth mandate classification retained.",
+      "manager_change_within_window": false,
+      "manager_change_effective_date": "",
+      "manager_change_from": "",
+      "manager_change_to": "",
+      "subadvisers_continued": "",
+      "subadviser_allocation_continuity_established": "",
+      "non_diversified_status": true,
+      "non_diversified_effective_date": "2025-03-05",
+      "non_diversified_change_pre_window": true,
+      "fee_limit_change_effective_date": "",
+      "fee_change_is_strategy_change": "",
+      "structural_change_flag_ids": [
+        "NON_DIVERSIFIED_STATUS_2025_03_05"
+      ],
+      "notes": "Non-diversified status permits greater issuer concentration; both C.2 endpoints are after the effective date."
+    },
+    "JPMorgan Large Cap Value Fund": {
+      "strategy_classification": "Value",
+      "strategy_group": "value",
+      "strategy_flexibility_flag": false,
+      "strategy_change_identified_in_review": false,
+      "strategy_change_review_status": "Non-diversified legal status changed before the observation window; value mandate classification retained.",
+      "manager_change_within_window": false,
+      "manager_change_effective_date": "",
+      "manager_change_from": "",
+      "manager_change_to": "",
+      "subadvisers_continued": "",
+      "subadviser_allocation_continuity_established": "",
+      "non_diversified_status": true,
+      "non_diversified_effective_date": "2025-03-05",
+      "non_diversified_change_pre_window": true,
+      "fee_limit_change_effective_date": "",
+      "fee_change_is_strategy_change": "",
+      "structural_change_flag_ids": [
+        "NON_DIVERSIFIED_STATUS_2025_03_05"
+      ],
+      "notes": "Non-diversified status permits greater issuer concentration; both C.2 endpoints are after the effective date."
+    },
+    "Fidelity Magellan Fund": {
+      "strategy_classification": "Flexible growth/value",
+      "strategy_group": "flexible_growth_value",
+      "strategy_flexibility_flag": true,
+      "strategy_change_identified_in_review": false,
+      "strategy_change_review_status": "No investment-strategy change identified in reviewed contemporaneous materials.",
+      "manager_change_within_window": false,
+      "manager_change_effective_date": "",
+      "manager_change_from": "",
+      "manager_change_to": "",
+      "subadvisers_continued": "",
+      "subadviser_allocation_continuity_established": "",
+      "non_diversified_status": false,
+      "non_diversified_effective_date": "",
+      "non_diversified_change_pre_window": false,
+      "fee_limit_change_effective_date": "",
+      "fee_change_is_strategy_change": "",
+      "structural_change_flag_ids": [],
+      "notes": "Prospectus states adviser is not constrained by a particular style; do not label conventional blend."
+    },
+    "Oakmark Fund": {
+      "strategy_classification": "Value",
+      "strategy_group": "value",
+      "strategy_flexibility_flag": false,
+      "strategy_change_identified_in_review": false,
+      "strategy_change_review_status": "Fee-limit change identified; not an investment-strategy change.",
+      "manager_change_within_window": false,
+      "manager_change_effective_date": "",
+      "manager_change_from": "",
+      "manager_change_to": "",
+      "subadvisers_continued": "",
+      "subadviser_allocation_continuity_established": "",
+      "non_diversified_status": false,
+      "non_diversified_effective_date": "",
+      "non_diversified_change_pre_window": false,
+      "fee_limit_change_effective_date": "2025-10-01",
+      "fee_change_is_strategy_change": false,
+      "structural_change_flag_ids": [
+        "R6_EXPENSE_LIMIT_CHANGE_2025_10_01"
+      ],
+      "notes": "R6 expense-limitation reduction effective 2025-10-01 is a fee change, not an identified strategy change."
+    }
+  }
+}

@@ -3,7 +3,7 @@
 **Branch:** `RUSSEL_SP`  
 **Status:** Candidate cohort predeclared; SEC holdings acquisition audit pending  
 **Holdings dates:** 2025-06-30, 2025-09-30, and 2025-12-31  
-**Funds:** Six active-management candidates, provisionally grouped into growth, value, and blend buckets  
+**Funds:** Six active-management candidates, grouped by reviewed prospectus evidence into growth, value, and flexible growth/value  
 **Benchmarks:** SPY and IWB N-PORT holdings proxies
 
 ## 1. Purpose
@@ -17,13 +17,13 @@ This cohort is a **purposive feasibility sample**, not a random or representativ
 | Fund | SEC CIK | Series ID | Provisional style bucket | Selection rationale |
 |---|---|---|---|---|
 | Optimum Large Cap Growth Fund | 0001227523 | S000002422 | Growth | Existing C.1-linked pilot fund; large-cap growth mandate |
-| Fidelity Contrafund | 0000024238 | S000006037 | Growth | Large diversified active growth-oriented fund |
+| Fidelity Contrafund | 0000024238 | S000006037 | Flexible growth/value | Large diversified active growth-oriented fund |
 | JPMorgan Large Cap Growth Fund | 0000763852 | S000003856 | Growth | Explicit large-cap growth mandate |
 | JPMorgan Large Cap Value Fund | 0000763852 | S000003857 | Value | Explicit large-cap value mandate |
-| Fidelity Magellan Fund | 0000061397 | S000007112 | Blend | Diversified active capital-appreciation mandate |
+| Fidelity Magellan Fund | 0000061397 | S000007112 | Flexible growth/value | Diversified active capital-appreciation mandate |
 | Oakmark Fund | 0000872323 | S000002758 | Value | Active value-oriented large-company fund |
 
-The style buckets are manual research groupings based on stated fund objectives and strategy descriptions. They are not Morningstar style-box classifications and remain provisional until the strategy-evidence review is complete.
+The style buckets are manual research groupings based on contemporaneous prospectuses and strategy descriptions. They are not Morningstar style-box classifications. The documentary review is recorded in `C2_STRATEGY_EVIDENCE_REVIEW.md`; machine-readable flags are maintained in `C2_COHORT_FUND_FLAGS.json` and propagated into each cohort artifact.
 
 ## 3. Strategy evidence references
 
